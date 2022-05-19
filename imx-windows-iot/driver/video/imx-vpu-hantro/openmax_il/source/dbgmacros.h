@@ -38,7 +38,11 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#ifndef WIN32
 #include <unistd.h>
+#else
+#include <winstd.h>
+#endif
 #include <fcntl.h>
 
 #include <stdlib.h>
@@ -50,12 +54,14 @@
 #    define __USE_GNU
 #endif
 
+#ifndef WIN32
 #ifndef ANDROID
 #include <execinfo.h>
 #include <link.h>
 #endif
 #include <dlfcn.h>
 #include <elf.h>
+#endif
 
 /*****************
  ** DEBUG FLAGS **

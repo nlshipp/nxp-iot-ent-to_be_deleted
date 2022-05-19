@@ -57,7 +57,7 @@ usage() { echo "Usage: $0 [-b BOARD_1] [-b BOARD_2] [-t TARGET_1] .. [-c]"      
           echo "          [-t|-target_app] "                                      1>&2
           echo "            { all, u|uboot, optee, apps|tee_apps,"                1>&2
           echo "              uimg|uboot_image, tools|uefi_tools, uefi,"          1>&2
-          echo "              s|sign_images }"                                    1>&2
+          echo "              secured_efi|secured_uefi, s|sign_images }"          1>&2
           echo ""                                                                 1>&2
           echo "          [-fw|-fw_bin]"                                          1>&2
           echo "          [-c|-clean]"                                            1>&2
@@ -96,6 +96,7 @@ build_fw_monolith=0
 build_all_selected=0
 build_configuration=RELEASE
 build_uboot_with_uuu_support=1
+build_uefi_profile=DEV
 
 # 3. argument check
 # prints help if no arguments
@@ -159,6 +160,9 @@ do
                 ;;
             efi|uefi)
                 build_uefi=1
+                ;;
+            secured_efi|secured_uefi)
+                build_uefi_profile=SECURE
                 ;;
             s|sign_images)
                 build_sign_images=1
@@ -458,14 +462,17 @@ build_board () {
         pushd mu_platform_nxp || exit $?
         if [ $clean -eq 1 ]; then
             rm -rf Build
-            rm -rf Config
+            rm -rf Conf
+        else
+            # Incremental build fix: rm -f Build/"${uefi_folder}"/${build_configuration}_GCC5/FV/Ffs/4E09D4EF-743F-4589-B5EF-8AC493F9DBE2ArmPlatformPrePiUniCore/4E09D4EF-743F-4589-B5EF-8AC493F9DBE2.efi
+            rm -f Build/"${uefi_folder}"/${build_configuration}_GCC5/FV/Ffs/*ArmPlatformPrePiUniCore/*.efi
         fi
         export GCC5_AARCH64_PREFIX=$AARCH64_TOOLCHAIN_PATH
     
         python3 NXP/"${uefi_folder}"/PlatformBuild.py --setup || exit $?
         python3 NXP/"${uefi_folder}"/PlatformBuild.py --update || exit $?
         python3 NXP/"${uefi_folder}"/PlatformBuild.py -v TARGET=$build_configuration \
-        PROFILE=DEV MAX_CONCURRENT_THREAD_NUMBER=10 TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD" || exit $?
+        PROFILE=${build_uefi_profile} MAX_CONCURRENT_THREAD_NUMBER=10 TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD" || exit $?
 
         pushd Build/"${uefi_folder}"/${build_configuration}_GCC5/FV || exit $?
         cp ../../../../../imx-windows-iot/build/firmware/its/uefi_imx8_unsigned.its .                   && \

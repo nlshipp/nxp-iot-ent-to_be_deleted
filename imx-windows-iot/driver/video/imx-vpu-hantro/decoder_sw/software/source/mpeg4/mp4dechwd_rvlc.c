@@ -599,7 +599,6 @@ u32 RvlcTableSearch(DecContainer * dec_container, u32 input, u32 mb_number,
   u32 index;
   i32 level;
   u32 length;
-  u32 tmp = 0;
   u32 last_bit = 0;
   u32 sign = 0;
 
@@ -647,9 +646,7 @@ u32 RvlcTableSearch(DecContainer * dec_container, u32 input, u32 mb_number,
       return (ERROR);
     }
     *plen = length;
-    if(tmp == END_OF_STREAM) {
-      return (tmp);
-    }
+
     if(!sign) {
       return (rlc);
     } else {
@@ -682,9 +679,7 @@ u32 RvlcTableSearch(DecContainer * dec_container, u32 input, u32 mb_number,
     }
 
     *plen = length;
-    if(tmp == END_OF_STREAM) {
-      return (tmp);
-    }
+
     if(!sign) {
       return (rlc);
     } else {

@@ -340,6 +340,8 @@ const void *DWLInit(struct DWLInitParam *param) {
   unsigned int i;
 
   dwl_inst = (struct DWLInstance *)calloc(1, sizeof(struct DWLInstance));
+  if (dwl_inst == NULL)
+    return NULL;
   dwl_inst->reference_total = 0;
   dwl_inst->linear_total = 0;
 
@@ -382,6 +384,7 @@ const void *DWLInit(struct DWLInitParam *param) {
     break;
   default:
     printf("ERROR: DWL client type has to be always specified!\n");
+    free(dwl_inst);
     return NULL;
   }
 
@@ -402,8 +405,10 @@ const void *DWLInit(struct DWLInitParam *param) {
 
     g_hw_core_array = InitializeCoreArray();
     if (g_hw_core_array == NULL) {
+      pthread_attr_destroy(&attr);
       free(dwl_inst);
       dwl_inst = NULL;
+      return NULL;
     }
 
     listener_thread_params.n_dec_cores = GetCoreCount();
@@ -627,8 +632,10 @@ void DWLFreeRefFrm(const void *instance, struct DWLLinearMem *info) {
   }
 #else
   free(info->virtual_address);
-  info->size = 0;
 #endif /* ASIC_TRACE_SUPPORT */
+  info->virtual_address = NULL;
+  info->bus_address = 0;
+  info->size = 0;
 }
 
 /*------------------------------------------------------------------------------
@@ -689,6 +696,22 @@ void DWLFreeLinear(const void *instance, struct DWLLinearMem *info) {
          dwl_inst->linear_total, dwl_inst->linear_alloc_count, (void *)info->virtual_address);
   free(info->virtual_address);
   info->size = 0;
+  info->virtual_address = NULL;
+  info->bus_address = 0;
+}
+
+/*------------------------------------------------------------------------------
+    Function name   : DWLFlushCache
+    Description     : Flush the data in the cached buffer
+
+    Return type     : i32 - 0 for success or a negative error code
+
+    Argument        : const void * instance - DWL instance
+    Argument        : void *info - place cached buffer parameters
+------------------------------------------------------------------------------*/
+i32 DWLFlushCache(const void *instance, struct DWLLinearMem *info) {
+  // Do nothing for C-Model.
+  return DWL_OK;
 }
 
 /*------------------------------------------------------------------------------
@@ -705,6 +728,8 @@ void DWLWriteReg(const void *instance, i32 core_id, u32 offset, u32 value) {
   struct DWLInstance *dwl_inst = (struct DWLInstance *)instance;
   Core c = GetCoreById(dwl_inst->hw_core_array, core_id);
   u32 *core_reg_base = HwCoreGetBaseAddress(c);
+  if (core_reg_base == NULL)
+    return ;
 #ifndef DWL_DISABLE_REG_PRINTS
   DWL_DEBUG("core[%d] swreg[%d] at offset 0x%02X = %08X\n", core_id, offset / 4,
             offset, value);

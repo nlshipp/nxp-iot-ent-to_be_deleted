@@ -97,7 +97,7 @@ INCLUDE = -I. -I$(COMMON_SOURCE_DIR)/inc -I$(COMMON_SOURCE_DIR)/dwl \
 
 # compiler switches
 CFLAGS += -Wall -Wextra -std=c99 -pedantic -fPIC
-CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE)
+CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE) $(M32)
 CFLAGS += -DFIFO_DATATYPE=addr_t
 
 ifeq ($(ASIC_TRACE_SUPPORT), y)

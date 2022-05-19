@@ -87,6 +87,21 @@
 #define MPEG2_NUM_BUFFERS 3 /* number of output buffers for ext alloc */
 #define ASSERT(expr) assert(expr)
 
+#undef DEBUG_PRINT
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+
 /* Function prototypes */
 
 void printTimeCode(Mpeg2DecTime * timecode);
@@ -167,7 +182,7 @@ FILE *findex = NULL;
 u32 save_index = 0;
 u32 use_index = 0;
 off64_t cur_index = 0;
-off64_t next_index = 0;
+addr_t next_index = 0;
 u32 ds_ratio_x, ds_ratio_y;
 
 #if defined(ASIC_TRACE_SUPPORT) || defined(SYSTEM_VERIFICATION)
@@ -212,11 +227,12 @@ static void *AddBufferThread(void *arg) {
     pthread_mutex_lock(&ext_buffer_contro);
     if(add_extra_flag && num_buffers < MAX_BUFFERS) {
       struct DWLLinearMem mem;
+      mem.mem_type = DWL_MEM_TYPE_DPB;
       i32 dwl_ret;
       if (pp_enabled)
-        DWLMallocLinear(dwl_inst, buffer_size, &mem);
+        dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
       else
-        DWLMallocRefFrm(dwl_inst, buffer_size, &mem);
+        dwl_ret = DWLMallocRefFrm(dwl_inst, buffer_size, &mem);
       if(dwl_ret == DWL_OK) {
         Mpeg2DecRet rv = Mpeg2DecAddBuffer(decoder, &mem);
         if(rv != MPEG2DEC_OK && rv != MPEG2DEC_WAITING_FOR_BUFFER) {
@@ -237,10 +253,10 @@ static void *AddBufferThread(void *arg) {
 
 void ReleaseExtBuffers() {
   int i;
-  printf("Releasing %d external frame buffers\n", num_buffers);
+  PRINT(("Releasing %d external frame buffers\n", num_buffers));
   pthread_mutex_lock(&ext_buffer_contro);
   for(i=0; i<num_buffers; i++) {
-    printf("Freeing buffer %p\n", ext_buffers[i].virtual_address);
+    PRINT(("Freeing buffer %p\n", ext_buffers[i].virtual_address));
     if (pp_enabled)
       DWLFreeLinear(dwl_inst, &ext_buffers[i]);
     else
@@ -284,6 +300,7 @@ static void* buf_release_thread(void* arg) {
         pthread_mutex_lock(&ext_buffer_contro);
         if(add_extra_flag && num_buffers < MAX_BUFFERS) {
           struct DWLLinearMem mem;
+          mem.mem_type = DWL_MEM_TYPE_DPB;
           i32 dwl_ret;
           if (pp_enabled)
             dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -343,9 +360,9 @@ static void* mpeg2_output_thread(void* arg) {
         /* print result */
         decNextPictureRet(ret);
         /* printf info */
-        printf("PIC %d, %s", DecPic.pic_id,
+        DEBUG_PRINT(("PIC %d, %s", DecPic.pic_id,
                DecPic.key_picture ? "key picture,    " :
-               "non key picture,");
+               "non key picture,"));
 
         if(DecPic.field_picture) {
           /* pic coding type */
@@ -353,19 +370,19 @@ static void* mpeg2_output_thread(void* arg) {
             printMpeg2PicCodingType(DecPic.pic_coding_type[0]);
           else
             printMpeg2PicCodingType(DecPic.pic_coding_type[1]);
-          printf(" %s ", DecPic.top_field ?
-                 "top field.   " : "bottom field.");
+          DEBUG_PRINT((" %s ", DecPic.top_field ?
+                 "top field.   " : "bottom field."));
         } else {
           printMpeg2PicCodingType(DecPic.pic_coding_type[0]);
-          printf(" frame picture. ");
+          DEBUG_PRINT((" frame picture. "));
         }
 
         printTimeCode(&(DecPic.time_code));
         if(DecPic.number_of_err_mbs) {
-          printf(", %d/%d error mbs\n",
+          DEBUG_PRINT((", %d/%d error mbs\n",
                  DecPic.number_of_err_mbs,
                  (DecPic.frame_width >> 4) *
-                 (DecPic.frame_height >> 4));
+                 (DecPic.frame_height >> 4)));
           cumulative_error_mbs += DecPic.number_of_err_mbs;
         }
 
@@ -374,7 +391,7 @@ static void* mpeg2_output_thread(void* arg) {
 
         pic_size = DecPic.frame_width * DecPic.frame_height * 3 / 2;
 
-        printf("DecPic.first_field %d\n", DecPic.first_field);
+        DEBUG_PRINT(("DecPic.first_field %d\n", DecPic.first_field));
         WriteOutput(out_file_name, out_file_name_tiled, image_data,
                     pic_display_number - 1,
                     ((DecPic.frame_width + 15) & ~15),
@@ -502,6 +519,10 @@ int main(int argc, char **argv) {
     /* Check expiry date */
     time(&sys_time);
     tm = localtime(&sys_time);
+    if (tm == NULL) {
+      fprintf(stderr,"Get localtime failed!\n");
+      return -1;
+    }
     strftime(tm_buf, sizeof(tm_buf), "%y%m%d", tm);
     tmp1 = 1000000+atoi(tm_buf);
     if (tmp1 > (EXPIRY_DATE) && (EXPIRY_DATE) > 1 ) {
@@ -535,46 +556,50 @@ int main(int argc, char **argv) {
 #ifndef PP_PIPELINE_ENABLED
   if(argc < 2) {
 
-    printf("\n8170 MPEG-2 Decoder Testbench\n\n");
-    printf("USAGE:\n%s [options] stream.mpeg2\n", argv[0]);
-    printf("-Ooutfile write output to \"outfile\" (default out.yuv)\n");
-    printf("-Nn to decode only first n frames of the stream\n");
-    printf("-X to not to write output picture\n");
-    printf("-Bn to use n frame buffers in decoder\n");
-    printf("-E use tiled reference frame format.\n");
-    printf("-G convert tiled output pictures to raster scan\n");
-    printf("-Sfile.hex stream control trace file\n");
+    PRINT(("\n8170 MPEG-2 Decoder Testbench\n\n"));
+    PRINT(("USAGE:\n%s [options] stream.mpeg2\n", argv[0]));
+    PRINT(("-Ooutfile write output to \"outfile\" (default out.yuv)\n"));
+    PRINT(("-Nn to decode only first n frames of the stream\n"));
+    PRINT(("-X to not to write output picture\n"));
+    PRINT(("-Bn to use n frame buffers in decoder\n"));
+    PRINT(("-E use tiled reference frame format.\n"));
+    PRINT(("-G convert tiled output pictures to raster scan\n"));
+    PRINT(("-Sfile.hex stream control trace file\n"));
 #if defined(ASIC_TRACE_SUPPORT) || defined(SYSTEM_VERIFICATION)
-    printf("-R use reference decoder IDCT (sw/sw integration only)\n");
+    PRINT(("-R use reference decoder IDCT (sw/sw integration only)\n"));
 #endif
-    printf("-W whole stream mode - give stream to decoder in one chunk\n");
-    printf("-I save index file\n");
-    printf
-    ("-T write tiled output (out_tiled.yuv) by converting raster scan output\n");
-    printf("-Y Write output as Interlaced Fields (instead of Frames).\n");
-    printf
-    ("-C crop output picture to real picture dimensions (only planar)\n");
-    printf("-Q Skip decoding non-reference pictures.\n");
-    printf("-Z output pictures using Mpeg2DecPeek() function\n");
-    printf("--separate-fields-in-dpb DPB stores interlaced content"\
-           " as fields (default: frames)\n");
-    printf("--output-frame-dpb Convert output to frame mode even if"\
-           " field DPB mode used\n");
+    PRINT(("-W whole stream mode - give stream to decoder in one chunk\n"));
+    PRINT(("-I save index file\n"));
+    PRINT
+    (("-T write tiled output (out_tiled.yuv) by converting raster scan output\n"));
+    PRINT(("-Y Write output as Interlaced Fields (instead of Frames).\n"));
+    PRINT
+    (("-C crop output picture to real picture dimensions (only planar)\n"));
+    PRINT(("-Q Skip decoding non-reference pictures.\n"));
+    PRINT(("-Z output pictures using Mpeg2DecPeek() function\n"));
+    PRINT(("--separate-fields-in-dpb DPB stores interlaced content"\
+           " as fields (default: frames)\n"));
+    PRINT(("--output-frame-dpb Convert output to frame mode even if"\
+           " field DPB mode used\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    printf("-A add extra external buffer randomly\n");
+    PRINT(("-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    printf("-a add extra external buffer in ouput thread\n");
+    PRINT(("-a add extra external buffer in ouput thread\n"));
 #endif
 #endif
     printMpeg2Version();
     exit(100);
   }
 
-  remove("pp_out.yuv");
   max_num_frames = 0;
   for(i = 1; i < argc - 1; i++) {
     if(strncmp(argv[i], "-O", 2) == 0) {
-      strcpy(out_file_name, argv[i] + 2);
+      if (sizeof(out_file_name) - 1 < strlen(argv[i] + 2)) {
+        PRINT(("The output file name size overflows buffer size(256)!\n"));
+        return 1;
+      } else {
+        strcpy(out_file_name, argv[i] + 2);
+      }
     } else if(strncmp(argv[i], "-N", 2) == 0) {
       max_num_frames = atoi(argv[i] + 2);
     } else if (strncmp(argv[i], "-E", 2) == 0)
@@ -588,7 +613,7 @@ int main(int argc, char **argv) {
     } else if(strncmp(argv[i], "-X", 2) == 0) {
       write_output = 0;
     } else if(strncmp(argv[i], "-S", 2) == 0) {
-      f_stream_trace = fopen((argv[i] + 2), "r");
+      if (!f_stream_trace) f_stream_trace = fopen((argv[i] + 2), "r");
     } else if(strncmp(argv[i], "-P", 2) == 0) {
       planar_output = 1;
     } else if(strcmp(argv[i], "-Q") == 0) {
@@ -636,11 +661,11 @@ int main(int argc, char **argv) {
         ds_ratio_x = argv[i][2] - '0';
         ds_ratio_y = argv[i][4] - '0';
       } else {
-        printf("Illegal parameter: %s\n", argv[i]);
+        PRINT(("Illegal parameter: %s\n", argv[i]));
         return 1;
       }
     } else {
-      printf("UNKNOWN PARAMETER: %s\n", argv[i]);
+      PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
       return 1;
     }
   }
@@ -649,32 +674,31 @@ int main(int argc, char **argv) {
   /* open data file */
   f_in = fopen(argv[argc - 1], "rb");
   if(f_in == NULL) {
-    printf("Unable to open input file %s\n", argv[argc - 1]);
+    PRINT(("Unable to open input file %s\n", argv[argc - 1]));
     exit(100);
   }
 #else
   if(argc < 3) {
-    printf("\nMpeg-2 Decoder PP Pipelined Testbench\n\n");
-    printf("USAGE:\n%s [options] stream.mpeg2 pp.cfg\n", argv[0]);
-    printf("-Nn to decode only first n vops of the stream\n");
-    printf("-E use tiled reference frame format.\n");
-    printf("-Bn to use n frame buffers in decoder\n");
-    printf("-X to not to write output picture\n");
-    printf("-W whole stream mode - give stream to decoder in one chunk\n");
-    printf("-I save index file\n");
-    printf("-Q Skip decoding non-reference pictures.\n");
-    printf("--separate-fields-in-dpb DPB stores interlaced content"\
-           " as fields (default: frames)\n");
+    PRINT(("\nMpeg-2 Decoder PP Pipelined Testbench\n\n"));
+    PRINT(("USAGE:\n%s [options] stream.mpeg2 pp.cfg\n", argv[0]));
+    PRINT(("-Nn to decode only first n vops of the stream\n"));
+    PRINT(("-E use tiled reference frame format.\n"));
+    PRINT(("-Bn to use n frame buffers in decoder\n"));
+    PRINT(("-X to not to write output picture\n"));
+    PRINT(("-W whole stream mode - give stream to decoder in one chunk\n"));
+    PRINT(("-I save index file\n"));
+    PRINT(("-Q Skip decoding non-reference pictures.\n"));
+    PRINT(("--separate-fields-in-dpb DPB stores interlaced content"\
+           " as fields (default: frames)\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    printf("-A add extra external buffer randomly\n");
+    PRINT(("-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    printf("-a add extra external buffer in output thread\n");
+    PRINT(("-a add extra external buffer in output thread\n"));
 #endif
 #endif
     exit(100);
   }
 
-  remove("pp_out.yuv");
   max_num_frames = 0;
   /* read cmdl parameters */
   for(i = 1; i < argc - 2; i++) {
@@ -719,7 +743,7 @@ int main(int argc, char **argv) {
         ds_ratio_x = argv[i][2] - '0';
         ds_ratio_y = argv[i][4] - '0';
       } else {
-        printf("Illegal parameter: %s\n", argv[i]);
+        PRINT(("Illegal parameter: %s\n", argv[i]));
         return 1;
       }
     } else {
@@ -732,7 +756,7 @@ int main(int argc, char **argv) {
   /* open data file */
   f_in = fopen(argv[argc - 2], "rb");
   if(f_in == NULL) {
-    printf("Unable to open input file %s\n", argv[argc - 2]);
+    PRINT(("Unable to open input file %s\n", argv[argc - 2]));
     exit(100);
   }
 
@@ -750,7 +774,9 @@ int main(int argc, char **argv) {
   if(save_index) {
     findex = fopen("stream.cfg", "w");
     if(findex == NULL) {
-      printf("UNABLE TO OPEN INDEX FILE\n");
+      PRINT(("UNABLE TO OPEN INDEX FILE\n"));
+      if (f_in)
+        fclose(f_in);
       return -1;
     }
   } else {
@@ -764,8 +790,8 @@ int main(int argc, char **argv) {
   TBSetDefaultCfg(&tb_cfg);
   f_tbcfg = fopen("tb.cfg", "r");
   if(f_tbcfg == NULL) {
-    printf("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n");
-    printf("USING DEFAULT CONFIGURATION\n");
+    PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
+    PRINT(("USING DEFAULT CONFIGURATION\n"));
   } else {
     fclose(f_tbcfg);
     if(TBParseConfig("tb.cfg", TBReadParam, &tb_cfg) == TB_FALSE)
@@ -787,13 +813,13 @@ int main(int argc, char **argv) {
       printf("Decoder Output Picture Endian forced to %d\n",
              output_picture_endian);
   #endif*/
-  printf("Decoder Clock Gating %d\n", clock_gating);
-  printf("Decoder Data Discard %d\n", data_discard);
-  printf("Decoder Latency Compensation %d\n", latency_comp);
-  printf("Decoder Output Picture Endian %d\n", output_picture_endian);
-  printf("Decoder Bus Burst Length %d\n", bus_burst_length);
-  printf("Decoder Asic Service Priority %d\n", asic_service_priority);
-  printf("Decoder Output Format %d\n", output_format);
+  PRINT(("Decoder Clock Gating %d\n", clock_gating));
+  PRINT(("Decoder Data Discard %d\n", data_discard));
+  PRINT(("Decoder Latency Compensation %d\n", latency_comp));
+  PRINT(("Decoder Output Picture Endian %d\n", output_picture_endian));
+  PRINT(("Decoder Bus Burst Length %d\n", bus_burst_length));
+  PRINT(("Decoder Asic Service Priority %d\n", asic_service_priority));
+  PRINT(("Decoder Output Format %d\n", output_format));
 
   seed_rnd = tb_cfg.tb_params.seed_rnd;
   stream_header_corrupt = TBGetTBStreamHeaderCorrupt(&tb_cfg);
@@ -813,14 +839,14 @@ int main(int argc, char **argv) {
     stream_packet_loss = 0;
   }
   disable_resync = TBGetTBPacketByPacket(&tb_cfg);
-  printf("TB Slice by slice %d\n", disable_resync);
-  printf("TB Seed Rnd %d\n", seed_rnd);
-  printf("TB Stream Truncate %d\n", stream_truncate);
-  printf("TB Stream Header Corrupt %d\n", stream_header_corrupt);
-  printf("TB Stream Bit Swap %d; odds %s\n",
-         stream_bit_swap, tb_cfg.tb_params.stream_bit_swap);
-  printf("TB Stream Packet Loss %d; odds %s\n",
-         stream_packet_loss, tb_cfg.tb_params.stream_packet_loss);
+  DEBUG_PRINT(("TB Slice by slice %d\n", disable_resync));
+  DEBUG_PRINT(("TB Seed Rnd %d\n", seed_rnd));
+  DEBUG_PRINT(("TB Stream Truncate %d\n", stream_truncate));
+  DEBUG_PRINT(("TB Stream Header Corrupt %d\n", stream_header_corrupt));
+  DEBUG_PRINT(("TB Stream Bit Swap %d; odds %s\n",
+         stream_bit_swap, tb_cfg.tb_params.stream_bit_swap));
+  DEBUG_PRINT(("TB Stream Packet Loss %d; odds %s\n",
+         stream_packet_loss, tb_cfg.tb_params.stream_packet_loss));
 
   /* allocate memory for stream buffer. if unsuccessful -> exit */
   stream_mem.virtual_address = NULL;
@@ -834,25 +860,26 @@ int main(int argc, char **argv) {
   TBInitializeRandom(seed_rnd);
 
   /* check size of the input file -> length of the stream in bytes */
-  fseek(f_in, 0L, SEEK_END);
+  if (fseek(f_in, 0L, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   stream_size = (u32) ftell(f_in);
   rewind(f_in);
 
   /* sets the stream length to random value */
   if(stream_truncate && !disable_resync) {
-    printf("stream_size %d\n", stream_size);
+    PRINT(("stream_size %d\n", stream_size));
     ret = TBRandomizeU32(&stream_size);
     if(ret != 0) {
-      printf("RANDOM STREAM ERROR FAILED\n");
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       return -1;
     }
-    printf("Randomized stream_size %d\n", stream_size);
+    PRINT(("Randomized stream_size %d\n", stream_size));
   }
 
 #ifdef ASIC_TRACE_SUPPORT
   tmp = openTraceFiles();
   if(!tmp) {
-    printf("UNABLE TO OPEN TRACE FILES(S)\n");
+    PRINT(("UNABLE TO OPEN TRACE FILES(S)\n"));
   }
 #endif
 
@@ -901,7 +928,7 @@ int main(int argc, char **argv) {
 #endif
 
   if(ret != MPEG2DEC_OK) {
-    printf("Could not initialize decoder\n");
+    PRINT(("Could not initialize decoder\n"));
     goto end2;
   }
 
@@ -910,7 +937,7 @@ int main(int argc, char **argv) {
 
   if(DWLMallocLinear(((DecContainer *) decoder)->dwl,
                      STREAMBUFFER_BLOCKSIZE, &stream_mem) != DWL_OK) {
-    printf(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+    PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
     goto end2;
   }
 
@@ -926,7 +953,7 @@ int main(int argc, char **argv) {
   DecIn.stream_bus_address = stream_mem.bus_address;
 
   if(byte_strm_start == NULL) {
-    printf(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+    PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
     goto end2;
   }
 
@@ -977,15 +1004,16 @@ int main(int argc, char **argv) {
   DecIn.data_len = stream_len;
   DecOut.data_left = 0;
 
-  printf("Start decoding\n");
+  PRINT(("Start decoding\n"));
   do {
-    printf("DecIn.data_len %d\n", DecIn.data_len);
+    DEBUG_PRINT(("DecIn.data_len %d\n", DecIn.data_len));
     DecIn.pic_id = pic_id;
     if(ret != MPEG2DEC_STRM_PROCESSED &&
         ret != MPEG2DEC_BUF_EMPTY &&
         ret != MPEG2DEC_NO_DECODING_BUFFER &&
-        ret != MPEG2DEC_NONREF_PIC_SKIPPED )
-      printf("\nStarting to decode picture ID %d\n", pic_id);
+        ret != MPEG2DEC_NONREF_PIC_SKIPPED ) {
+      DEBUG_PRINT(("\nStarting to decode picture ID %d\n", pic_id));
+    }
 
     /* If enabled, break the stream */
     if(stream_bit_swap) {
@@ -997,12 +1025,12 @@ int main(int argc, char **argv) {
                                            tb_cfg.tb_params.
                                            stream_bit_swap);
           if(ret != 0) {
-            printf("RANDOM STREAM ERROR FAILED\n");
+            PRINT(("RANDOM STREAM ERROR FAILED\n"));
             goto end2;
           }
 
           corrupted_bytes = DecIn.data_len;
-          printf("corrupted_bytes %d\n", corrupted_bytes);
+          PRINT(("corrupted_bytes %d\n", corrupted_bytes));
         }
       }
     }
@@ -1043,8 +1071,9 @@ int main(int argc, char **argv) {
       outp_byte_size =
         (Decinfo.frame_width * Decinfo.frame_height * 3) >> 1;
 
-      if (Decinfo.interlaced_sequence)
-        printf("INTERLACED SEQUENCE\n");
+      if (Decinfo.interlaced_sequence) {
+        PRINT(("INTERLACED SEQUENCE\n"));
+      }
 #ifdef USE_EXTERNAL_BUFFER
       if(Decinfo.pic_buff_size != min_buffer_num ||
           (Decinfo.frame_width * Decinfo.frame_height > prev_width * prev_height)) {
@@ -1076,34 +1105,35 @@ int main(int argc, char **argv) {
 
       if(!frame_number) {
         /*disable_resync = 0; */
-        if(Decinfo.stream_format == MPEG2)
-          printf("MPEG-2 stream\n");
-        else
-          printf("MPEG-1 stream\n");
+        if(Decinfo.stream_format == MPEG2) {
+          PRINT(("MPEG-2 stream\n"));
+        } else {
+          PRINT(("MPEG-1 stream\n"));
+        }
 
-        printf("Profile and level %d\n",
-               Decinfo.profile_and_level_indication);
+        PRINT(("Profile and level %d\n",
+               Decinfo.profile_and_level_indication));
         switch (Decinfo.display_aspect_ratio) {
         case MPEG2DEC_1_1:
-          printf("Display Aspect ratio 1:1\n");
+          PRINT(("Display Aspect ratio 1:1\n"));
           break;
         case MPEG2DEC_4_3:
-          printf("Display Aspect ratio 4:3\n");
+          PRINT(("Display Aspect ratio 4:3\n"));
           break;
         case MPEG2DEC_16_9:
-          printf("Display Aspect ratio 16:9\n");
+          PRINT(("Display Aspect ratio 16:9\n"));
           break;
         case MPEG2DEC_2_21_1:
-          printf("Display Aspect ratio 2.21:1\n");
+          PRINT(("Display Aspect ratio 2.21:1\n"));
           break;
         }
-        printf("Output format %s\n",
+        PRINT(("Output format %s\n",
                Decinfo.output_format == MPEG2DEC_SEMIPLANAR_YUV420
                ? "MPEG2DEC_SEMIPLANAR_YUV420" :
-               "MPEG2DEC_TILED_YUV420");
+               "MPEG2DEC_TILED_YUV420"));
       }
 
-      printf("DecOut.data_left %d \n", DecOut.data_left);
+      DEBUG_PRINT(("DecOut.data_left %d \n", DecOut.data_left));
       if(DecOut.data_left) {
         corrupted_bytes -= (DecIn.data_len - DecOut.data_left);
         DecIn.data_len = DecOut.data_left;
@@ -1160,9 +1190,9 @@ int main(int argc, char **argv) {
 #ifdef USE_EXTERNAL_BUFFER
     case MPEG2DEC_WAITING_FOR_BUFFER:
       rv = Mpeg2DecGetBufferInfo(decoder, &hbuf);
-      printf("MREG2DecGetBufferInfo ret %d\n", rv);
-      printf("buf_to_free %p, next_buf_size %d, buf_num %d\n",
-             (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num);
+      PRINT(("MREG2DecGetBufferInfo ret %d\n", rv));
+      PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+             (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
       if (hbuf.buf_to_free.virtual_address != NULL && res_changed) {
         add_extra_flag = 0;
         ReleaseExtBuffers();
@@ -1182,7 +1212,7 @@ int main(int argc, char **argv) {
           else
             DWLMallocRefFrm(dwl_inst, hbuf.next_buf_size, &mem);
           rv = Mpeg2DecAddBuffer(decoder, &mem);
-          printf("Mpeg2DecAddBuffer ret %d\n", rv);
+          PRINT(("Mpeg2DecAddBuffer ret %d\n", rv));
           if(rv != MPEG2DEC_OK && rv != MPEG2DEC_WAITING_FOR_BUFFER) {
             if (pp_enabled)
               DWLFreeLinear(dwl_inst, &mem);
@@ -1243,9 +1273,9 @@ int main(int argc, char **argv) {
       if (use_peek_output &&
           Mpeg2DecPeek(decoder, &DecPic) == MPEG2DEC_PIC_RDY) {
         pic_display_number++;
-        printf("DECPIC %d, %s", DecPic.pic_id,
+        DEBUG_PRINT(("DECPIC %d, %s", DecPic.pic_id,
                DecPic.key_picture ? "key picture,    " :
-               "non key picture,");
+               "non key picture,"));
 
         /* pic coding type */
         printMpeg2PicCodingType(DecPic.pic_coding_type[0]);
@@ -1283,9 +1313,9 @@ int main(int argc, char **argv) {
 
           if(info_ret == MPEG2DEC_PIC_RDY) {
             /* printf info */
-            printf("PIC %d, %s", DecPic.pic_id,
+            DEBUG_PRINT(("PIC %d, %s", DecPic.pic_id,
                    DecPic.key_picture ? "key picture,    " :
-                   "non key picture,");
+                   "non key picture,"));
 
             if(DecPic.field_picture) {
               /* pic coding type */
@@ -1293,19 +1323,19 @@ int main(int argc, char **argv) {
                 printMpeg2PicCodingType(DecPic.pic_coding_type[0]);
               else
                 printMpeg2PicCodingType(DecPic.pic_coding_type[1]);
-              printf(" %s ", DecPic.top_field ?
-                     "top field.   " : "bottom field.");
+              DEBUG_PRINT((" %s ", DecPic.top_field ?
+                     "top field.   " : "bottom field."));
             } else {
               printMpeg2PicCodingType(DecPic.pic_coding_type[0]);
-              printf(" frame picture. ");
+              DEBUG_PRINT((" frame picture. "));
             }
 
             printTimeCode(&(DecPic.time_code));
             if(DecPic.number_of_err_mbs) {
-              printf(", %d/%d error mbs\n",
+              DEBUG_PRINT((", %d/%d error mbs\n",
                      DecPic.number_of_err_mbs,
                      (DecPic.frame_width >> 4) *
-                     (DecPic.frame_height >> 4));
+                     (DecPic.frame_height >> 4)));
               cumulative_error_mbs += DecPic.number_of_err_mbs;
             }
 
@@ -1315,7 +1345,7 @@ int main(int argc, char **argv) {
             pic_size = DecPic.frame_width * DecPic.frame_height * 3 / 2;
 
 #ifndef PP_PIPELINE_ENABLED
-            printf("DecPic.first_field %d\n", DecPic.first_field);
+            DEBUG_PRINT(("DecPic.first_field %d\n", DecPic.first_field));
             WriteOutput(out_file_name, out_file_name_tiled, image_data,
                         pic_display_number - 1,
                         ((Decinfo.frame_width + 15) & ~15),
@@ -1343,7 +1373,7 @@ int main(int argc, char **argv) {
         pthread_create(&add_buffer_thread, NULL, AddBufferThread, NULL);
       }
 #endif
-      printf("DecOut.data_left %d \n", DecOut.data_left);
+      DEBUG_PRINT(("DecOut.data_left %d \n", DecOut.data_left));
       if(DecOut.data_left) {
         corrupted_bytes -= (DecIn.data_len - DecOut.data_left);
         DecIn.data_len = DecOut.data_left;
@@ -1373,7 +1403,7 @@ int main(int argc, char **argv) {
       }
 
       if(max_num_frames && (frame_number >= max_num_frames)) {
-        printf("\n\nMax num of pictures reached\n\n");
+        PRINT(("\n\nMax num of pictures reached\n\n"));
         DecIn.data_len = 0;
         goto end2;
       }
@@ -1384,8 +1414,7 @@ int main(int argc, char **argv) {
     case MPEG2DEC_PIC_CONSUMED:
     case MPEG2DEC_BUF_EMPTY:
     case MPEG2DEC_NONREF_PIC_SKIPPED:
-      fprintf(stdout,
-              "TB: Frame Number: %u, pic: %d\n", vp_num++, frame_number);
+      DEBUG_PRINT(("TB: Frame Number: %u, pic: %d\n", vp_num++, frame_number));
     /* Used to indicate that picture decoding needs to
      * finalized prior to corrupting next picture */
 #ifdef GET_FREE_BUFFER_NON_BLOCK
@@ -1422,7 +1451,7 @@ int main(int argc, char **argv) {
        *   the function call.
        */
 
-      printf("DecOut.data_left %d \n", DecOut.data_left);
+      DEBUG_PRINT(("DecOut.data_left %d \n", DecOut.data_left));
       if(DecOut.data_left) {
         corrupted_bytes -= (DecIn.data_len - DecOut.data_left);
         DecIn.data_len = DecOut.data_left;
@@ -1454,14 +1483,14 @@ int main(int argc, char **argv) {
       break;
 
     case MPEG2DEC_PARAM_ERROR:
-      printf("INCORRECT STREAM PARAMS\n");
+      PRINT(("INCORRECT STREAM PARAMS\n"));
       goto end2;
       break;
 
     case MPEG2DEC_STRM_ERROR:
-      printf("STREAM ERROR\n");
+      PRINT(("STREAM ERROR\n"));
 
-      printf("DecOut.data_left %d \n", DecOut.data_left);
+      PRINT(("DecOut.data_left %d \n", DecOut.data_left));
       if(DecOut.data_left) {
         corrupted_bytes -= (DecIn.data_len - DecOut.data_left);
         DecIn.data_len = DecOut.data_left;
@@ -1572,19 +1601,20 @@ end2:
   END_SW_PERFORMANCE;
   decsw_performance();
 
-  if(Decinfo.frame_width < 1921)
-    printf("\nWidth %d Height %d\n", Decinfo.frame_width,
-           Decinfo.frame_height);
+  if(Decinfo.frame_width < 1921) {
+    PRINT(("\nWidth %d Height %d\n", Decinfo.frame_width,
+           Decinfo.frame_height));
+  }
   if(cumulative_error_mbs) {
-    printf("Cumulative errors: %d/%d macroblocks, ",
+    PRINT(("Cumulative errors: %d/%d macroblocks, ",
            cumulative_error_mbs,
            (Decinfo.frame_width >> 4) * (Decinfo.frame_height >> 4) *
-           frame_number);
+           frame_number));
   }
-  printf("decoded %d pictures\n", frame_number);
+  PRINT(("decoded %d pictures\n", frame_number));
 
-  if(f_in)
-    fclose(f_in);
+
+  fclose(f_in);
 
   if(fout)
     fclose(fout);
@@ -1600,7 +1630,8 @@ end2:
 #endif
 
   if(save_index || use_index) {
-    fclose(findex);
+    if (findex)
+      fclose(findex);
   }
 
   /* Calculate the output size and print it  */
@@ -1608,19 +1639,20 @@ end2:
   if(NULL == fout) {
     stream_len = 0;
   } else {
-    fseek(fout, 0L, SEEK_END);
+    if (fseek(fout, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     stream_len = (u32) ftell(fout);
     fclose(fout);
   }
 
 #ifndef PP_PIPELINE_ENABLED
-  printf("output size %d\n", stream_len);
+  PRINT(("output size %d\n", stream_len));
 #endif
 
   FINALIZE_SW_PERFORMANCE;
 
   if(cumulative_error_mbs || !frame_number) {
-    printf("ERRORS FOUND\n");
+    PRINT(("ERRORS FOUND\n"));
     return (1);
   } else
     return (0);
@@ -1641,7 +1673,7 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
   StartCode = 0;
 
   if(stop_decoding) {
-    printf("Truncated stream size reached -> stop decoding\n");
+    PRINT(("Truncated stream size reached -> stop decoding\n"));
     return 0;
   }
 
@@ -1652,7 +1684,7 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
     ret =
       TBRandomizePacketLoss(tb_cfg.tb_params.stream_packet_loss, &next_packet);
     if(ret != 0) {
-      printf("RANDOM STREAM ERROR FAILED\n");
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       return 0;
     }
   }
@@ -1661,7 +1693,7 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
     u32 amount = 0;
 
     /* get next index */
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
     ret = fscanf(findex, "%lu", &next_index);
 #else
     ret = fscanf(findex, "%llu", &next_index);
@@ -1669,6 +1701,10 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
     amount = next_index - cur_index;
 
     /* read data */
+    if (amount > DEC_X170_MAX_STREAM) {
+      PRINT(("FILE ERROR\n"));
+      return 0;
+    }
     idx = fread(frame_buffer, 1, amount, fp);
 
     VopStart = 1;
@@ -1763,7 +1799,7 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
       /* stop reading if truncated stream size is reached */
       if(stream_truncate && !disable_resync) {
         if(previous_used + idx >= stream_size) {
-          printf("Stream truncated at %d bytes\n", previous_used + idx);
+          PRINT(("Stream truncated at %d bytes\n", previous_used + idx));
           stop_decoding = 1;   /* next call return 0 size -> exit decoding main loop */
           break;
         }
@@ -1785,22 +1821,22 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
   /* If we skip this packet */
   if(pic_rdy && next_packet && ((hdrs_rdy && !stream_header_corrupt) || stream_header_corrupt)) {
     /* Get the next packet */
-    printf("Packet Loss\n");
+    DEBUG_PRINT(("Packet Loss\n"));
     return readDecodeUnit(fp, frame_buffer);
   } else {
     /*printf("READ DECODE UNIT %d\n", idx); */
-    printf("No Packet Loss\n");
+    DEBUG_PRINT(("No Packet Loss\n"));
     if (disable_resync && pic_rdy && stream_truncate
         && ((hdrs_rdy && !stream_header_corrupt) || stream_header_corrupt)) {
       i32 ret;
-      printf("Original packet size %d\n", idx);
+      PRINT(("Original packet size %d\n", idx));
       ret = TBRandomizeU32(&idx);
       if(ret != 0) {
-        printf("RANDOM STREAM ERROR FAILED\n");
+        PRINT(("RANDOM STREAM ERROR FAILED\n"));
         stop_decoding = 1;   /* next call return 0 size -> exit decoding main loop */
         return 0;
       }
-      printf("Randomized packet size %d\n", idx);
+      PRINT(("Randomized packet size %d\n", idx));
     }
     return (idx);
   }
@@ -1813,12 +1849,12 @@ static u32 readDecodeUnit(FILE * fp, u8 * frame_buffer) {
 
 void printTimeCode(Mpeg2DecTime * timecode) {
 
-  fprintf(stdout, "hours %u, "
+  DEBUG_PRINT(("hours %u, "
           "minutes %u, "
           "seconds %u, "
           "time_pictures %u \n",
           timecode->hours,
-          timecode->minutes, timecode->seconds, timecode->pictures);
+          timecode->minutes, timecode->seconds, timecode->pictures));
 }
 
 /*------------------------------------------------------------------------------
@@ -1828,68 +1864,86 @@ void printTimeCode(Mpeg2DecTime * timecode) {
 
 void decRet(Mpeg2DecRet ret) {
 
-  printf("Decode result: ");
-
   switch (ret) {
   case MPEG2DEC_OK:
-    printf("MPEG2DEC_OK\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_OK\n"));
     break;
   case MPEG2DEC_STRM_PROCESSED:
-    printf("MPEG2DEC_STRM_PROCESSED\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_STRM_PROCESSED\n"));
     break;
   case MPEG2DEC_BUF_EMPTY:
-    printf("MPEG2DEC_BUF_EMPTY\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_BUF_EMPTY\n"));
     break;
   case MPEG2DEC_NO_DECODING_BUFFER:
-    printf("MPEG2DEC_NO_DECODING_BUFFER\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_NO_DECODING_BUFFER\n"));
     break;
   case MPEG2DEC_NONREF_PIC_SKIPPED:
-    printf("MPEG2DEC_NONREF_PIC_SKIPPED\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_NONREF_PIC_SKIPPED\n"));
     break;
   case MPEG2DEC_PIC_RDY:
-    printf("MPEG2DEC_PIC_RDY\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_PIC_RDY\n"));
     break;
   case MPEG2DEC_HDRS_RDY:
-    printf("MPEG2DEC_HDRS_RDY\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_HDRS_RDY\n"));
     break;
   case MPEG2DEC_PIC_DECODED:
-    printf("MPEG2DEC_PIC_DECODED\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_PIC_DECODED\n"));
     break;
   case MPEG2DEC_PIC_CONSUMED:
-    printf("MPEG2DEC_PIC_CONSUMED\n");
+    DEBUG_PRINT(("Decode result: "));
+    DEBUG_PRINT(("MPEG2DEC_PIC_CONSUMED\n"));
     break;
   case MPEG2DEC_PARAM_ERROR:
-    printf("MPEG2DEC_PARAM_ERROR\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_PARAM_ERROR\n"));
     break;
   case MPEG2DEC_STRM_ERROR:
-    printf("MPEG2DEC_STRM_ERROR\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_STRM_ERROR\n"));
     break;
   case MPEG2DEC_NOT_INITIALIZED:
-    printf("MPEG2DEC_NOT_INITIALIZED\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_NOT_INITIALIZED\n"));
     break;
   case MPEG2DEC_MEMFAIL:
-    printf("MPEG2DEC_MEMFAIL\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_MEMFAIL\n"));
     break;
   case MPEG2DEC_DWL_ERROR:
-    printf("MPEG2DEC_DWL_ERROR\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_DWL_ERROR\n"));
     break;
   case MPEG2DEC_HW_BUS_ERROR:
-    printf("MPEG2DEC_HW_BUS_ERROR\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_HW_BUS_ERROR\n"));
     break;
   case MPEG2DEC_SYSTEM_ERROR:
-    printf("MPEG2DEC_SYSTEM_ERROR\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_SYSTEM_ERROR\n"));
     break;
   case MPEG2DEC_HW_TIMEOUT:
-    printf("MPEG2DEC_HW_TIMEOUT\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_HW_TIMEOUT\n"));
     break;
   case MPEG2DEC_HDRS_NOT_RDY:
-    printf("MPEG2DEC_HDRS_NOT_RDY\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_HDRS_NOT_RDY\n"));
     break;
   case MPEG2DEC_STREAM_NOT_SUPPORTED:
-    printf("MPEG2DEC_STREAM_NOT_SUPPORTED\n");
+    PRINT(("Decode result: "));
+    PRINT(("MPEG2DEC_STREAM_NOT_SUPPORTED\n"));
     break;
   default:
-    printf("Other %d\n", ret);
+    PRINT(("Decode result: "));
+    PRINT(("Other %d\n", ret));
     break;
   }
 }
@@ -1899,7 +1953,7 @@ void decRet(Mpeg2DecRet ret) {
         Description : Print out NextPicture return values
 ------------------------------------------------------------------------------*/
 void decNextPictureRet(Mpeg2DecRet ret) {
-  printf("next picture returns: ");
+  DEBUG_PRINT(("next picture returns: "));
 
   decRet(ret);
 }
@@ -1914,19 +1968,19 @@ void decNextPictureRet(Mpeg2DecRet ret) {
 void printMpeg2PicCodingType(u32 pic_type) {
   switch (pic_type) {
   case DEC_PIC_TYPE_I:
-    printf(" DEC_PIC_TYPE_I,");
+    DEBUG_PRINT((" DEC_PIC_TYPE_I,"));
     break;
   case DEC_PIC_TYPE_P:
-    printf(" DEC_PIC_TYPE_P,");
+    DEBUG_PRINT((" DEC_PIC_TYPE_P,"));
     break;
   case DEC_PIC_TYPE_B:
-    printf(" DEC_PIC_TYPE_B,");
+    DEBUG_PRINT((" DEC_PIC_TYPE_B,"));
     break;
   case DEC_PIC_TYPE_D:
-    printf(" DEC_PIC_TYPE_D,");
+    DEBUG_PRINT((" DEC_PIC_TYPE_D,"));
     break;
   default:
-    printf("Other %d\n", pic_type);
+    DEBUG_PRINT(("Other %d\n", pic_type));
     break;
   }
 }
@@ -1947,11 +2001,11 @@ void printMpeg2Version(void) {
    */
 
   dec_version = Mpeg2DecGetAPIVersion();
-  printf("\nApi version:  %d.%d, ", dec_version.major, dec_version.minor);
+  PRINT(("\nApi version:  %d.%d, ", dec_version.major, dec_version.minor));
 
   dec_build = Mpeg2DecGetBuild();
-  printf("sw build nbr: %d, hw build nbr: %x\n\n",
-         dec_build.sw_build, dec_build.hw_build);
+  PRINT(("sw build nbr: %d, hw build nbr: %x\n\n",
+         dec_build.sw_build, dec_build.hw_build));
 
 }
 
@@ -1979,7 +2033,7 @@ i32 AllocatePicBuffers(Mpeg2DecLinearMem * buffer, DecContainer * container) {
   if(DWLMallocRefFrm(((DecContainer *) container)->dwl,
                      offset * MPEG2_NUM_BUFFERS,
                      (struct DWLLinearMem *) buffer) != DWL_OK) {
-    printf(("UNABLE TO ALLOCATE OUTPUT BUFFER MEMORY\n"));
+    PRINT(("UNABLE TO ALLOCATE OUTPUT BUFFER MEMORY\n"));
     return 1;
   }
 
@@ -1990,8 +2044,8 @@ i32 AllocatePicBuffers(Mpeg2DecLinearMem * buffer, DecContainer * container) {
   buffer[2].bus_address = buffer[1].bus_address + offset;
 
   for(i = 0; i < MPEG2_NUM_BUFFERS; i++) {
-    printf("buff %d vir %p bus %lx\n", i,
-           buffer[i].virtual_address, buffer[i].bus_address);
+    PRINT(("buff %d vir %p bus %lx\n", i,
+           buffer[i].virtual_address, buffer[i].bus_address));
   }
 
 #endif
@@ -2067,7 +2121,7 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data,
     if(strcmp(filename, "none") != 0) {
       fout = fopen(filename, "wb");
       if(fout == NULL) {
-        printf("UNABLE TO OPEN OUTPUT FILE\n");
+        PRINT(("UNABLE TO OPEN OUTPUT FILE\n"));
         if(raster_scan)
           free(raster_scan);
         return;
@@ -2135,8 +2189,11 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data,
 #endif
       /*printf("first_field %d\n");*/
 
-      if(interlaced && !interlaced_field && first_field)
+      if(interlaced && !interlaced_field && first_field) {
+        if(raster_scan)
+          free(raster_scan);
         return;
+      }
 
       /*
        * printf("PIC %d, %s", DecPicture.pic_id,
@@ -2152,7 +2209,7 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data,
 
       if((DecPicture.field_picture && !first_field) ||
           !DecPicture.field_picture) {
-        printf("Output picture %d\n", frame_id);
+        DEBUG_PRINT(("Output picture %d\n", frame_id));
         /* Decoder without pp does not write out fields but a
          * frame containing both fields */
         /* PP output is written field by field */
@@ -2161,7 +2218,7 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data,
         if(output_picture_endian == DEC_X170_BIG_ENDIAN) {
           pic_copy = (u8 *) malloc(pic_size);
           if(NULL == pic_copy) {
-            printf("MALLOC FAILED @ %s %d", __FILE__, __LINE__);
+            PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
             if(raster_scan)
               free(raster_scan);
             return;
@@ -2276,11 +2333,11 @@ void WriteOutputLittleEndian(u8 * data, u32 pic_size) {
   for(i = 0; i < chunks; ++i) {
     word = data[0];
     word <<= 8;
-    word |= data[1];
+    word |= (u32) data[1];
     word <<= 8;
-    word |= data[2];
+    word |= (u32) data[2];
     word <<= 8;
-    word |= data[3];
+    word |= (u32) data[3];
     fwrite(&word, 4, 1, fout);
     data += 4;
   }
@@ -2294,15 +2351,15 @@ void WriteOutputLittleEndian(u8 * data, u32 pic_size) {
   } else if(pic_size % 4 == 2) {
     word = data[0];
     word <<= 8;
-    word |= data[1];
+    word |= (u32) data[1];
     word <<= 16;
     fwrite(&word, 2, 1, fout);
   } else if(pic_size % 4 == 3) {
     word = data[0];
     word <<= 8;
-    word |= data[1];
+    word |= (u32) data[1];
     word <<= 8;
-    word |= data[2];
+    word |= (u32) data[2];
     word <<= 8;
     fwrite(&word, 3, 1, fout);
   }

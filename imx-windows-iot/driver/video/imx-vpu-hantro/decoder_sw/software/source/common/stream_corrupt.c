@@ -36,6 +36,7 @@
 
 #include "stream_corrupt.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <math.h>
@@ -112,10 +113,10 @@ a
 ------------------------------------------------------------------------------*/
 
 u32 RandomizeBitSwapInStream(u8* stream, u32 stream_len, char* odds) {
-  u32 dividend;
-  u32 divisor;
-  u32 ret_val;
-  u32 chunks;
+  u32 dividend = 0;
+  u32 divisor = 0;
+  u32 ret_val = 0;
+  u32 chunks = 0;
   u32 i = 0;
   u32 j = 0;
   u32 k = 0;
@@ -252,12 +253,18 @@ u32 RandomizeU32(u32* value) {
 
 u32 ParseOdds(char* odds, u32* dividend, u32* divisor) {
   u32 i;
-  char odds_copy[23];
+  char odds_copy[24];
   char* ptr;
   u32 str_len = (u32)strlen(odds);
 
+  if(sizeof(odds_copy) - 1 < strlen(odds)) {
+    fprintf(stderr, "The parameter odds size overflows buffer size in file %s at line # %d\n",
+        __FILE__, __LINE__-1);
+    return 1;
+  } else {
 #pragma warning(suppress : 4996)
-  strcpy(odds_copy, odds);
+    strcpy(odds_copy, odds);
+  }
   ptr = odds_copy;
 
   /* minimum is "1 : 1" */
@@ -270,8 +277,12 @@ u32 ParseOdds(char* odds, u32* dividend, u32* divisor) {
         odds_copy[i + 2] == ' ') {
       odds_copy[i] = '\0';
       *dividend = atoi(ptr);
+      if (*dividend > 0xFFFFFFFF)
+        return 1;
       ptr += 3 + i;
       *divisor = atoi(ptr);
+      if (*divisor > 0xFFFFFFFF)
+        return 1;
       ptr -= 3 - i;
       if (*divisor == 0) return 1;
       return 0;

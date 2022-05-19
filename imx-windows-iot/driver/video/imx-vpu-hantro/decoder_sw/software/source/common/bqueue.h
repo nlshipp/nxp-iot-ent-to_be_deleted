@@ -73,6 +73,7 @@ void BqueueSetAbort(struct BufferQueue *bq);
 void BqueueClearAbort(struct BufferQueue *bq);
 #ifdef USE_EXTERNAL_BUFFER
 void BqueueEmpty(struct BufferQueue *bq);
+void BqueueRemove(struct BufferQueue *bq);
 #endif
 #endif
 

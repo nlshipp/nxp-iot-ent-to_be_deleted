@@ -426,7 +426,7 @@ u32 DecodeCoeffToken(u32 bits, u32 nc) {
 
   /* Variables */
 
-  u32 value;
+  u32 value = 0;
 
   /* Code */
 
@@ -455,15 +455,27 @@ u32 DecodeCoeffToken(u32 bits, u32 nc) {
     else
       value = coeff_token2_2[bits >> 2];
   } else if(nc < 8) {
+    if (bits >= 0x10000)
+      return value;
     value = coeff_token4_0[bits >> 10];
-    if(!value)
+    if(!value) {
+      if (bits >= 0x2000)
+        return value;
       value = coeff_token4_1[bits >> 6];
+    }
   } else if(nc <= 16) {
+    if (bits >= 0x10000)
+      return value;
     value = coeff_token8[bits >> 10];
   } else {
+    if (bits >= 0x10000)
+      return value;
     value = coeff_token_minus1_0[bits >> 13];
-    if(!value)
+    if(!value) {
+      if (bits >= 0x2000)
+        return value;
       value = coeff_token_minus1_1[bits >> 8];
+    }
   }
 
   return (value);
@@ -564,60 +576,91 @@ u32 DecodeTotalZeros(u32 bits, u32 total_coeff, u32 is_chroma_dc) {
     ASSERT(total_coeff < 16);
     switch (total_coeff) {
     case 1:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_1_0[bits >> 4];
-      if(!value)
+      if(!value) {
+        if (bits >= 32)
+          return value;
         value = total_zeros_1_1[bits];
+      }
       break;
 
     case 2:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_2[bits >> 3];
       break;
 
     case 3:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_3[bits >> 3];
       break;
 
     case 4:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_4[bits >> 4];
       break;
 
     case 5:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_5[bits >> 4];
       break;
 
     case 6:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_6[bits >> 3];
       break;
 
     case 7:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_7[bits >> 3];
       break;
 
     case 8:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_8[bits >> 3];
       break;
 
     case 9:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_9[bits >> 3];
       break;
 
     case 10:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_10[bits >> 4];
       break;
 
     case 11:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_11[bits >> 5];
       break;
 
     case 12:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_12[bits >> 5];
       break;
 
     case 13:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_13[bits >> 6];
       break;
 
     case 14:
+      if (bits >= 0x200)
+        return value;
       value = total_zeros_14[bits >> 7];
       break;
 
@@ -674,26 +717,38 @@ u32 DecodeRunBefore(u32 bits, u32 zeros_left) {
 
   switch (zeros_left) {
   case 1:
+    if (bits >= 0x800)
+      return value;
     value = run_before_1[bits >> 10];
     break;
 
   case 2:
+    if (bits >= 0x800)
+      return value;
     value = run_before_2[bits >> 9];
     break;
 
   case 3:
+    if (bits >= 0x800)
+      return value;
     value = run_before_3[bits >> 9];
     break;
 
   case 4:
+    if (bits >= 0x800)
+      return value;
     value = run_before_4[bits >> 8];
     break;
 
   case 5:
+    if (bits >= 0x800)
+      return value;
     value = run_before_5[bits >> 8];
     break;
 
   case 6:
+    if (bits >= 0x800)
+      return value;
     value = run_before_6[bits >> 8];
     break;
 

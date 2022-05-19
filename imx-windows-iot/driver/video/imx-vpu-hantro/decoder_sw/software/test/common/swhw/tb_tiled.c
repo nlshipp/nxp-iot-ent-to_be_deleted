@@ -63,6 +63,7 @@ void TbWriteTiledOutput(FILE *file, u8 *data, u32 mb_width, u32 mb_height,
   tiled_yuv = (u8 *)malloc((width * height * 3) / 2);
 
   if (file == NULL) {
+    free(tiled_yuv);
     return;
   }
 

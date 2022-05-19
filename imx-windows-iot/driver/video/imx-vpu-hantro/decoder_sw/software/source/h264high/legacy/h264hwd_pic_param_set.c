@@ -349,9 +349,11 @@ u32 h264bsdDecodePicParamSet(strmData_t *p_strm_data, picParamSet_t *p_pic_param
       return(tmp);
     if ((itmp < -12) || (itmp > 12)) {
       ERROR_PRINT("second_chroma_qp_index_offset");
-      return(HANTRO_NOK);
-    }
-    p_pic_param_set->chroma_qp_index_offset2 = itmp;
+      /* ignore this error, use chroma_qp_index_offset instead */
+      p_pic_param_set->transform8x8_flag = 0;
+      p_pic_param_set->chroma_qp_index_offset2 = p_pic_param_set->chroma_qp_index_offset;
+    } else
+      p_pic_param_set->chroma_qp_index_offset2 = itmp;
   } else {
     p_pic_param_set->scaling_matrix_present_flag = 0;
     p_pic_param_set->transform8x8_flag = 0;

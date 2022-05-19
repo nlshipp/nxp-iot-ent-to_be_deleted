@@ -74,6 +74,12 @@ typedef struct
     u32 timeOffsetLength;
     u32 bitRate;
     u32 cpbSize;
+    u32 vuiVideoSignalTypePresentFlag;
+    u32 vuiVideoFormat;
+    u32 vuiColorDescripPresentFlag;
+    u32 vuiColorPrimaries;
+    u32 vuiTransferCharacteristics;
+    u32 vuiMatrixCoefficients;
 } vui_t;
 
 typedef struct
@@ -102,6 +108,7 @@ typedef struct
     u32 frameCropRightOffset;
     u32 frameCropTopOffset;
     u32 frameCropBottomOffset;
+    u32 vui_parameters_present_flag;
 } sps_s;
 
 extern const u32 H264LevelIdc[];

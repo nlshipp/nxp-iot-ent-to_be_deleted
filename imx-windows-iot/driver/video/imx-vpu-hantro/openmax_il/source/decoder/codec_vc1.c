@@ -508,6 +508,13 @@ static CODEC_STATE decoder_getinfo_vc1(CODEC_PROTOTYPE * arg, STREAM_INFO * pkg)
 
     CODEC_VC1 *this = (CODEC_VC1 *) arg;
 
+    if (this == NULL || this->instance == NULL)
+    {
+        DBGT_CRITICAL("CODEC_ERROR_UNSPECIFIED");
+        DBGT_EPILOG("");
+        return CODEC_ERROR_UNSPECIFIED;
+    }
+
     DBGT_ASSERT(this != 0);
     DBGT_ASSERT(this->instance != 0);
     DBGT_ASSERT(pkg);
@@ -647,6 +654,13 @@ static CODEC_STATE decoder_getframe_vc1(CODEC_PROTOTYPE * arg, FRAME * frame,
     DBGT_PROLOG("");
 
     CODEC_VC1 *this = (CODEC_VC1 *) arg;
+
+    if (this == NULL)
+    {
+        DBGT_CRITICAL("CODEC_ERROR_UNSPECIFIED");
+        DBGT_EPILOG("");
+        return CODEC_ERROR_UNSPECIFIED;
+    }
 
     DBGT_ASSERT(this != 0);
 
@@ -1014,6 +1028,12 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_vc1(const void *DWLInstance,
     DBGT_PROLOG("");
 
     CODEC_VC1 *this = OSAL_Malloc(sizeof(CODEC_VC1));
+    if (this == NULL)
+    {
+        DBGT_EPILOG("");
+        return NULL;
+    }
+
     VC1DecApiVersion decApi;
     VC1DecBuild decBuild;
 #ifdef ENABLE_PP
@@ -1079,7 +1099,10 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_vc1(const void *DWLInstance,
 #endif
 
     if (OSAL_EventCreate(&this->inst_create_event) != OMX_ErrorNone)
+    {
+        OSAL_Free(this);
         return NULL;
+    }
 
     DBGT_EPILOG("");
 
@@ -1117,7 +1140,7 @@ CODEC_STATE decoder_setframebuffer_vc1(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX_
     UNUSED_PARAMETER(available_buffers);
     CODEC_VC1 *this = (CODEC_VC1 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     VC1DecBufferInfo info;
     VC1DecRet ret;
 

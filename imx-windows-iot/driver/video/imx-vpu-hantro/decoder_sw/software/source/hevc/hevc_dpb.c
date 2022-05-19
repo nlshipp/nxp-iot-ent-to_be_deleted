@@ -46,8 +46,8 @@
 
 /* Function style implementation for IS_REFERENCE() macro to fix compiler
  * warnings */
-static u32 IsReference(const struct DpbPicture a) {
-  return (a.status && a.status != EMPTY);
+static u32 IsReference(const struct DpbPicture* a) {
+  return (a->status && a->status != EMPTY);
 }
 
 static u32 IsExisting(const struct DpbPicture *a) {
@@ -160,17 +160,18 @@ void *HevcAllocateDpbImage(struct DpbStorage *dpb, i32 pic_order_cnt,
 
   /* find first unused and not-to-be-displayed pic */
   for (i = 0; i <= dpb->dpb_size; i++) {
-    if (!dpb->buffer[i].to_be_displayed && !IS_REFERENCE(dpb->buffer[i])) break;
+    if (!dpb->buffer[i].to_be_displayed && !IS_REFERENCE(&dpb->buffer[i])) break;
   }
 
+
 #ifdef GET_FREE_BUFFER_NON_BLOCK
-  if (i >= MIN(dpb->dpb_size, dpb->tot_buffers))
+  if (i > MIN(dpb->dpb_size, dpb->tot_buffers))
     return NULL;
 #endif
 
   /* Though i should NOT exceed dpb_size, in some error streams it does happen.
    * As a workaround, we set it to 0. */
-  if (i == dpb->dpb_size)
+  if (i > dpb->dpb_size)
     i = 0;
 
   ASSERT(i <= dpb->dpb_size);
@@ -196,7 +197,7 @@ void *HevcAllocateDpbImage(struct DpbStorage *dpb, i32 pic_order_cnt,
 #ifdef USE_EXTERNAL_BUFFER
       if (storage->raster_buffer_mgr) {
         if (dpb->current_out->pp_data != NULL) {
-          RbmReturnPpBuffer(storage->raster_buffer_mgr, dpb->current_out->pp_data->virtual_address);
+          RbmReturnPpBuffer(storage->raster_buffer_mgr, dpb->current_out->pp_data->bus_address);
         }
       }
       return NULL;
@@ -206,6 +207,9 @@ void *HevcAllocateDpbImage(struct DpbStorage *dpb, i32 pic_order_cnt,
     if (new_id != dpb->current_out->mem_idx) {
       SetFreePicBuffer(dpb->fb_list, dpb->current_out->mem_idx);
       dpb->current_out->mem_idx = new_id;
+      ASSERT(new_id < MAX_FRAME_BUFFER_NUMBER);
+      if (new_id >= MAX_FRAME_BUFFER_NUMBER)
+        return NULL;
       dpb->current_out->data = GetDataById(dpb->fb_list, new_id);
     }
   }
@@ -316,12 +320,14 @@ u32 HevcInitDpb(const void *dwl, struct DpbStorage *dpb,
       dpb->pic_buff_id[i] = id;
     }
 
+#ifdef CLEAR_OUT_BUFFER
     if (dpb->pic_buffers[i].virtual_address != NULL)
     {
       void *base =
         (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
       (void)DWLmemset(base, 0, dpb_params->buff_size - dpb->dir_mv_offset);
     }
+#endif
   }
 
 
@@ -385,7 +391,7 @@ u32 HevcReInitDpb(const void *dec_inst, struct DpbStorage *dpb,
     for (i = old_dpb_size + 1; i < dpb->dpb_size + 1; i++) {
       /* Find a unused buffer j. */
       u32 j, id;
-      for (j = 0; j < MAX_FRAME_BUFFER_NUMBER; j++) {
+      for (j = 0; j < MAX_FRAME_BUFFER_NUMBER;) {
         u32 found = 0;
         for (u32 k = 0; k < i; k++) {
           if (dpb->pic_buffers[j].bus_address == dpb->buffer[k].data->bus_address) {
@@ -395,8 +401,13 @@ u32 HevcReInitDpb(const void *dec_inst, struct DpbStorage *dpb,
         }
         if (!found)
           break;
+        if(++j >= MAX_FRAME_BUFFER_NUMBER)
+          break;
       }
       ASSERT(j < MAX_FRAME_BUFFER_NUMBER);
+      /* if not found, j should be MAX_FRAME_BUFFER_NUMBER - 1 */
+      if (j >= MAX_FRAME_BUFFER_NUMBER)
+        j = MAX_FRAME_BUFFER_NUMBER - 1;
       dpb->buffer[i].data = dpb->pic_buffers + j;
       id = GetIdByData(fb_list, (void *)dpb->buffer[i].data);
       MarkIdAllocated(fb_list, id);
@@ -482,7 +493,7 @@ u32 HevcInitDpb(const void *dec_inst, struct DpbStorage *dpb,
     for (i = 0; i < dpb->tot_buffers; i++) {
       /* yuv picture + direct mode motion vectors */
       /* TODO(min): request external buffers. */
-      if (dpb->pic_buffers[i].virtual_address == NULL) {
+      if (dpb->pic_buffers[i].bus_address == 0) {
         dec_cont->next_buf_size = dpb_params->buff_size;
         dec_cont->buf_to_free = NULL;
         dec_cont->buf_type = REFERENCE_BUFFER;
@@ -501,7 +512,7 @@ u32 HevcInitDpb(const void *dec_inst, struct DpbStorage *dpb,
       if (DWLMallocRefFrm(dec_cont->dwl, dpb_params->buff_size, dpb->pic_buffers + i) != 0)
         return (MEMORY_ALLOCATION_ERROR);
 
-      if (i < dpb->dpb_size + 1) {
+      if (i < dpb->dpb_size + 1 && (i < (MAX_DPB_SIZE + 1))) {
         u32 id = AllocateIdUsed(dpb->fb_list, dpb->pic_buffers + i);
         if (id == FB_NOT_VALID_ID) return MEMORY_ALLOCATION_ERROR;
 
@@ -515,12 +526,14 @@ u32 HevcInitDpb(const void *dec_inst, struct DpbStorage *dpb,
         dpb->pic_buff_id[i] = id;
       }
 
+#ifdef CLEAR_OUT_BUFFER
       if (dpb->pic_buffers[i].virtual_address != NULL)
       {
         void *base =
           (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
         (void)DWLmemset(base, 0, dpb_params->buff_size - dpb->dir_mv_offset);
       }
+#endif
     }
   }
 
@@ -675,21 +688,24 @@ u32 HevcSetRefPicPocList(struct DpbStorage *dpb,
   return ret;
 }
 
-void HevcDpbMarkOlderUnused(struct DpbStorage *dpb, i32 pic_order_cnt, u32 hrd_present) {
+u32 HevcDpbMarkOlderUnused(struct DpbStorage *dpb, i32 pic_order_cnt, u32 hrd_present) {
   u32 i;
+  u32 discard_dpb_num = 0;
+
   for (i = 0; i < MAX_DPB_SIZE; i++) {
 
     if (dpb->buffer[i].is_tsa_ref ||
-        (IS_REFERENCE(dpb->buffer[i]) &&
+        (IS_REFERENCE(&dpb->buffer[i]) &&
          GET_POC(dpb->buffer[i]) <= pic_order_cnt)) {
       SET_STATUS(dpb->buffer[i], UNUSED);
       if (dpb->buffer[i].to_be_displayed) {
         dpb->num_out_pics_buffered--;
         dpb->buffer[i].to_be_displayed = 0;
 #ifdef USE_EXTERNAL_BUFFER
+        discard_dpb_num++;
         /* For raster/dscale buffer, return to input buffer queue. */
         if (dpb->storage->raster_buffer_mgr) {
-          RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr, dpb->buffer[i].pp_data->virtual_address);
+          RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr, dpb->buffer[i].pp_data->bus_address);
         }
 #endif
       }
@@ -701,13 +717,14 @@ void HevcDpbMarkOlderUnused(struct DpbStorage *dpb, i32 pic_order_cnt, u32 hrd_p
   }
   /* output all pictures */
   while (OutputPicture(dpb) == HANTRO_OK);
+
+  return discard_dpb_num;
 }
 
 /* Determines reference pictures for current and subsequent pictures. */
 u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
                    i32 pic_order_cnt, struct SeqParamSet *sps, u32 is_idr,
-                   u32 is_cra, u32 hrd_present) {
-
+                   u32 is_cra, u32 hrd_present, u32 *discard_dpb) {
   u32 i;
   i32 idx = 0;
   u32 st_count[MAX_DPB_SIZE + 1] = {0};
@@ -721,6 +738,7 @@ u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
     /* if no_output_of_prior_pics_flag was set -> the pictures preceding the
      * IDR picture shall not be output -> set output buffer empty */
     if (slice_header->no_output_of_prior_pics_flag) {
+      *discard_dpb += dpb->num_out;
       RemoveTempOutputAll(dpb->fb_list, dpb);
       dpb->num_out = 0;
       dpb->out_index_w = dpb->out_index_r = 0;
@@ -736,7 +754,7 @@ u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
     dpb->num_poc_st_curr = 0;
     return ret;
   } else if (is_cra) {
-    (void)HevcDpbMarkOlderUnused(dpb, pic_order_cnt, hrd_present);
+    *discard_dpb += HevcDpbMarkOlderUnused(dpb, pic_order_cnt, hrd_present);
     return ret;
   }
 
@@ -813,7 +831,7 @@ u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
     else if (lt_count[i])
       SET_STATUS(dpb->buffer[i], LONG_TERM);
     /* picture marked as not used */
-    else if (IS_REFERENCE(dpb->buffer[i])) {
+    else if (IS_REFERENCE(&dpb->buffer[i])) {
       SET_STATUS(dpb->buffer[i], UNUSED);
       DpbBufFree(dpb, i);
     }
@@ -821,17 +839,19 @@ u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
   /* if last element (index dpb_size) is used as reference -> swap with an
    * unused element earlier in the list (probably not necessary if dpb_size
    * less than 16, but done anyway) */
-  if (IS_REFERENCE(dpb->buffer[dpb->dpb_size])) {
+  if (IS_REFERENCE(&dpb->buffer[dpb->dpb_size])) {
     for (i = 0; i < dpb->dpb_size; i++) {
-      if (!IS_REFERENCE(dpb->buffer[i])) {
+      if (!IS_REFERENCE(&dpb->buffer[i])) {
         idx = i;
         break;
       }
     }
-    ASSERT((u32)idx < dpb->dpb_size);
+    ASSERT(((u32)idx < dpb->dpb_size));
     {
       struct DpbPicture tmp_pic = dpb->buffer[i];
 
+      if (idx < 0)
+        return DEC_PARAM_ERROR;
       dpb->buffer[idx] = dpb->buffer[dpb->dpb_size];
       dpb->buffer[dpb->dpb_size] = tmp_pic;
     }
@@ -859,7 +879,7 @@ static i32 FindDpbPic(struct DpbStorage *dpb, i32 poc) {
   while (i <= dpb->dpb_size) {
     if ((dpb->buffer[i].pic_order_cnt == poc ||
          dpb->buffer[i].pic_order_cnt_lsb == poc) &&
-        IS_REFERENCE(dpb->buffer[i])) {
+        IS_REFERENCE(&dpb->buffer[i])) {
       return i;
     }
     i++;
@@ -971,7 +991,7 @@ u32 OutputPicture(struct DpbStorage *dpb) {
   dpb->out_index_w++;
   if (dpb->out_index_w == MAX_DPB_SIZE + 1) dpb->out_index_w = 0;
 
-  if (!IS_REFERENCE(*tmp)) {
+  if (!IS_REFERENCE(tmp)) {
     if (dpb->fullness > 0)
       dpb->fullness--;
   }
@@ -1020,9 +1040,14 @@ void HevcFreeDpb(const void *dwl, struct DpbStorage *dpb) {
   ASSERT(dpb);
 
   for (i = 0; i < dpb->tot_buffers; i++) {
-    DWLFreeRefFrm(dwl, dpb->pic_buffers + i);
-    if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
-      ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+#ifdef USE_NULL_POINTER_PROTECT
+    if (dpb->pic_buffers[i].bus_address)
+#endif
+    {
+      DWLFreeRefFrm(dwl, dpb->pic_buffers + i);
+      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
+        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+    }
   }
 
   if (dpb->out_buf != NULL) {
@@ -1041,22 +1066,32 @@ i32 HevcFreeDpbExt(const void *dec_inst, struct DpbStorage *dpb) {
   if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
     /* Client will make sure external memory to be freed.*/
     for (i = 0; i < dpb->tot_buffers; i++) {
-      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
-        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
-        /*
-              dec_cont->buf_to_free = dpb->pic_buffers + i;
-              dec_cont->next_buf_size = 0;
-#ifdef ASIC_TRACE_SUPPORT
-              dec_cont->is_frame_buffer = 1;
+#ifdef USE_NULL_POINTER_PROTECT
+      if (dpb->pic_buffers[i].bus_address)
 #endif
-              return DEC_WAITING_FOR_BUFFER;
+      {
+        if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
+          ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+        /*
+                dec_cont->buf_to_free = dpb->pic_buffers + i;
+                dec_cont->next_buf_size = 0;
+#ifdef ASIC_TRACE_SUPPORT
+                dec_cont->is_frame_buffer = 1;
+#endif
+                return DEC_WAITING_FOR_BUFFER;
         */
+      }
     }
   } else {
     for (i = 0; i < dpb->tot_buffers; i++) {
-      DWLFreeRefFrm(dec_cont->dwl, dpb->pic_buffers + i);
-      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
-        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+#ifdef USE_NULL_POINTER_PROTECT
+      if (dpb->pic_buffers[i].bus_address)
+#endif
+      {
+        DWLFreeRefFrm(dec_cont->dwl, dpb->pic_buffers + i);
+        if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
+          ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+      }
     }
   }
 
@@ -1071,10 +1106,15 @@ i32 HevcFreeDpb(const void *dec_inst, struct DpbStorage *dpb) {
   ASSERT(dpb);
 
   for (i = 0; i < dpb->tot_buffers; i++) {
-    if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
-      DWLFreeRefFrm(dec_cont->dwl, dpb->pic_buffers + i);
-    if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
-      ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+#ifdef USE_NULL_POINTER_PROTECT
+    if (dpb->pic_buffers[i].bus_address)
+#endif
+    {
+      if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
+        DWLFreeRefFrm(dec_cont->dwl, dpb->pic_buffers + i);
+      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
+        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+    }
   }
 
   if (dpb->out_buf != NULL) {
@@ -1104,7 +1144,7 @@ u32 HevcDpbMarkAllUnused(struct DpbStorage *dpb) {
   u32 i;
 
   for (i = 0; i < MAX_DPB_SIZE; i++) {
-    if (IS_REFERENCE(dpb->buffer[i])) {
+    if (IS_REFERENCE(&dpb->buffer[i])) {
       SET_STATUS(dpb->buffer[i], UNUSED);
       DpbBufFree(dpb, i);
     }
@@ -1216,7 +1256,7 @@ u32 HevcDpbHrdBumping(struct DpbStorage *dpb) {
   dpb->out_index_w++;
   if (dpb->out_index_w == MAX_DPB_SIZE + 1) dpb->out_index_w = 0;
 
-  if (!IS_REFERENCE(*tmp)) {
+  if (!IS_REFERENCE(tmp)) {
     if(dpb->fullness > 0)
       dpb->fullness--;
   }
@@ -1238,7 +1278,7 @@ void HevcEmptyDpb(const void *dec_inst, struct DpbStorage *dpb) {
        * raster/downscal buffer. */
       if (dpb->storage->raster_buffer_mgr) {
         RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr,
-                          dpb->buffer[i].pp_data->virtual_address);
+                          dpb->buffer[i].pp_data->bus_address);
       }
     }
     SET_STATUS(dpb->buffer[i], UNUSED);
@@ -1283,8 +1323,13 @@ void HevcEmptyDpb(const void *dec_inst, struct DpbStorage *dpb) {
 
   if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
     for (i = 0; i < dpb->tot_buffers; i++) {
-      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
-        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+#ifdef USE_NULL_POINTER_PROTECT
+      if (dpb->pic_buffers[i].bus_address)
+#endif
+      {
+        if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
+          ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+        }
       }
     }
     dpb->fb_list->free_buffers = 0;

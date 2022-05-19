@@ -77,11 +77,13 @@ LIB_REF=on2vpplugin6
 LIB_MODEL=vp6hwmodel
 
 DECLIBDIR = -L../../linux/vp6 -L../../linux/dwl -L../common/swhw \
-	    -L../../../lib -L../common/utils
+	    -L../../../system/models/g1hw -L../common/utils
 DECLIB = libdec8190vp6.a
 
 # Enable SW performance  measurement
 #CFLAGS = -DSW_PERFORMANCE
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_MD5SUM), y)
         MD5SUM = -DMD5SUM

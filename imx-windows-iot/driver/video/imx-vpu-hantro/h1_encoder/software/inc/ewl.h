@@ -209,6 +209,7 @@ extern u32 (*pollInputLineBufTestFunc)(void);
  * they must be flushed to the HW registers when enable is '1' before
  * writing the register that enables the HW */
     void EWLWriteReg(const void *inst, u32 offset, u32 val);
+    void EWLSetShadowReg(const void *inst, u32 offset, u32 val);
 
 /* Read and return the value of a HW register
  * The status register is read after every macroblock encoding by SW
@@ -216,15 +217,20 @@ extern u32 (*pollInputLineBufTestFunc)(void);
  * BUFFER_FULL or FRAME_READY interrupt
  * Offset is relative to the the HW ID register (#0) in bytes */
     u32 EWLReadReg(const void *inst, u32 offset);
+    u32 EWLGetShadowReg(const void *inst, u32 offset);
 
     /* Writing all registers in one call *//*Not in use currently */
     void EWLWriteRegAll(const void *inst, const u32 * table, u32 size);
     /* Reading all registers in one call *//*Not in use currently */
     void EWLReadRegAll(const void *inst, u32 * table, u32 size);
+    /* Read values to HW register through ioctl. */
+    int EWLIoctlReadRegs(int fd, u32 offset, u32 size, u32 *val);
+    /* Write values to HW register through ioctl. */
+    int EWLIoctlWriteRegs(int fd, u32 offset, u32 size, u32 *val);
 
 /* HW enable/disable. This will write <val> to register <offset> and by */
 /* this enablig/disabling the hardware. */
-    void EWLEnableHW(const void *inst, u32 offset, u32 val);
+    i32 EWLEnableHW(const void *inst);
     void EWLDisableHW(const void *inst, u32 offset, u32 val);
 
 /* Synchronize SW with HW

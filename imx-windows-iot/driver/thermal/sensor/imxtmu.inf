@@ -1,10 +1,6 @@
 ; Copyright (c) Microsoft Corporation. All rights reserved.
-; Copyright 2020 NXP
+; Copyright 2022 NXP
 ; Licensed under the MIT License.
-
-;*****************************************
-; Class section
-;*****************************************
 
 [Version]
 Signature="$WINDOWS NT$"
@@ -27,7 +23,7 @@ imxtmu.sys  = 1,,
 ;*****************************************
 
 [Manufacturer]
-%StdMfg%=Standard,NT$ARCH$
+%ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
 %imxtmu.DeviceDesc% = imxtmu_Device, ACPI\NXP010B
@@ -54,7 +50,7 @@ AddService = imxtmu,%SPSVCINST_ASSOCSERVICE%,imxtmu_Service_Inst
 ; -------------- imxtmu driver install sections
 
 [imxtmu_Service_Inst]
-DisplayName    = %imxtmu.SVCDESC%
+DisplayName    = %imxtmu.SvcDesc%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
@@ -79,9 +75,10 @@ Default = {381B4222-F694-41F0-9685-FF5BB260DF2E}, 0, 1
 Default = {381B4222-F694-41F0-9685-FF5BB260DF2E}, 1, 1
 
 [Strings]
+ProviderName                 = "NXP"
+ManufacturerName             = "NXP Semiconductors"
+imxtmu.DeviceDesc            = "i.MX Thermal Sensor Device"
+imxtmu.SvcDesc               = "i.MX Thermal Sensor Service"
+
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ProviderName = "NXP"
-StdMfg = "(Standard system devices)"
 DiskId1 = "Thermal Sensor Installation Disk #1"
-imxtmu.DeviceDesc = "Thermal Sensor Device"
-imxtmu.SVCDESC = "Thermal Sensor Driver"

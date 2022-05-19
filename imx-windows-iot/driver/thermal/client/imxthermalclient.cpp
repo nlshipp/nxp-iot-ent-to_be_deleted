@@ -26,6 +26,7 @@ Abstract:
 DRIVER_INITIALIZE DriverEntry;
 
 EVT_WDF_DRIVER_DEVICE_ADD           TcDriverDeviceAdd;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP      EvtDriverContextCleanup;
 EVT_WDF_DEVICE_PREPARE_HARDWARE     TcPrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE     TcReleaseHardware;
 
@@ -71,6 +72,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     // Initialize attributes and a context area for the driver object.
     WDF_OBJECT_ATTRIBUTES_INIT(&DriverAttributes);
     DriverAttributes.SynchronizationScope = WdfSynchronizationScopeNone;
+    DriverAttributes.EvtCleanupCallback = EvtDriverContextCleanup;
 
     // Create the driver object
     Status = WdfDriverCreate(DriverObject,
@@ -81,7 +83,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     if (!NT_SUCCESS(Status)) {
         IMXTC_LOG_ERROR("WdfDriverCreate() Failed. Status 0x%x", Status);
-
+        WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
         goto DriverEntryEnd;
     }
 
@@ -91,6 +93,18 @@ DriverEntryEnd:
 }
 
 IMXTC_INIT_SEGMENT_END;
+
+/*++
+Routine Description:
+    Free all the resources allocated in DriverEntry.
+Arguments:
+    DriverObject - handle to a WDF Driver object.
+--*/
+VOID EvtDriverContextCleanup(_In_ WDFOBJECT DriverObject) {
+    UNREFERENCED_PARAMETER(DriverObject);
+    /* Stop WPP Tracing */
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
+}
 
 IMXTC_PAGED_SEGMENT_BEGIN;
 /*++
@@ -505,8 +519,8 @@ NTSTATUS TcPrepareHardware(WDFDEVICE WdfDevice, WDFCMRESLIST FxResourcesRaw, WDF
     const ACPI_METHOD_ARGUMENT UNALIGNED* devicePropertiesPkgLvl2Ptr;
     DEVICE_OBJECT* pdoPtr = WdfDeviceWdmGetPhysicalDevice(WdfDevice);
     NT_ASSERT(pdoPtr != NULL);
+    ACPI_EVAL_OUTPUT_BUFFER *dsdBufferPtr = NULL;
     do {
-        ACPI_EVAL_OUTPUT_BUFFER *dsdBufferPtr = NULL;
         status = AcpiQueryDsd(pdoPtr, &dsdBufferPtr);
         if (!NT_SUCCESS(status)) {
             IMXTC_LOG_ERROR("AcpiQueryDsd() failed with error %u", status);
@@ -618,6 +632,9 @@ NTSTATUS TcPrepareHardware(WDFDEVICE WdfDevice, WDFCMRESLIST FxResourcesRaw, WDF
             }
         }
     } while (0);
+    if (dsdBufferPtr != NULL) {
+        ExFreePoolWithTag(dsdBufferPtr, ACPI_TAG_EVAL_OUTPUT_BUFFER);
+    }
 
     // Check parameters
     if (status == STATUS_SUCCESS) {

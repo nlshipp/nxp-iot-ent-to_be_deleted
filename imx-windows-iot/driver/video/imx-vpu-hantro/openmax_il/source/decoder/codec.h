@@ -307,6 +307,39 @@ extern "C"
         CODEC_ERROR_BUFFER_SIZE = -15
     } CODEC_STATE;
 
+    static char *cdcsts2str[] = {
+        "CODEC_ERROR_NOT_ENOUGH_FRAME_BUFFERS", /* -14 */
+        "CODEC_ERROR_FORMAT_NOT_SUPPORTED", /* -13 */
+        "CODEC_ERROR_STREAM_NOT_SUPPORTED", /* -12 */
+        "CODEC_ERROR_MEMFAIL", /* -11 */
+        "CODEC_ERROR_HW_RESERVED", /* -10 */
+        "CODEC_ERROR_INITFAIL", /* -9 */
+        "CODEC_ERROR_NOT_INITIALIZED", /* -8 */
+        "CODEC_ERROR_INVALID_ARGUMENT", /* -7 */
+        "CODEC_ERROR_STREAM", /* -6 */
+        "CODEC_ERROR_UNSPECIFIED", /* -5 */
+        "CODEC_ERROR_DWL", /* -4 */
+        "CODEC_ERROR_SYS", /* -3 */
+        "CODEC_ERROR_HW_BUS_ERROR", /* -2 */
+        "CODEC_ERROR_HW_TIMEOUT", /* -1 */
+        "CODEC_NEED_MORE", /* 0 */
+        "CODEC_HAS_FRAME",
+        "CODEC_HAS_INFO",
+        "CODEC_OK",
+        "CODEC_PIC_SKIPPED",
+        "CODEC_END_OF_STREAM",
+        "CODEC_WAITING_FRAME_BUFFER",
+        "CODEC_ABORTED",
+        "CODEC_FLUSHED",
+        "CODEC_BUFFER_EMPTY",
+        "CODEC_PENDING_FLUSH",
+        "CODEC_NO_DECODING_BUFFER",
+        "CODEC_ERROR_FRAME",
+        "CODEC_ERROR_BUFFER_SIZE"
+    };
+
+
+
     typedef struct CODEC_PROTOTYPE CODEC_PROTOTYPE;
 
 // internal CODEC interface, which wraps up Hantro API

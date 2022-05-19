@@ -61,10 +61,12 @@ u32 HevcDecodeNalUnit(struct StrmData *stream, struct NalUnit *nal_unit) {
 
   DEBUG_PRINT(("NAL TYPE %d\n", tmp));
 
-  /* reserved_zero_6bits */
+  /* nuh_layer_id */
   tmp = SwGetBits(stream, 6);
   if (tmp == END_OF_STREAM)
     return HANTRO_NOK;
+
+  nal_unit->nuh_layer_id = tmp;
 
   tmp = SwGetBits(stream, 3);
   if (tmp == END_OF_STREAM)

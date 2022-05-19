@@ -166,7 +166,8 @@ i32 rdr_read_frame(reader_inst inst, const u8 *buffer, u32 max_buffer_size,
     char signature[] = "WEBP";
     char format_[] = "VP8 ";
     u8 tmp[4];
-    fseek(fin, 8, SEEK_CUR);
+    if (fseek(fin, 8, SEEK_CUR) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     ret = fread(tmp, sizeof(u8), 4, fin);
     if (strncmp(signature, tmp, 4))
       return HANTRO_NOK;
@@ -223,11 +224,13 @@ i32 rdr_read_frame(reader_inst inst, const u8 *buffer, u32 max_buffer_size,
   if(*frame_size > max_buffer_size) {
     fprintf(stderr, "Frame size %d > buffer size %d\n",
             *frame_size, max_buffer_size );
-    fseek(fin, *frame_size, SEEK_CUR);
+    if (fseek(fin, *frame_size, SEEK_CUR) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     if (ff->format_ != FF_WEBP)
       *frame_size = (u32)(-1);
     else
-      fseek(fin, pos, SEEK_SET);
+      if (fseek(fin, pos, SEEK_SET) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     return HANTRO_NOK;
   }
 
@@ -382,9 +385,11 @@ static int file_is_webm(input_ctx_t *input, FILE* infile, unsigned int* fourcc,
   nestegg_video_params params;
 
   /* Get the file size for nestegg. */
-  fseek(infile, 0, SEEK_END);
+  if (fseek(infile, 0, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   file_size = ftell(infile);
-  fseek(infile, 0, SEEK_SET);
+  if (fseek(infile, 0, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
   if(nestegg_init(&input->nestegg_ctx, io, NULL, file_size))
     goto fail;

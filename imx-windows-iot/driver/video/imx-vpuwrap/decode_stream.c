@@ -1,8 +1,8 @@
 /*
  *  Copyright (c) 2010-2014, Freescale Semiconductor Inc.,
- *  All Rights Reserved.
+ *  Copyright 2019-2020 NXP
  *
- *  The following programs are the sole property of Freescale Semiconductor Inc.,
+ *  The following programs are the sole property of NXP,
  *  and contain its proprietary and confidential information.
  *
  */
@@ -57,19 +57,19 @@
 #define VPU_DEC_MAX_NUM_MEM_NUM	VPU_DEC_MAX_NUM_MEM_REQS
 #endif
 
-#define Align(ptr,align)	(((unsigned int)ptr+(align)-1)/(align)*(align))
+#define Align(ptr,align)	(((unsigned long)ptr+(align)-1)/(align)*(align))
 
 typedef struct
 {
 	//virtual mem info
 	int nVirtNum;
-	unsigned int virtMem[VPU_DEC_MAX_NUM_MEM_NUM];
+	unsigned long virtMem[VPU_DEC_MAX_NUM_MEM_NUM];
 
 	//phy mem info
 	int nPhyNum;
-	unsigned int phyMem_virtAddr[VPU_DEC_MAX_NUM_MEM_NUM];
-	unsigned int phyMem_phyAddr[VPU_DEC_MAX_NUM_MEM_NUM];
-	unsigned int phyMem_cpuAddr[VPU_DEC_MAX_NUM_MEM_NUM];
+	unsigned long phyMem_virtAddr[VPU_DEC_MAX_NUM_MEM_NUM];
+	unsigned long phyMem_phyAddr[VPU_DEC_MAX_NUM_MEM_NUM];
+	unsigned long phyMem_cpuAddr[VPU_DEC_MAX_NUM_MEM_NUM];
 	unsigned int phyMem_size[VPU_DEC_MAX_NUM_MEM_NUM];	
 }DecMemInfo;
 
@@ -290,6 +290,9 @@ int ConvertCodecFormat(int codec, VpuCodStd* pCodec)
 		case 14:
 			*pCodec=VPU_V_AVC_MVC;
 			break;
+		case 15:
+			*pCodec=VPU_V_HEVC;
+			break;
 		default:
 			return 0;			
 	}
@@ -420,7 +423,7 @@ int MallocMemBlock(VpuMemInfo* pMemBlock,DecMemInfo* pDecMem)
 			pMemBlock->MemSubBlock[i].pVirtAddr=(unsigned char*)Align(ptr,pMemBlock->MemSubBlock[i].nAlignment);
 
 			//record virtual base addr
-			pDecMem->virtMem[pDecMem->nVirtNum]=(unsigned int)ptr;
+			pDecMem->virtMem[pDecMem->nVirtNum]=(unsigned long)ptr;
 			pDecMem->nVirtNum++;
 		}
 		else// if(memInfo.MemSubBlock[i].MemType==VPU_MEM_PHY)
@@ -438,9 +441,9 @@ int MallocMemBlock(VpuMemInfo* pMemBlock,DecMemInfo* pDecMem)
 			pMemBlock->MemSubBlock[i].pPhyAddr=(unsigned char*)Align(vpuMem.nPhyAddr,pMemBlock->MemSubBlock[i].nAlignment);
 
 			//record physical base addr
-			pDecMem->phyMem_phyAddr[pDecMem->nPhyNum]=(unsigned int)vpuMem.nPhyAddr;
-			pDecMem->phyMem_virtAddr[pDecMem->nPhyNum]=(unsigned int)vpuMem.nVirtAddr;
-			pDecMem->phyMem_cpuAddr[pDecMem->nPhyNum]=(unsigned int)vpuMem.nCpuAddr;
+			pDecMem->phyMem_phyAddr[pDecMem->nPhyNum]=(unsigned long)vpuMem.nPhyAddr;
+			pDecMem->phyMem_virtAddr[pDecMem->nPhyNum]=(unsigned long)vpuMem.nVirtAddr;
+			pDecMem->phyMem_cpuAddr[pDecMem->nPhyNum]=(unsigned long)vpuMem.nCpuAddr;
 			pDecMem->phyMem_size[pDecMem->nPhyNum]=size;
 			pDecMem->nPhyNum++;			
 		}
@@ -468,6 +471,20 @@ int ReadBitstream(DecContxt * pDecContxt, unsigned char* pBitstream,int length)
 
 	//DEC_STREAM_PRINTF("read %d bytes \r\n",length);
 	readbytes=fread(pBitstream,1,length,pDecContxt->fin);
+
+	//totalReadSize+=readbytes;
+	//printf("total read size: %d \r\n",totalReadSize);
+	return readbytes;
+}
+
+
+int ReadCodecData(DecContxt * pDecContxt, unsigned char* pCodecData,int length)
+{
+	int readbytes;
+	//static int totalReadSize=0;
+
+	//DEC_STREAM_PRINTF("read %d bytes \r\n",length);
+	readbytes=fread(pCodecData,1,length,pDecContxt->fcodecdata);
 
 	//totalReadSize+=readbytes;
 	//printf("total read size: %d \r\n",totalReadSize);
@@ -924,6 +941,15 @@ int ProcessInitInfo(DecContxt * pDecContxt,VpuDecHandle handle,VpuDecInitInfo* p
 	}
 #endif
 
+	VpuBufferNode in_data = {0};
+    int buf_ret;
+	VpuDecRetCode dec_ret;
+    dec_ret=VPU_DecDecodeBuf(handle, &in_data, &buf_ret);
+	if (dec_ret == VPU_DEC_RET_FAILURE) {
+      DEC_STREAM_PRINTF("VPU_DecDecodeBuf fail \r\n");
+	  return 0;
+	}
+
 	//register frame buffs
 	DEC_TRACE;
 	ret=VPU_DecRegisterFrameBuffer(handle, frameBuf, BufNum);
@@ -939,12 +965,13 @@ int ProcessInitInfo(DecContxt * pDecContxt,VpuDecHandle handle,VpuDecInitInfo* p
 }
 
 
-int DecodeLoop(VpuDecHandle handle,DecContxt * pDecContxt, unsigned char* pBitstream,DecMemInfo* pDecMemInfo,int* pFbHandle)
+int DecodeLoop(VpuDecHandle handle,DecContxt * pDecContxt, unsigned char* pBitstream, unsigned char* pCodecData,DecMemInfo* pDecMemInfo,int* pFbHandle)
 {
 	int err;
 	int fileeos;
 	int dispeos;
 	int readbytes=0;
+	int readCodecData=0;
 	int bufNull;
 	int dispFrameNum;
 	int repeatNum=pDecContxt->nRepeatNum;
@@ -960,6 +987,7 @@ int DecodeLoop(VpuDecHandle handle,DecContxt * pDecContxt, unsigned char* pBitst
 	VpuDecFrameLengthInfo decFrmLengthInfo;
 	unsigned int totalDecConsumedBytes;	//stuffer + frame
 	int nFrmNum;
+	int streamLen;
 
 #ifdef CHECK_DEAD_LOOP
 	int NotUsedLoopCnt=0;
@@ -1123,9 +1151,13 @@ RepeatPlay:
 				unitDataSize=g_filemode_frame_length[g_filemode_curloc];
 				FILE_MODE_LOG("frame [%d]: length: %d \r\n",g_filemode_curloc,unitDataSize);
 				readbytes=ReadBitstream(pDecContxt, pBitstream,unitDataSize);
+				if(pDecContxt->isavcc)
+					readCodecData=ReadCodecData(pDecContxt, pCodecData,unitDataSize);
 				g_filemode_curloc=(g_filemode_curloc+1)%FILE_MODE_MAX_FRAME_NUM;
 #else
 				readbytes=ReadBitstream(pDecContxt, pBitstream, unitDataSize);
+				if(pDecContxt->isavcc)
+					readCodecData=ReadCodecData(pDecContxt, pCodecData,unitDataSize);
 #endif
 				if(unitDataSize!=readbytes)
 				{
@@ -1133,7 +1165,13 @@ RepeatPlay:
 					DEC_STREAM_PRINTF("%s: read file end: last size=0x%X \r\n",__FUNCTION__,readbytes);
 					fileeos=1;
 				}
+				if(pDecContxt->isavcc)
+				{
+					if(unitDataSize!=readCodecData)
+						DEC_STREAM_PRINTF("%s: read codec data end: last size=0x%X \r\n",__FUNCTION__,readCodecData);
+				}
 				bufNull=0;
+				streamLen = readbytes;
 			}
 			else
 			{
@@ -1149,6 +1187,20 @@ RepeatPlay:
 		InData.pVirAddr=pBitstream;
 		InData.sCodecData.pData=NULL;
 		InData.sCodecData.nSize=0;
+		if(pDecContxt->isavcc)
+		{
+			InData.sCodecData.pData=pCodecData;
+			InData.sCodecData.nSize=readCodecData;
+		}
+
+		//all bytes are consumed -> eos
+		DEC_STREAM_PRINTF ("\n=== totalDecConsumedBytes: 0x%X, streamLen: 0x%X \n",totalDecConsumedBytes, streamLen);
+		if (totalDecConsumedBytes == streamLen)
+		{
+			InData.nSize=0;
+			InData.pVirAddr=(unsigned char *) 0x1;
+		}
+
 		if((pDecContxt->nCodec==13)||((pDecContxt->nCodec==3)))
 		{
 			//backdoor:  to notify vpu this is raw data. vpu wrapper shouldn't add other additional headers.
@@ -1232,7 +1284,7 @@ RepeatPlay:
 		//check frame size
 		if(capability)
 		{
-			if(bufRetCode&VPU_DEC_ONE_FRM_CONSUMED)
+			if(bufRetCode&VPU_DEC_ONE_FRM_CONSUMED || bufRetCode&VPU_DEC_NO_ENOUGH_INBUF)
 			{
 				ret=VPU_DecGetConsumedFrameInfo(handle, &decFrmLengthInfo);
 				if(VPU_DEC_RET_SUCCESS!=ret)
@@ -1365,6 +1417,7 @@ int decode_stream(DecContxt * pDecContxt)
 	int capability=0;
 
 	unsigned char* pBitstream=NULL;
+	unsigned char* pCodecData=NULL;
 #ifdef VPU_FILE_MODE_TEST		
 	int nUnitDataSize=FILE_MODE_MAX_FRAME_LEN;
 #else
@@ -1378,8 +1431,16 @@ int decode_stream(DecContxt * pDecContxt)
 		DEC_STREAM_PRINTF("%s: alloc bitstream buf failure: size=0x%X \r\n",__FUNCTION__,nUnitDataSize);
 		return 0;
 	}
-		
+
+	//alloc codec date buffer
+	pCodecData=malloc(nUnitDataSize);
+	if(NULL==pCodecData)
+	{
+		DEC_STREAM_PRINTF("%s: alloc codec data buf failure: size=0x%X \r\n",__FUNCTION__,nUnitDataSize);
+		return 0;
+	}
 	//clear 0
+	memset(&decOpenParam, 0, sizeof(VpuDecOpenParam));
 	memset(&memInfo,0,sizeof(VpuMemInfo));
 	memset(&decMemInfo,0,sizeof(DecMemInfo));
 
@@ -1459,6 +1520,9 @@ int decode_stream(DecContxt * pDecContxt)
 	decOpenParam.nChromaInterleave=pDecContxt->nChromaInterleave;
 	decOpenParam.nMapType=pDecContxt->nMapType;
 	decOpenParam.nTiled2LinearEnable=pDecContxt->nTile2LinearEnable;
+#ifdef USE_IMX8MM
+	decOpenParam.nEnableVideoCompressor = 0;
+#endif
 	//open vpu
 	ret=VPU_DecOpen(&handle, &decOpenParam, &memInfo);
 	if (ret!=VPU_DEC_RET_SUCCESS)
@@ -1468,7 +1532,7 @@ int decode_stream(DecContxt * pDecContxt)
 	}	
 	
 	//decoding loop
-	noerr=DecodeLoop(handle, pDecContxt, pBitstream,&decMemInfo,&fbHandle);
+	noerr=DecodeLoop(handle, pDecContxt, pBitstream,pCodecData,&decMemInfo,&fbHandle);
 	
 	if(0==noerr)
 	{
@@ -1496,6 +1560,11 @@ finish:
 	if(pBitstream)
 	{
 		free(pBitstream);
+	}
+
+	if(pCodecData)
+	{
+		free(pCodecData);
 	}
 
 	//release fb render

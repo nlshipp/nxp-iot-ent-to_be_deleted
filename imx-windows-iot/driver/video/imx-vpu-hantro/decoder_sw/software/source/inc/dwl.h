@@ -38,6 +38,8 @@
 #ifndef __DWL_H__
 #define __DWL_H__
 
+
+
 #include "basetype.h"
 #include "decapicommon.h"
 
@@ -93,7 +95,7 @@ struct DWLLinearMem {
 /* DWLInitParam is used to pass parameters when initializing the DWL */
 struct DWLInitParam {
   u32 client_type;
-} DWLInitParam;
+};
 
 /* Hardware configuration description, same as in top API */
 typedef struct DecHwConfig DWLHwConfig;
@@ -178,11 +180,20 @@ void *DWLcalloc(u32 n, u32 s);
 void *DWLmemcpy(void *d, const void *s, u32 n);
 void *DWLmemset(void *d, i32 c, u32 n);
 
+void DWLSetSecureMode(const void *instance, u32 use_secure_mode);
+
 /* SW/HW shared memory access*/
 u8 DWLPrivateAreaReadByte(const u8 *p);
 void DWLPrivateAreaWriteByte(u8 *p, u8 data);
 void * DWLPrivateAreaMemcpy(void *d,  const void *s,  u32 n);
 void * DWLPrivateAreaMemset(void *p,  i32 c, u32 n);
+
+
+
+
+
+/* Cache flush */
+i32 DWLFlushCache(const void *instance, struct DWLLinearMem *info);
 /* Decoder wrapper layer functionality. */
 struct DWL {
   /* HW sharing */

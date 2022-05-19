@@ -332,11 +332,11 @@ void CheckRegisterValues(regValues_s * val)
 /*------------------------------------------------------------------------------
     Function name   : EncAsicFrameStart
     Description     : 
-    Return type     : void 
+    Return type     : i32
     Argument        : const void *ewl
     Argument        : regValues_s * val
 ------------------------------------------------------------------------------*/
-void EncAsicFrameStart(const void *ewl, regValues_s * val)
+i32 EncAsicFrameStart(const void *ewl, regValues_s * val)
 {
     i32 i;
     u32 asicCfgReg = val->asicCfgReg;
@@ -1072,10 +1072,26 @@ void EncAsicFrameStart(const void *ewl, regValues_s * val)
     EncTraceRegs(ewl, 0, 0);
 #endif
 
-    /* Register with enable bit is written last */
-    val->regMirror[14] |= ASIC_STATUS_ENABLE;
+    return EWLEnableHW(ewl);
+}
 
-    EWLEnableHW(ewl, HSWREG(14), val->regMirror[14]);
+/*------------------------------------------------------------------------------
+    Function name   : EncTryAsicFrameStart
+    Description     :
+    Return type     : i32
+    Argument        : const void *ewl
+    Argument        : regValues_s * val
+------------------------------------------------------------------------------*/
+i32 EncTryAsicFrameStart(const void *ewl, regValues_s * val)
+{
+    i32 waitTimes = 0;
+
+    do {
+        if (EncAsicFrameStart(ewl, val) == 0)
+            return ENCHW_OK;
+    } while (++waitTimes < 100);
+
+    return ENCHW_NOK;
 }
 
 /*------------------------------------------------------------------------------
@@ -1106,8 +1122,7 @@ void EncAsicFrameContinue(const void *ewl, regValues_s * val)
 #endif
 
     /* Register with status bits is written last */
-    EWLEnableHW(ewl, HSWREG(1), val->regMirror[1]);
-
+    EWLWriteReg(ewl, HSWREG(1), val->regMirror[1]);
 }
 
 /*------------------------------------------------------------------------------
@@ -1117,17 +1132,17 @@ void EncAsicGetRegisters(const void *ewl, regValues_s * val)
 
     /* HW output stream size, bits to bytes */
     val->outputStrmSize =
-            EncAsicGetRegisterValue(ewl, val->regMirror, HEncStrmBufLimit) / 8;
+            EncAsicGetShadowValue(ewl, val->regMirror, HEncStrmBufLimit) / 8;
 
     /* Calculate frame PSNR based on the squared error. */
     val->squaredError =
-            EncAsicGetRegisterValue(ewl, val->regMirror, HEncSquaredError);
+            EncAsicGetShadowValue(ewl, val->regMirror, HEncSquaredError);
 
     if (val->squaredError) {
         u32 pels;
 
         /* Error is calculated over 13x13 pixels on every macroblock. */
-        pels = EncAsicGetRegisterValue(ewl, val->regMirror, HEncMbCount);
+        pels = EncAsicGetShadowValue(ewl, val->regMirror, HEncMbCount);
         pels *= 13*13;
 
         if (pels)
@@ -1140,23 +1155,23 @@ void EncAsicGetRegisters(const void *ewl, regValues_s * val)
 
     /* QP sum div2 */
    
-    val->qpSum = EncAsicGetRegisterValue(ewl, val->regMirror, HEncQpSum);
+    val->qpSum = EncAsicGetShadowValue(ewl, val->regMirror, HEncQpSum);
     
-    val->rcMSESum = EncAsicGetRegisterValue(ewl, val->regMirror, HEncMBComplexityAverage);
+    val->rcMSESum = EncAsicGetShadowValue(ewl, val->regMirror, HEncMBComplexityAverage);
     /* MAD MB count*/
-    val->madCount[0] = EncAsicGetRegisterValue(ewl, val->regMirror, HEncMadCount);
-    val->madCount[1] = EncAsicGetRegisterValue(ewl, val->regMirror, HEncMadCount2);
-    val->madCount[2] = EncAsicGetRegisterValue(ewl, val->regMirror, HEncMadCount3);
+    val->madCount[0] = EncAsicGetShadowValue(ewl, val->regMirror, HEncMadCount);
+    val->madCount[1] = EncAsicGetShadowValue(ewl, val->regMirror, HEncMadCount2);
+    val->madCount[2] = EncAsicGetShadowValue(ewl, val->regMirror, HEncMadCount3);
 
-    val->avgVar = EncAsicGetRegisterValue(ewl, val->regMirror, HEncVp8AvgVar);
+    val->avgVar = EncAsicGetShadowValue(ewl, val->regMirror, HEncVp8AvgVar);
 
     /* Non-zero coefficient count*/
-    val->rlcCount = EncAsicGetRegisterValue(ewl, val->regMirror, HEncRlcSum) * 4;
+    val->rlcCount = EncAsicGetShadowValue(ewl, val->regMirror, HEncRlcSum) * 4;
 
     /* Denoise */
-    val->dnfNoiseLevelPred = EncAsicGetRegisterValue(ewl, val->regMirror, HEncDnfNoisePred);
-    val->dnfNoiseMaxPred = EncAsicGetRegisterValue(ewl, val->regMirror, HEncDnfThresholdPred);
-    val->dnfNoiseMbNum = EncAsicGetRegisterValue(ewl, val->regMirror, HEncDnfMbNum);
+    val->dnfNoiseLevelPred = EncAsicGetShadowValue(ewl, val->regMirror, HEncDnfNoisePred);
+    val->dnfNoiseMaxPred = EncAsicGetShadowValue(ewl, val->regMirror, HEncDnfThresholdPred);
+    val->dnfNoiseMbNum = EncAsicGetShadowValue(ewl, val->regMirror, HEncDnfMbNum);
 
     /* get stabilization results if needed */
     if(val->vsMode != 0)
@@ -1170,7 +1185,7 @@ void EncAsicGetRegisters(const void *ewl, regValues_s * val)
     }
 
 #ifdef TRACE_REGS
-    EncTraceRegs(ewl, 1, EncAsicGetRegisterValue(ewl, val->regMirror, HEncMbCount));
+    EncTraceRegs(ewl, 1, EncAsicGetShadowValue(ewl, val->regMirror, HEncMbCount));
 #endif
 
 }
@@ -1186,7 +1201,7 @@ void EncAsicStop(const void *ewl)
 ------------------------------------------------------------------------------*/
 u32 EncAsicGetStatus(const void *ewl)
 {
-    return EWLReadReg(ewl, HSWREG(1));
+    return EWLGetShadowReg(ewl, HSWREG(1));
 }
 
 /*------------------------------------------------------------------------------
@@ -1221,18 +1236,9 @@ u32 * EncAsicGetMvOutput(asicData_s *asic, u32 mbNum)
 ------------------------------------------------------------------------------*/
 void EncAsicClearStatusBit(const void *ewl, u32 statusBit)
 {
-    u32 fuse2 = EWLReadReg(ewl, BASE_HWFuse2);
-
-    if (fuse2&HWCFGIrqClearSupport)
-    {
-      EWLWriteReg(ewl, HSWREG(1), statusBit);
-    }
-    else
-    {
-      u32 status = EWLReadReg(ewl, HSWREG(1));
-      status &= (~statusBit);
-      EWLWriteReg(ewl, HSWREG(1), status);
-    }
+    u32 status = EWLGetShadowReg(ewl, HSWREG(1));
+    status &= (~statusBit);
+    EWLSetShadowReg(ewl, HSWREG(1), status);
 
     return;
 }

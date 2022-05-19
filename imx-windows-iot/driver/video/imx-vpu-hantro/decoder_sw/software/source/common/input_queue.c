@@ -104,6 +104,34 @@ InputQueue InputQueueInit(i32 n_buffers) {
   return q;
 }
 #ifdef USE_EXTERNAL_BUFFER
+void InputQueueReset2(InputQueue queue) {
+  assert(queue);
+  struct IQueue* q = (struct IQueue*)queue;
+  i32 i;
+  FifoObject j;
+  enum FifoRet ret;
+  if (q->fifo_in) {/* Empty the fifo before releasing. */
+    FifoRelease(q->fifo_in);
+    pthread_mutex_destroy(&q->cs);
+    pthread_mutex_destroy(&q->buf_release_mutex);
+    pthread_cond_destroy(&q->buf_release_cv);
+  }
+  ret = FifoInit(MAX_PIC_BUFFERS, &q->fifo_in);
+  if (FIFO_ERROR_MEMALLOC == ret)
+    return;
+  assert(q->fifo_in);
+  q->max_buffers = MAX_PIC_BUFFERS;
+  q->n_buffers = 0;
+  memset(q->buffers, 0, sizeof(q->buffers));
+  memset(q->buffer_in_fifo, 0, sizeof(q->buffer_in_fifo));
+  pthread_mutex_init(&q->cs, NULL);
+  pthread_mutex_init(&q->buf_release_mutex, NULL);
+  pthread_cond_init(&q->buf_release_cv, NULL);
+  (void)ret;
+  (void)i;
+  (void)j;
+}
+
 void InputQueueReset(InputQueue queue) {
 #ifdef BUFFER_QUEUE_PRINT_STATUS
   printf(__FUNCTION__);
@@ -121,7 +149,9 @@ void InputQueueReset(InputQueue queue) {
     pthread_mutex_destroy(&q->buf_release_mutex);
     pthread_cond_destroy(&q->buf_release_cv);
   }
-  FifoInit(MAX_PIC_BUFFERS, &q->fifo_in);
+  ret = FifoInit(MAX_PIC_BUFFERS, &q->fifo_in);
+  if (FIFO_ERROR_MEMALLOC == ret)
+    return;
   assert(q->fifo_in);
 
 #ifdef USE_OMXIL_BUFFER
@@ -211,7 +241,7 @@ struct DWLLinearMem *InputQueueGetBuffer(InputQueue queue, u32 wait) {
   buffer = (struct DWLLinearMem *)((addr_t )j);
 
   for (i = 0; i < q->n_buffers; i++) {
-    if (q->buffers[i].virtual_address == buffer->virtual_address) {
+    if (q->buffers[i].bus_address == buffer->bus_address) {
       break;
     }
   }
@@ -276,7 +306,7 @@ void InputQueueWaitPending(InputQueue queue) {
 #endif /* BUFFER_QUEUE_PRINT_STATUS */
 }
 
-struct DWLLinearMem *InputQueueReturnBuffer(InputQueue queue, const u32 *addr) {
+struct DWLLinearMem *InputQueueReturnBuffer(InputQueue queue, const addr_t addr) {
 #ifdef BUFFER_QUEUE_PRINT_STATUS
   printf(__FUNCTION__);
   printf("()");
@@ -290,7 +320,7 @@ struct DWLLinearMem *InputQueueReturnBuffer(InputQueue queue, const u32 *addr) {
   struct DWLLinearMem *buffer = NULL;
 
   for (i = 0; i < q->n_buffers; i++) {
-    if (q->buffers[i].virtual_address == addr) {
+    if (q->buffers[i].bus_address == addr) {
       buffer = &q->buffers[i];
       break;
     }
@@ -409,7 +439,7 @@ void InputQueueWaitNotUsed(InputQueue queue) {
 #endif
 }
 
-void InputQueueWaitBufNotUsed(InputQueue queue, const u32 *addr) {
+void InputQueueWaitBufNotUsed(InputQueue queue, const addr_t addr) {
 #ifdef BUFFER_QUEUE_PRINT_STATUS
   printf(__FUNCTION__);
   printf("()");
@@ -420,7 +450,7 @@ void InputQueueWaitBufNotUsed(InputQueue queue, const u32 *addr) {
   struct DWLLinearMem *buffer = NULL;
   struct IQueue* q = (struct IQueue*)queue;
   for (i = 0; i < q->n_buffers; i++) {
-    if (q->buffers[i].virtual_address == addr) {
+    if (q->buffers[i].bus_address == addr) {
       buffer = &q->buffers[i];
       break;
     }
@@ -438,7 +468,7 @@ void InputQueueWaitBufNotUsed(InputQueue queue, const u32 *addr) {
 #endif /* BUFFER_QUEUE_PRINT_STATUS */
 }
 
-void InputQueueSetBufAsUsed(InputQueue queue, const u32 *addr) {
+void InputQueueSetBufAsUsed(InputQueue queue, const addr_t addr) {
 #ifdef BUFFER_QUEUE_PRINT_STATUS
   printf(__FUNCTION__);
   printf("()");
@@ -449,7 +479,7 @@ void InputQueueSetBufAsUsed(InputQueue queue, const u32 *addr) {
   struct DWLLinearMem *buffer = NULL;
   struct IQueue* q = (struct IQueue*)queue;
   for (i = 0; i < q->n_buffers; i++) {
-    if (q->buffers[i].virtual_address == addr) {
+    if (q->buffers[i].bus_address == addr) {
       buffer = &q->buffers[i];
       break;
     }

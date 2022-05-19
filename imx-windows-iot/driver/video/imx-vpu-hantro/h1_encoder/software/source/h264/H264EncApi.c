@@ -1415,6 +1415,23 @@ H264EncRet H264EncSetSeiUserData(H264EncInst inst, const u8 * pUserData,
     return H264ENC_OK;
 }
 
+
+static void H264EncSpsSetVuiSignalType(sps_s *sps, u32 VideoSignalTypePresentFlag, u32 video_format,
+                                               u32 ColorDescripPresentFlag, u32 ColorPrimaries, u32 TransferCharacteristics, u32 MatrixCoefficients)
+{
+    ASSERT(sps);
+    
+    sps->vui.vuiVideoSignalTypePresentFlag = VideoSignalTypePresentFlag;
+    sps->vui.vuiVideoFormat   = video_format;
+
+    sps->vui.vuiColorDescripPresentFlag = ColorDescripPresentFlag;
+    sps->vui.vuiColorPrimaries = ColorPrimaries;
+    sps->vui.vuiTransferCharacteristics = TransferCharacteristics;
+    sps->vui.vuiMatrixCoefficients = MatrixCoefficients;
+
+    sps->vui_parameters_present_flag    = VideoSignalTypePresentFlag;
+}
+
 /*------------------------------------------------------------------------------
 
     Function name : H264EncStrmStart
@@ -1526,6 +1543,11 @@ H264EncRet H264EncStrmStart(H264EncInst inst, const H264EncIn * pEncIn,
         H264SpsSetVuiHrdCpbSize(&pEncInst->seqParameterSet,
                                 rc->virtualBuffer.bufferSize);
     }
+
+    if(pEncInst->vuiVideoSignalTypePresentFlag)
+        H264EncSpsSetVuiSignalType(&pEncInst->seqParameterSet, pEncInst->vuiVideoSignalTypePresentFlag, pEncInst->vuiVideoFormat, 
+                                   pEncInst->vuiColorDescription.vuiColorDescripPresentFlag, pEncInst->vuiColorDescription.vuiColorPrimaries,
+                                   pEncInst->vuiColorDescription.vuiTransferCharacteristics, pEncInst->vuiColorDescription.vuiMatrixCoefficients);
 
     /* Initialize cabac context tables for HW */
     if (pEncInst->picParameterSet.enableCabac >= 1)
@@ -2810,3 +2832,33 @@ H264EncRet H264EncSetInputMbLines(H264EncInst inst, u32 lines)
     return H264ENC_OK;
 }
 
+
+/*------------------------------------------------------------------------------
+    Function name : VCEncSetVuiColorDescription
+    Description   : Set vui color description parameter.
+    Return type   : i32.
+    Argument      : inst - encoder instance
+                    u32 - vuiVideoSignalTypePresentFlag
+                    u32 - vuiColorDescripPresentFlag,
+                    u32 - vuiColorPrimaries,
+                    u32 - vuiTransferCharacteristics,
+                    u32 - vuiMatrixCoefficients
+    Note          : This function should be called 
+                    after VCEncInit and before VCEncStrmStart.
+------------------------------------------------------------------------------*/
+i32 H264EncSetVuiColorDescription(H264EncInst inst, u32 vuiVideoSignalTypePresentFlag, u32 vuiVideoFormat,
+        u32 vuiColorDescripPresentFlag, u32 vuiColorPrimaries, u32 vuiTransferCharacteristics, u32 vuiMatrixCoefficients)
+{
+    ASSERT(inst);
+
+    h264Instance_s *pEncInst = (h264Instance_s *)inst;
+    pEncInst->vuiVideoSignalTypePresentFlag  = vuiVideoSignalTypePresentFlag;
+    pEncInst->vuiVideoFormat  = vuiVideoFormat;
+    
+    pEncInst->vuiColorDescription.vuiColorDescripPresentFlag  = vuiColorDescripPresentFlag;
+    pEncInst->vuiColorDescription.vuiColorPrimaries           = vuiColorPrimaries;
+    pEncInst->vuiColorDescription.vuiMatrixCoefficients       = vuiMatrixCoefficients;
+    pEncInst->vuiColorDescription.vuiTransferCharacteristics  = vuiTransferCharacteristics;
+
+    return 0;
+}

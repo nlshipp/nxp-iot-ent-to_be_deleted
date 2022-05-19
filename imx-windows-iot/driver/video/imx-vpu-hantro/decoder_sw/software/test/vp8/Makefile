@@ -50,10 +50,10 @@ ENABLE_WEBM = n
 
 SRCS = ivf.c vp8filereader.c vp8writeoutput.c vp8bufferalloc.c
 SRCS_SINGLE = dectestbench.c
-SRCS_MULTI = mcdectestbench.c
+#SRCS_MULTI = mcdectestbench.c
 OBJS = $(SRCS:.c=.o)
 OBJS_SINGLE = $(SRCS_SINGLE:.c=.o)
-OBJS_MULTI = $(SRCS_MULTI:.c=.o)
+#OBJS_MULTI = $(SRCS_MULTI:.c=.o)
 
 INCLUDE = -I../../source/inc -I../../source/vp8 -I../../source/config \
           -I../../source/dwl -I../common/swhw \
@@ -61,7 +61,7 @@ INCLUDE = -I../../source/inc -I../../source/vp8 -I../../source/config \
           -I../common/utils
 
 DECLIBDIR = -L../../linux/vp8 -L../../linux/dwl -L../common/swhw \
-			-L../../../lib -L../common/utils
+			-L../../../system/models/g1hw -L../common/utils
 DECLIB = libdecx170vp8.a
 DWLLIB = libdwlx170.a
 TBLIB = libtbcommon.a
@@ -74,6 +74,8 @@ TARGET_ENV=integrator
 
 # Enable SW performance  measurement
 #CFLAGS = -DSW_PERFORMANCE
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_MD5SUM), y)
         MD5SUM = -DMD5SUM
@@ -226,8 +228,9 @@ pclinux_eval: test
 export FIFO_DATATYPE
 
 .PHONY: test
-test: $(DIRCHECK) $(OBJS) $(OBJS_SINGLE) $(OBJS_MULTI)
-	$(CC) $(LDFLAGS) $(CFLAGS) $(INCLUDE) $(OBJS_MULTI) $(OBJS) $(LIBS) -o $(TESTDEC)-mc
+#test: $(DIRCHECK) $(OBJS) $(OBJS_SINGLE) $(OBJS_MULTI)
+#	$(CC) $(CFLAGS) $(INCLUDE) $(OBJS_MULTI) $(OBJS) $(LIBS) -o $(TESTDEC)-mc
+test: $(DIRCHECK) $(OBJS) $(OBJS_SINGLE)
 	$(CC) $(LDFLAGS) $(CFLAGS) $(INCLUDE) $(OBJS_SINGLE) $(OBJS) $(LIBS) -o $(TESTDEC)
 
 .PHONY: dircheck

@@ -41,7 +41,7 @@
 
 /* SDL yuv sink for g2 decoder testbench. */
 const void* SdlSinkOpen(const char* fname);
-void SdlSinkWrite(const void* inst, struct DecPicture pic);
+void SdlSinkWrite(const void* inst, const struct DecPicture* pic);
 void SdlSinkClose(const void* inst);
 
 #endif /* __SDL_SINK_H__ */

@@ -63,7 +63,7 @@ INCLUDE = -I../../source/inc -I../../source/mpeg4/ -I../../source/config \
           -I../../source/common  -I../common/swhw -I../common/utils
 
 DECLIBDIR = -L../../linux/mpeg4 -L../common/swhw \
-            -L../../../lib -L../../linux/dwl -L../common/utils
+            -L../../../system/models/g1hw -L../../linux/dwl -L../common/utils
 
 DECLIB =  libdecx170m.a
 DWLLIB = libdwlx170.a
@@ -74,6 +74,8 @@ TARGET_ENV=
 
 # Enable SW performance  measurement
 #CFLAGS = -DSW_PERFORMANCE
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_EFENCE), y)
         EFENCE= -DUSE_EFENCE -L/afs/hantro.com/projects/adder/users/mahe/efence_2_4_13 \

@@ -193,7 +193,6 @@ u32 h264bsdDecodeSeqParamSet(strmData_t *p_strm_data, seqParamSet_t *p_seq_param
   /* Variables */
 
   u32 tmp, i, value;
-  u32 invalid_dpb_size;
 
   /* Code */
 
@@ -263,8 +262,7 @@ u32 h264bsdDecodeSeqParamSet(strmData_t *p_strm_data, seqParamSet_t *p_seq_param
                                          &value);
     if (tmp != HANTRO_OK)
       return(tmp);
-    if( tmp > 1 )
-      return(HANTRO_NOK);
+
     p_seq_param_set->chroma_format_idc = value;
     if (p_seq_param_set->chroma_format_idc == 0)
       p_seq_param_set->mono_chrome = 1;
@@ -487,7 +485,6 @@ u32 h264bsdDecodeSeqParamSet(strmData_t *p_strm_data, seqParamSet_t *p_seq_param
                  p_seq_param_set->num_ref_frames));
     /* set max_dpb_size to 1 if num_ref_frames is zero */
     value = p_seq_param_set->num_ref_frames ? p_seq_param_set->num_ref_frames : 1;
-    invalid_dpb_size = 1;
   }
   p_seq_param_set->max_dpb_size = value;
 
@@ -518,29 +515,15 @@ u32 h264bsdDecodeSeqParamSet(strmData_t *p_strm_data, seqParamSet_t *p_seq_param
       return(tmp);
     /* check num_reorder_frames and max_dec_frame_buffering */
     if (p_seq_param_set->vui_parameters->bitstream_restriction_flag) {
-      if (p_seq_param_set->vui_parameters->num_reorder_frames >
-          p_seq_param_set->vui_parameters->max_dec_frame_buffering ||
-          p_seq_param_set->vui_parameters->max_dec_frame_buffering <
-          p_seq_param_set->num_ref_frames ||
-          p_seq_param_set->vui_parameters->max_dec_frame_buffering >
-          p_seq_param_set->max_dpb_size) {
-        /* Set pSeqParamSet->maxDpbSize to a valid value */
-        if (p_seq_param_set->vui_parameters->max_dec_frame_buffering >
-            p_seq_param_set->max_dpb_size && invalid_dpb_size)
-            p_seq_param_set->max_dpb_size =
-          p_seq_param_set->vui_parameters->max_dec_frame_buffering;
-        else {
-          ERROR_PRINT("Not valid vui_parameters->bitstream_restriction");
-          return(HANTRO_NOK);
-        }
-      }
-
       /* standard says that "the sequence shall not require a DPB with
        * size of more than max(1, max_dec_frame_buffering) */
       p_seq_param_set->max_dpb_size =
         MAX(1, p_seq_param_set->vui_parameters->max_dec_frame_buffering);
     }
   }
+
+  p_seq_param_set->max_dpb_size = MAX(p_seq_param_set->max_dpb_size, p_seq_param_set->num_ref_frames);
+  p_seq_param_set->max_dpb_size = MIN(p_seq_param_set->max_dpb_size, 16);
 
   if (mvc_flag) {
     if (p_seq_param_set->profile_idc == 118 || p_seq_param_set->profile_idc == 128) {
@@ -556,6 +539,7 @@ u32 h264bsdDecodeSeqParamSet(strmData_t *p_strm_data, seqParamSet_t *p_seq_param
     /* TODO: skip rest of the stuff if equal to 1 */
   }
 
+  (void)(tmp);
   tmp = h264bsdRbspTrailingBits(p_strm_data);
 
   /* ignore possible errors in trailing bits of parameters sets */
@@ -899,7 +883,7 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
 
   u32 tmp, i, j, k;
   u32 value, tmp_count, tmp_count1, tmp_count2;
-  hrdParameters_t hrd_params;
+  hrdParameters_t hrd_params = { 0 };
 
   /* Code */
 
@@ -992,6 +976,7 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
       /* applicable_op_temporal_id  */
       tmp = h264bsdGetBits(p_strm_data, 3);
       /* applicable_op_num_target_views_minus1 */
+      (void)(tmp);
       tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data, &value);
       if (tmp != HANTRO_OK)
         return(tmp);
@@ -1001,6 +986,7 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
         tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data, &value);
       }
       /* applicable_op_num_views_minus1 */
+      (void)(tmp);
       tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data, &value);
       if (tmp != HANTRO_OK)
         return(tmp);
@@ -1017,8 +1003,10 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
     tmp_count = value + 1;
     for (i = 0; i < tmp_count; i++) {
       /* vui_mvc_temporal_id  */
+      (void)(tmp);
       tmp = h264bsdGetBits(p_strm_data, 3);
       /* vui_mvc_num_target_output_views_minus1 */
+      (void)(tmp);
       tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data, &value);
       if (tmp != HANTRO_OK)
         return(tmp);
@@ -1028,6 +1016,7 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
         tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data, &value);
       }
       /* vui_mvc_timing_info_present_flag  */
+      (void)(tmp);
       tmp = h264bsdGetBits(p_strm_data, 1);
       if (tmp == 1) {
         /* vui_mvc_num_units_in_tick  */
@@ -1035,15 +1024,18 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
         if (h264bsdFlushBits(p_strm_data, 32) == END_OF_STREAM)
           return(END_OF_STREAM);
         /* vui_mvc_time_scale  */
+        (void)(tmp);
         tmp = h264bsdShowBits(p_strm_data,32);
         if (h264bsdFlushBits(p_strm_data, 32) == END_OF_STREAM)
           return(END_OF_STREAM);
         /* vui_mvc_fixed_frame_rate_flag */
+        (void)(tmp);
         tmp = h264bsdGetBits(p_strm_data, 1);
       }
 
       j = 0;
       /* vui_mvc_nal_hrd_parameters_present_flag */
+      (void)(tmp);
       tmp = h264bsdGetBits(p_strm_data, 1);
       if (tmp == 1) {
         j = 1;
@@ -1051,6 +1043,7 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
       }
 
       /* vui_mvc_vcl_hrd_parameters_present_flag */
+      (void)(tmp);
       tmp = h264bsdGetBits(p_strm_data, 1);
       if (tmp == 1) {
         j = 1;
@@ -1059,9 +1052,11 @@ u32 DecodeMvcExtension(strmData_t *p_strm_data, seqParamSet_t *p_seq_param_set) 
 
       if (j) {
         /* vui_mvc_low_delay_hrd_flag */
+        (void)(tmp);
         tmp = h264bsdGetBits(p_strm_data, 1);
       }
       /* vui_mvc_pic_struct_present_flag */
+      (void)(tmp);
       tmp = h264bsdGetBits(p_strm_data, 1);
     }
 

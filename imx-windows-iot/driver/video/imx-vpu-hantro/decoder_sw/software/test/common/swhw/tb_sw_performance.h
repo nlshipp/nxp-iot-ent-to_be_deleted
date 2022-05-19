@@ -37,6 +37,7 @@
 #ifndef TB_SW_PERFORMANCE_H
 #define TB_SW_PERFORMANCE_H
 
+#include "stdio.h"
 #include "basetype.h"
 #include "time.h"
 

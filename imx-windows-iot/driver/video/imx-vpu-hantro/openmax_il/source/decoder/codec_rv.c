@@ -701,6 +701,9 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_rv(const void *DWLInstance,
 
     memset(this, 0, sizeof(CODEC_RV));
 
+    u32 i;
+    u32 imagesizes[18];
+
     this->base.destroy = decoder_destroy_rv;
     this->base.decode = decoder_decode_rv;
     this->base.getinfo = decoder_getinfo_rv;
@@ -719,6 +722,9 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_rv(const void *DWLInstance,
     this->base.setinfo = decoder_setinfo_rv;
     this->instance = 0;
     this->picId = 0;
+
+    for (i = 0; i < 18; i++)
+      imagesizes[i] = (u32)frame_sizes[i];
 
     /* Print API version number */
     decApi = RvDecGetAPIVersion();
@@ -760,7 +766,7 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_rv(const void *DWLInstance,
                             DWLInstance,
 #endif
                             ERROR_HANDLING,
-                            frame_code_length, bIsRV8 == OMX_TRUE ?  frame_sizes : NULL ,
+                            frame_code_length, bIsRV8 == OMX_TRUE ?  imagesizes : NULL ,
                             bIsRV8 ? 0 : 1,
                             maxWidth, maxHeight, FRAME_BUFFERS, dpbFlags,
                             g1Conf->bEnableAdaptiveBuffers,
@@ -769,7 +775,7 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_rv(const void *DWLInstance,
 #else
     RvDecRet ret = RvDecInit(&this->instance,
                             USE_VIDEO_FREEZE_CONCEALMENT,
-                            frame_code_length, bIsRV8 == OMX_TRUE ?  frame_sizes : NULL ,
+                            frame_code_length, bIsRV8 == OMX_TRUE ?  imagesizes : NULL ,
                             bIsRV8 ? 0 : 1,
                             maxWidth, maxHeight, FRAME_BUFFERS);
 #endif
@@ -816,7 +822,7 @@ CODEC_STATE decoder_setframebuffer_rv(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX_U
     UNUSED_PARAMETER(available_buffers);
     CODEC_RV *this = (CODEC_RV *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     RvDecBufferInfo info;
     RvDecRet ret;
 

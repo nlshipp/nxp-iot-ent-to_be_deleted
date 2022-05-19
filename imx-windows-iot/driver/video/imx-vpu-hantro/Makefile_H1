@@ -13,11 +13,16 @@ RELEASE_DIR = bin
 #CFLAGS += -DENC_MODULE_PATH=\"/dev/mxc_hantro_h1\"
 
 ENV = -DENC_MODULE_PATH=\\\"/dev/mxc_hantro_h1\\\"
-ENV += -DMEMALLOC_MODULE_PATH=\\\"/dev/ion\\\"
+#ENV += -DMEMALLOC_MODULE_PATH=\\\"/dev/ion\\\"
 #ENV += -DSDRAM_LM_BASE=0x00000000
 ENV += -DEWL_NO_HW_TIMEOUT
 ENV += -DUSE_ION
+#ENV += -I$(LINUX_KERNEL_ROOT)/include/uapi -I$(LINUX_KERNEL_ROOT)/include
 ENV += -I$(SDKTARGETSYSROOT)/usr/include/imx
+
+ifeq ($(CFG_SECURE_DATA_PATH), y)
+ENV += -DCFG_SECURE_DATA_PATH
+endif
 
 LIBENCNAME = libcodec_enc
 LIBSENC = -L./ -lhantro_h1 -lpthread
@@ -49,7 +54,7 @@ $(LIBH1NAME).a:
 	$(AR) -rc $@ $(LIBH1_LIBS) 
 
 $(LIBH1NAME).so.$(SONAMEVERSION): $(LIBH1NAME).a
-	$(CC) -o $@ $(LDFLAGS) -shared -nostartfiles -Wl,-soname,$@ -Wl,--whole-archive $(LIBH1_LIBS) -Wl,--no-whole-archive
+	$(CC) -o $@ $(LDFLAGS) -shared -nostartfiles -Wl,-Bsymbolic -Wl,-soname,$@ -Wl,--whole-archive $(LIBH1_LIBS) -Wl,--no-whole-archive
 
 $(LIBH1NAME).so: $(LIBH1NAME).so.$(SONAMEVERSION)
 	ln -fs $< $@
@@ -80,4 +85,5 @@ clean:
 	make -C $(SOURCE_ROOT)/linux_reference/test/h264 clean
 #	make -C $(SOURCE_ROOT)/linux_reference/test/jpeg clean
 	make -C $(SOURCE_ROOT)/linux_reference/test/vp8 clean
+	make -f Makefile_codec_enc LIBNAME="$(LIBENCNAME)" clean
 

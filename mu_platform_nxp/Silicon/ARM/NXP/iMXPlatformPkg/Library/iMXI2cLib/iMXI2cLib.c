@@ -1,7 +1,7 @@
 /** @file
 *
 *  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
-*  Copyright 2020 NXP
+*  Copyright 2020, 2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -401,14 +401,21 @@ IN UINT32             ReadBufferSize
   // Change controller to Master Receive Mode
   Data = (IMX_I2C_I2CR_REGISTER)MmioRead16 ((UINTN)&BaseAddress->I2CR);
   Data.MTX = IMX_I2C_I2CR_MTX_RECEIVE_MODE;
+  if (ReadBufferSize == 1) {
+    // For last byte to read, inform controller to not send transmit ack.
+    // This will inform the slave to stop sending more data after the next byte.
+    Data.TXAK = IMX_I2C_I2CR_TXAK_NO_TRANSMIT_ACK;
+  }
   MmioWrite16 ((UINTN)&BaseAddress->I2CR, Data.Raw);
 
-  // Clear controller status bits
-  MmioWrite16 ((UINTN)&BaseAddress->I2SR, 0);
-  // Spec indicates to perform a dummy read to kick off Data Receive flow
-  MmioRead16 ((UINTN)&BaseAddress->I2DR);
-
-  do {
+  if (ReadBufferSize > 0) {
+    // Clear controller status bits
+    MmioWrite16 ((UINTN)&BaseAddress->I2SR, 0);
+    // Spec indicates to perform a dummy read to kick off Data Receive flow
+    MmioRead16 ((UINTN)&BaseAddress->I2DR);
+  }
+  
+  while (ReadBufferSize > 0) {
     // Wait for read transfer to complete
     if (iMXI2cWaitStatusSet (I2cContext, IMX_I2C_I2SR_IIF) == FALSE) {
       DEBUG ((DEBUG_ERROR, "%a: waiting for read fail\n", __FUNCTION__));
@@ -445,7 +452,7 @@ IN UINT32             ReadBufferSize
     *ReadBufferPtr = MmioRead8 ((UINTN)&BaseAddress->I2DR);
     ++ReadBufferPtr;
     --ReadBufferSize;
-  } while (ReadBufferSize > 0);
+  }
 
   // Generate Stop signal and idle controller
   Status = iMXI2cGenerateStop (I2cContext);

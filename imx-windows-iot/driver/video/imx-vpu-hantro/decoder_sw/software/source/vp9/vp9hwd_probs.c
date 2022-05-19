@@ -108,6 +108,9 @@ void Vp9ResetProbs(struct Vp9Decoder *dec) {
       DWLmemcpy(&dec->entropy_last[i], &dec->entropy,
                 sizeof(struct Vp9EntropyProbs));
   } else if (dec->reset_frame_context == 2) {
+    ASSERT(dec->frame_context_idx < NUM_FRAME_CONTEXTS);
+    if (dec->frame_context_idx >= NUM_FRAME_CONTEXTS)
+      return;
     DWLmemcpy(&dec->entropy_last[dec->frame_context_idx], &dec->entropy,
               sizeof(struct Vp9EntropyProbs));
   }
@@ -361,6 +364,9 @@ void Vp9ResetProbs(struct Vp9Decoder *dec) {
 void Vp9GetProbs(struct Vp9Decoder *dec) {
   /* Frame context tells which frame is used as reference, make
    * a copy of the context to use as base for this frame probs. */
+  ASSERT(dec->frame_context_idx < NUM_FRAME_CONTEXTS);
+  if (dec->frame_context_idx >= NUM_FRAME_CONTEXTS)
+    return;
   dec->entropy = dec->entropy_last[dec->frame_context_idx];
 }
 
@@ -667,10 +673,14 @@ static void UpdateModeProbs(int n_modes, const vp9_tree_index *tree,
     count = branch_ct[t][0] + branch_ct[t][1];
     count = count > MODE_COUNT_SAT ? MODE_COUNT_SAT : count;
     factor = (MODE_MAX_UPDATE_FACTOR * count / MODE_COUNT_SAT);
-    if (t < 8 || dst_probs_b == NULL)
+    if (dst_probs_b == NULL)
       dst_probs[t] = WeightedProb(pre_probs[t], probs[t], factor);
-    else
-      dst_probs_b[t - 8] = WeightedProb(pre_probs_b[t - 8], probs[t], factor);
+    else {
+      if (t < 8)
+        dst_probs[t] = WeightedProb(pre_probs[t], probs[t], factor);
+      else
+        dst_probs_b[t - 8] = WeightedProb(pre_probs_b[t - 8], probs[t], factor);
+    }
   }
 }
 

@@ -51,6 +51,7 @@
 #include <sys/timeb.h>
 #endif
 #include <sys/types.h>
+//#include <linux/version.h>
 
 #ifdef _DWL_DEBUG
 #define DWL_DEBUG(fmt, args...) \
@@ -67,10 +68,24 @@
 
 #ifndef MEMALLOC_MODULE_PATH
 #ifdef USE_ION
+#if 0//LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#define MEMALLOC_MODULE_PATH "/dev/dma_heap/linux,cma-uncached"
+#else
 #define MEMALLOC_MODULE_PATH "/dev/ion"
+#endif
 #else
 #define MEMALLOC_MODULE_PATH "/tmp/dev/memalloc"
 #endif
+#endif
+
+#ifdef ENABLE_DMABUF_HEAP
+#undef MEMALLOC_MODULE_PATH
+#define MEMALLOC_MODULE_PATH "/dev/dma_heap/reserved-uncached"
+#endif
+
+#ifdef ENABLE_SEC_DMABUF_HEAP
+#undef MEMALLOC_SECURE_MODULE_PATH
+#define MEMALLOC_SECURE_MODULE_PATH "/dev/dma_heap/secure"
 #endif
 
 #define HANTRODECPP_REG_START 0x400
@@ -114,11 +129,12 @@ struct MCListenerThreadParams {
 };
 
 /* wrapper information */
-struct HX170DWL {
+struct HANTRODWL {
   u32 client_type;
   int fd;          /* decoder device file */
   int fd_mem;      /* /dev/mem for mapping */
   int fd_memalloc; /* linear memory allocator */
+  int fd_mem_sec;  /* linear memory allocator of secure dma-buf */
   u32 num_cores;
   u32 reg_size;         /* IO mem size */
   addr_t free_lin_mem;     /* Start address of free linear memory */
@@ -128,6 +144,7 @@ struct HX170DWL {
   struct ActivityTrace activity;
   u32 b_ppreserved;
   u32 asic_id;
+  u32 use_secure_mode;
 };
 
 i32 DWLWaitDecHwReady(const void *instance, i32 core_id, u32 timeout);

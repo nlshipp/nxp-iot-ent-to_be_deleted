@@ -88,7 +88,7 @@ INCLUDE = -I. -I$(COMMON_SOURCE_DIR)/inc -I$(COMMON_SOURCE_DIR)/dwl \
 
 # compiler switches
 CFLAGS += -Wall -Wextra -std=c99 -pedantic -fPIC
-CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE) $(SETTING_FLAGS)
+CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE) $(SETTING_FLAGS) $(M32)
 
 # Update data elements from repeat sequence header and repeat sequence extension header
 # This is not allowed by the mpeg2 specification

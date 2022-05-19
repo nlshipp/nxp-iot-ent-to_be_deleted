@@ -98,11 +98,13 @@ u32 NextNALFromFile(FILE *finput, u8 *stream_buff, u32 buff_size) {
 
   if (eof) {
     /* last NAL of the stream */
-    fseeko(finput, 0, SEEK_END);
+    if (fseeko(finput, 0, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     next_nal_start = ftello(finput);
   }
 
-  fseeko(finput, nal_start, SEEK_SET);
+  if (fseeko(finput, nal_start, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
   nal_size = next_nal_start - nal_start;
 

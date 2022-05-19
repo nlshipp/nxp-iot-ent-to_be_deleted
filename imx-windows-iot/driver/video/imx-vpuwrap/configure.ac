@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 dnl Created by Anjuta application wizard.
 
-AC_INIT(imx-vpuwrap, 4.4.5)
+AC_INIT(imx-vpuwrap, 4.6.4)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
@@ -51,12 +51,13 @@ if test "x$HAVE_HANTRO_ENC_LIB" = "xyes"; then
 fi
 AM_CONDITIONAL(USE_HANTRO_ENC_LIB, test "x$HAVE_HANTRO_ENC_LIB" = "xyes")
 
-AC_CHECK_HEADERS([malone/malone_interface.h], [HAVE_AMPHION_LIB=yes], [HAVE_AMPHION_LIB=no])
-if test "x$HAVE_AMPHION_LIB" = "xyes"; then
-    IMX_AMPHION_LIB="-lvpu-malone"
-    HAVE_VPU=yes
+AC_CHECK_HEADERS([hantro_VC8000E_enc/ewl.h], [HAVE_HANTRO_VC8000E_ENC_LIB=yes], [HAVE_HANTRO_VC8000E_ENC_LIB=no])
+AC_MSG_WARN([HAVE_HANTRO_VC8000E_ENC_LIB $HAVE_HANTRO_VC8000E_ENC_LIB])
+if test "x$HAVE_HANTRO_VC8000E_ENC_LIB" = "xyes"; then
+   IMX_HANTRO_VC8000E_ENC_LIB="-lhantro_vc8000e"
+   HAVE_VPU=yes
 fi
-AM_CONDITIONAL(USE_AMPHION_LIB, test "x$HAVE_AMPHION_LIB" = "xyes")
+AM_CONDITIONAL(USE_HANTRO_VC8000E_ENC_LIB, test "x$HAVE_HANTRO_VC8000E_ENC_LIB" = "xyes")
 
 if test "x$HAVE_VPU" = "xno"; then
     AC_MSG_ERROR([no vpu headers stop building vpu_wrapper])
@@ -67,6 +68,7 @@ AC_SUBST(IMX_VPU_LIB)
 AC_SUBST(IMX_HANTRO_LIB)
 AC_SUBST(IMX_AMPHION_LIB)
 AC_SUBST(IMX_HANTRO_ENC_LIB)
+AC_SUBST(IMX_HANTRO_VC8000E_ENC_LIB)
 
 AC_OUTPUT([
 Makefile

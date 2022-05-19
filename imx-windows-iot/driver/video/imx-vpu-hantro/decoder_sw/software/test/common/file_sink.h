@@ -46,8 +46,9 @@ extern "C" {
 
 const void* FilesinkOpen(const char* fname);
 void FilesinkClose(const void* inst);
-void FilesinkWritePic(const void* inst, struct DecPicture pic);
-void FilesinkWriteSinglePic(const void* inst, struct DecPicture pic);
+void FilesinkWritePic(const void* inst, const struct DecPicture* pic);
+void FilesinkWriteSinglePic(const void* inst, const struct DecPicture* pic);
+
 
 #ifdef __cplusplus
 }

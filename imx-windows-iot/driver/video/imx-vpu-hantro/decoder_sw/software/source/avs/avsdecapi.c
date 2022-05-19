@@ -292,7 +292,7 @@ AvsDecRet AvsDecInit(AvsDecInst * dec_inst,
   DWLReadAsicConfig(&config,DWL_CLIENT_TYPE_AVS_DEC);
 
   if(!config.addr64_support && sizeof(void *) == 8) {
-    AVSDEC_DEBUG("AVSDecInit# ERROR: HW not support 64bit address!\n");
+    AVSDEC_DEBUG(("AVSDecInit# ERROR: HW not support 64bit address!\n"));
     return (AVSDEC_PARAM_ERROR);
   }
 
@@ -677,7 +677,7 @@ AvsDecRet AvsDecDecode(AvsDecInst dec_inst,
             AVS_API_TRC("AvsDecDecode# AVSDEC_NONREF_PIC_SKIPPED\n");
           }
           if (!dec_cont->ApiStorage.first_field && dec_cont->pp_enabled)
-            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
           ret = AvsHandleVlcModeError(dec_cont, input->pic_id);
           error_concealment = 1;
         } else
@@ -702,7 +702,7 @@ AvsDecRet AvsDecDecode(AvsDecInst dec_inst,
           return AVSDEC_STREAM_NOT_SUPPORTED;
         }
         if (!dec_cont->ApiStorage.first_field && dec_cont->pp_enabled)
-          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
         ret = AvsHandleVlcModeError(dec_cont, input->pic_id);
         error_concealment = 1;
         break;
@@ -869,7 +869,7 @@ AvsDecRet AvsDecDecode(AvsDecInst dec_inst,
           }
 
           if (dec_cont->pp_enabled) {
-            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
           }
           ret = AvsHandleVlcModeError(dec_cont, input->pic_id);
           error_concealment = 1;
@@ -973,7 +973,7 @@ AvsDecRet AvsDecDecode(AvsDecInst dec_inst,
 #ifdef USE_OUTPUT_RELEASE
   if(dec_cont->pp_instance == NULL) {
     u32 tmpret;
-    AvsDecPicture output;
+    AvsDecPicture output = { 0 };
     if(ret == AVSDEC_PIC_DECODED) {
       do {
         tmpret = AvsDecNextPicture_INTERNAL(dec_cont, &output, 0);
@@ -1045,6 +1045,8 @@ void AvsDecRelease(AvsDecInst dec_inst) {
 #endif
 
   AvsFreeBuffers(dec_cont);
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
 
   DWLfree(dec_cont);
 
@@ -1229,11 +1231,12 @@ u32 AvsHandleVlcModeError(DecContainer * dec_cont, u32 pic_num) {
 
   /* error in first picture -> set reference to grey */
   if(!dec_cont->StrmStorage.frame_number) {
+#if 0
     (void) DWLmemset(dec_cont->StrmStorage.
                      p_pic_buf[(i32)dec_cont->StrmStorage.work_out].data.
                      virtual_address, 128,
                      384 * dec_cont->StrmStorage.total_mbs_in_frame);
-
+#endif
     AvsDecPreparePicReturn(dec_cont);
 
     /* no pictures finished -> return STRM_PROCESSED */
@@ -1994,7 +1997,7 @@ AvsDecRet AvsDecNextPicture_INTERNAL(AvsDecInst dec_inst,
       if(BqueueWaitBufNotInUse(&dec_cont->StrmStorage.bq, pic_index) != HANTRO_OK)
         return AVSDEC_ABORTED;
       if(dec_cont->pp_enabled) {
-        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 #endif
 
@@ -2006,7 +2009,7 @@ AvsDecRet AvsDecNextPicture_INTERNAL(AvsDecInst dec_inst,
         BqueueSetBufferAsUsed(&dec_cont->StrmStorage.bq, pic_index);
         dec_cont->StrmStorage.p_pic_buf[pic_index].first_show = 0;
         if(dec_cont->pp_enabled)
-          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 
       dec_cont->StrmStorage.picture_info[dec_cont->fifo_index] = *picture;
@@ -2065,9 +2068,7 @@ AvsDecRet AvsDecPictureConsumed(AvsDecInst dec_inst, AvsDecPicture * picture) {
 
   if (!dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers; i++) {
-      if(picture->output_picture_bus_address == dec_cont->StrmStorage.p_pic_buf[i].data.bus_address
-          && (addr_t)picture->output_picture
-          == (addr_t)dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address) {
+      if(picture->output_picture_bus_address == dec_cont->StrmStorage.p_pic_buf[i].data.bus_address) {
         if(dec_cont->pp_instance == NULL) {
           BqueuePictureRelease(&dec_cont->StrmStorage.bq, i);
         }
@@ -2075,7 +2076,7 @@ AvsDecRet AvsDecPictureConsumed(AvsDecInst dec_inst, AvsDecPicture * picture) {
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue,(u32 *)picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
     return (AVSDEC_OK);
   }
   return (AVSDEC_PARAM_ERROR);
@@ -3220,7 +3221,7 @@ void AvsPpControl(DecContainer * dec_container, u32 pipeline_off) {
 
           dec_container->ApiStorage.pp_pic_index = index_for_pp;
         } else {
-          index_for_pp = dec_container->StrmStorage.work_out;
+          //index_for_pp = dec_container->StrmStorage.work_out;
           index_for_pp = AVS_BUFFER_UNDEFINED;
           pc->input_bus_luma = 0;
         }
@@ -3615,6 +3616,7 @@ AvsDecRet AvsDecGetBufferInfo(AvsDecInst dec_inst, AvsDecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -3623,7 +3625,7 @@ AvsDecRet AvsDecGetBufferInfo(AvsDecInst dec_inst, AvsDecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return AVSDEC_WAITING_FOR_BUFFER;
 }
@@ -3633,7 +3635,6 @@ AvsDecRet AvsDecAddBuffer(AvsDecInst dec_inst, struct DWLLinearMem *info) {
   AvsDecRet dec_ret = AVSDEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return AVSDEC_PARAM_ERROR;
@@ -3750,7 +3751,8 @@ void AvsStateReset(DecContainer *dec_cont) {
   dec_cont->StrmStorage.future2prev_past_dist = 0;
 
   /* Clear internal parameters in DecApiStorage */
-  dec_cont->ApiStorage.DecStat = INITIALIZED;
+  if (dec_cont->ApiStorage.DecStat != HEADERSDECODED)
+    dec_cont->ApiStorage.DecStat = INITIALIZED;
   dec_cont->ApiStorage.first_field = 1;
   dec_cont->ApiStorage.output_other_field = 0;
 
@@ -3770,8 +3772,51 @@ void AvsStateReset(DecContainer *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(32, &dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
+}
+
+AvsDecRet AvsDecRemoveBuffer(AvsDecInst dec_inst) {
+  DecContainer *dec_cont = (DecContainer *) dec_inst;
+  AvsDecRet re = AVSDEC_OK;
+  u32 buffers = 3;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  FifoSetAbort(dec_cont->fifo_display);
+  BqueueRemove(&dec_cont->StrmStorage.bq);
+  dec_cont->StrmStorage.work_out = 0;
+  dec_cont->StrmStorage.work0 =
+    dec_cont->StrmStorage.work1 = INVALID_ANCHOR_PICTURE;
+
+  AvsStateReset(dec_cont);
+
+  if( !dec_cont->pp_instance ) { /* Combined mode used */
+    buffers = dec_cont->StrmStorage.max_num_buffers;
+    if( buffers < 3 )
+      buffers = 3;
+  }
+
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->fifo_index = 0;
+  dec_cont->ext_buffer_num = 0;
+
+  dec_cont->StrmStorage.bq.queue_size = buffers;
+  dec_cont->StrmStorage.num_buffers = buffers;
+  (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf, 0, 16 * sizeof(picture_t));
+  (void) DWLmemset(dec_cont->StrmStorage.picture_info, 0, 32 * sizeof(AvsDecPicture));
+  if (dec_cont->fifo_display)
+    FifoRelease(dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    re = AVSDEC_MEMFAIL;
+    goto end;
+  }
+  FifoClearAbort(dec_cont->fifo_display);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 AvsDecRet AvsDecAbort(AvsDecInst dec_inst) {

@@ -178,10 +178,12 @@ int ParseParams(int argc, char* argv[], struct TestParams* params) {
                 "exclusive!\n");
         return 1;
       }
+#ifdef SDL_ENABLED
       if (flag_s) {
         fprintf(stderr, "ERROR: SDL sink supports only -P!\n");
         return 1;
       }
+#endif
       flag_S = 1;
       params->format = DEC_OUT_FRM_RASTER_SCAN;
       break;
@@ -253,10 +255,12 @@ int ParseParams(int argc, char* argv[], struct TestParams* params) {
                 "exclusive!\n");
         return 1;
       }
+#ifdef SDL_ENABLED
       if (flag_s) {
         fprintf(stderr, "ERROR: SDL sink supports only -P!\n");
         return 1;
       }
+#endif
       flag_T = 1;
       params->format = DEC_OUT_FRM_TILED_4X4;
       break;

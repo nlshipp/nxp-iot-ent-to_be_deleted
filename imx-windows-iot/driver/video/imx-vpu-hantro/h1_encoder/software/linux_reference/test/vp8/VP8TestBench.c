@@ -575,7 +575,8 @@ i32 Encode(i32 argc, char **argv, VP8EncInst encoder, testbench_s * cml)
         if(fmv == NULL)
         {
             fprintf(VP8ERR_OUTPUT, "Failed to create mv.txt output file.\n");
-            return -1;
+            encodeFail = -1;
+            goto exit;
         }
     }
 
@@ -585,7 +586,8 @@ i32 Encode(i32 argc, char **argv, VP8EncInst encoder, testbench_s * cml)
         if(fscaled == NULL)
         {
             fprintf(VP8ERR_OUTPUT, "Failed to create scaled.yuv output file.\n");
-            return -1;
+            encodeFail = -1;
+            goto exit;
         }
     }
 
@@ -783,6 +785,7 @@ i32 Encode(i32 argc, char **argv, VP8EncInst encoder, testbench_s * cml)
         printf("Average PSNR %d.%02d\n",
             (cml->psnrSum/cml->psnrCnt)/100, (cml->psnrSum/cml->psnrCnt)%100);
 
+exit:
 
     /* Free all resources */
     if(fout != NULL)

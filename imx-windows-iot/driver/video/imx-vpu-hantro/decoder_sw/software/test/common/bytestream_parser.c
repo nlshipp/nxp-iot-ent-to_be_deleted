@@ -86,15 +86,27 @@ static off_t FindNextStartCode(struct BSParser* inst, u32* zero_count) {
 
 BSParserInst ByteStreamParserOpen(const char* fname, u32 mode) {
   struct BSParser* inst = malloc(sizeof(struct BSParser));
+  if (inst == NULL)
+    return NULL;
   inst->mode = mode;
   inst->file = fopen(fname, "rb");
   if (inst->file == NULL) {
     free(inst);
     return NULL;
   }
-  fseeko(inst->file, 0, SEEK_END);
+  if (fseeko(inst->file, 0, SEEK_END) != 0) {
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    free(inst);
+    return NULL;
+  }
   inst->size = ftello(inst->file);
-  fseeko(inst->file, 0, SEEK_SET);
+  if (inst->size == -1L)
+    fprintf(stderr, "ftell() failed in file %s at line # %d\n", __FILE__, __LINE__-2);
+  if (fseeko(inst->file, 0, SEEK_SET) != 0) {
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    free(inst);
+    return NULL;
+  }
   return inst;
 }
 
@@ -113,8 +125,13 @@ u32 CheckAccessUnitBoundary(FILE* file, off_t nal_begin) {
   u32 nal_type, val;
 
   off_t start = ftello(file);
+  if (start == -1L) {
+    fprintf(stderr, "ftell() failed in file %s at line # %d\n", __FILE__, __LINE__-2);
+    return is_boundary;
+  }
 
-  fseeko(file, nal_begin + 1, SEEK_SET);
+  if (fseeko(file, nal_begin + 1, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   nal_type = (getc(file) & 0x7E) >> 1;
 
   if (nal_type > NAL_CODED_SLICE_CRA)
@@ -126,7 +143,8 @@ u32 CheckAccessUnitBoundary(FILE* file, off_t nal_begin) {
     if (val & 0x80) is_boundary = BSPARSER_BOUNDARY;
   }
 
-  fseeko(file, start, SEEK_SET);
+  if (fseeko(file, start, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   return is_boundary;
 }
 
@@ -178,7 +196,8 @@ int ByteStreamParserReadFrame(BSParserInst instance, u8* buffer,
   if (end == begin) {
     return 0; /* End of stream */
   }
-  fseeko(inst->file, begin, SEEK_SET);
+  if (fseeko(inst->file, begin, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   if (*size < end - begin) {
     *size = end - begin;
     return -1; /* Insufficient buffer size */

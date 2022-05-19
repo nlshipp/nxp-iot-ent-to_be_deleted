@@ -42,8 +42,8 @@ extern "C" {
 
 
 /* Types compatible with OMX types */
-typedef unsigned long long OSAL_U64;
 typedef unsigned long OSAL_U32;
+typedef unsigned long long OSAL_U64;
 typedef unsigned char OSAL_U8;
 typedef void * OSAL_PTR;
 typedef unsigned long OSAL_ERRORTYPE;

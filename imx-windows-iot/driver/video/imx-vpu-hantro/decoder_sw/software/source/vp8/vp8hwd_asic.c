@@ -305,6 +305,7 @@ i32 VP8HwdAsicAllocateMem(VP8DecContainer_t * dec_cont) {
   memory_size += PROB_TABLE_SIZE;
 
   for(i=0; i < dec_cont->num_cores; i++) {
+    p_asic_buff->prob_tbl[i].mem_type = DWL_MEM_TYPE_VPU_WORKING;
     dwl_ret = DWLMallocLinear(dwl, memory_size, &p_asic_buff->prob_tbl[i]);
     if(dwl_ret != DWL_OK) {
       break;
@@ -377,7 +378,7 @@ i32 VP8HwdAsicAllocatePictures(VP8DecContainer_t * dec_cont) {
   memory_size = 64*((memory_size + 63) >> 6); /* Round up to next multiple of 64 bytes */
 
   if( dec_cont->decoder.dec_mode != VP8HWD_VP7 ) {
-
+    p_asic_buff->segment_map.mem_type = DWL_MEM_TYPE_DPB;
     dwl_ret = DWLMallocLinear(dwl, memory_size, &p_asic_buff->segment_map);
 
     if(dwl_ret != DWL_OK) {
@@ -478,6 +479,7 @@ i32 VP8HwdAsicAllocatePictures(VP8DecContainer_t * dec_cont) {
           p_asic_buff->pictures[i].bus_address +
           p_asic_buff->chroma_buf_offset;
 
+        if (dec_cont->num_cores > 1)
         {
           void *base = (char*)p_asic_buff->pictures[i].virtual_address
                        + p_asic_buff->sync_mc_offset;
@@ -504,12 +506,13 @@ i32 VP8HwdAsicAllocatePictures(VP8DecContainer_t * dec_cont) {
                   (  2 + 2 /* streamd (cbf + intra pred modes) */ +
                      16 + 2*8 /* intra pred (luma + cb + cr) */ +
                      16*8 + 2*8*4 /* filterd */ );
+    p_asic_buff->pictures[1].mem_type = DWL_MEM_TYPE_VPU_WORKING;
     dwl_ret = DWLMallocLinear(dwl, memory_size, &p_asic_buff->pictures[1]);
     if(dwl_ret != DWL_OK) {
       VP8HwdAsicReleasePictures(dec_cont);
       return -1;
     }
-    DWLmemset(p_asic_buff->pictures[1].virtual_address, 0, memory_size);
+    //DWLmemset(p_asic_buff->pictures[1].virtual_address, 0, memory_size);
     SET_ADDR_REG(dec_cont->vp8_regs, HWIF_REFER6_BASE,
                  p_asic_buff->pictures[1].bus_address);
     SET_ADDR_REG(dec_cont->vp8_regs, HWIF_REFER2_BASE,
@@ -521,11 +524,13 @@ i32 VP8HwdAsicAllocatePictures(VP8DecContainer_t * dec_cont) {
   if (dec_cont->hw_ec_support) {
     /* allocate memory for motion vectors used for error concealment */
     memory_size = num_mbs * 16 * sizeof(u32);
+    p_asic_buff->mvs[0].mem_type = DWL_MEM_TYPE_VPU_WORKING;
     dwl_ret = DWLMallocLinear(dwl, memory_size, &p_asic_buff->mvs[0]);
     if(dwl_ret != DWL_OK) {
       VP8HwdAsicReleasePictures(dec_cont);
       return -1;
     }
+    p_asic_buff->mvs[1].mem_type = DWL_MEM_TYPE_VPU_WORKING;
     dwl_ret = DWLMallocLinear(dwl, memory_size, &p_asic_buff->mvs[1]);
     if(dwl_ret != DWL_OK) {
       VP8HwdAsicReleasePictures(dec_cont);
@@ -608,7 +613,7 @@ void VP8HwdAsicReleasePictures(VP8DecContainer_t * dec_cont) {
 #ifndef USE_EXTERNAL_BUFFER
     count = dec_cont->num_buffers;
     for (i = 0; i < count; i++) {
-      if(p_asic_buff->pictures[i].virtual_address != NULL) {
+      if(p_asic_buff->pictures[i].bus_address != 0) {
         DWLFreeRefFrm(dwl, &p_asic_buff->pictures[i]);
       }
     }
@@ -616,7 +621,7 @@ void VP8HwdAsicReleasePictures(VP8DecContainer_t * dec_cont) {
   }
 #ifndef USE_EXTERNAL_BUFFER
   if (dec_cont->intra_only) {
-    if(p_asic_buff->pictures[1].virtual_address != NULL) {
+    if(p_asic_buff->pictures[1].bus_address != 0) {
       DWLFreeLinear(dwl, &p_asic_buff->pictures[1]);
     }
   }
@@ -1088,7 +1093,7 @@ void VP8HwdAsicStrmPosUpdate(VP8DecContainer_t * dec_cont, addr_t strm_bus_addre
 
   tmp_addr = strm_bus_address + tmp/8;
   hw_bit_pos = (tmp_addr & DEC_8190_ALIGN_MASK) * 8;
-  tmp_addr &= (~DEC_8190_ALIGN_MASK);  /* align the base */
+  tmp_addr &= (addr_t) (~DEC_8190_ALIGN_MASK);  /* align the base */
 
   hw_bit_pos += tmp & 0x7;
 

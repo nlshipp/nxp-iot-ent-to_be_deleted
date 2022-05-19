@@ -1,6 +1,6 @@
 LIBRARY	"imx-vpu-dwl"
 EXPORTS
-    DllMain             PRIVATE
+	DllMain             PRIVATE
 	
 	DWLInit
 	DWLRelease
@@ -15,6 +15,7 @@ EXPORTS
 	DWLReleaseHw
 	DWLWaitHwReady
 	DWLmemset
+	DWLSetSecureMode
 	DWLmemcpy
 	DWLPrivateAreaMemcpy
 	DWLmalloc
@@ -31,8 +32,9 @@ EXPORTS
 	DWLSetIRQCallback
 	DWLInvalidateLinear
 	DWLFlushLinear
+	DWLFlushCache
 
-    sched_yield
+	sched_yield
 	usleep
 	getpagesize
 

@@ -33,20 +33,6 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_jpeg(OMX_BOOL motion_jpeg)
     return NULL;
 }
 
-CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_mpeg2(const void *DWLInstance,
-    OMX_VIDEO_PARAM_G1CONFIGTYPE *g1Conf)
-{
-    return NULL;
-}
-
-CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_mpeg4(const void *DWLInstance,
-    OMX_BOOL enable_deblocking,
-    MPEG4_FORMAT format,
-    OMX_VIDEO_PARAM_G1CONFIGTYPE *g1Conf)
-{
-    return NULL;
-}
-
 CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_vc1(const void *DWLInstance,
     OMX_VIDEO_PARAM_G1CONFIGTYPE *g1Conf)
 {

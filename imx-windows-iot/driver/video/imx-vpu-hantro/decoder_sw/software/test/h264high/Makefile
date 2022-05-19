@@ -58,7 +58,7 @@ DECLIBDIR = -L../../linux/h264high \
             -L../../linux/dwl \
             -L../common \
             -L../common/swhw \
-            -L../../../lib \
+            -L../../../system/models/g1hw \
             -L../common/utils
 
 # libav stuff
@@ -91,6 +91,8 @@ CC=$(CROSS)gcc
 
 # Enable SW performance  measurement
 #CFLAGS = -DSW_PERFORMANCE
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 # code does not support 64-bits!!!
 ifeq ($(shell uname -m),x86_64)

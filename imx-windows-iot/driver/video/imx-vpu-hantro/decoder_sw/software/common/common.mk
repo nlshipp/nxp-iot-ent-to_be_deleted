@@ -110,7 +110,7 @@ ifeq ($(USE_HW_PIC_DIMENSIONS), y)
 endif
 
 # Define for using prebuilt library
-USE_MODEL_LIB ?= y
+USE_MODEL_LIB ?= n
 
 DEFINES += -DFIFO_DATATYPE=void*
 # Common error flags for all targets
@@ -120,7 +120,7 @@ CFLAGS += -Wno-variadic-macros
 
 # Common libraries
 LDFLAGS += -L$(OBJDIR) -pthread
-LDFLAGS += -L./lib -lg2hw
+
 # MACRO for cleaning object -files
 RM  = rm -f
 
@@ -251,6 +251,15 @@ endif
 
 # Enable WaitListNotInUse so that buffer can be released safely.
 #DEFINES += -DUSE_EXT_BUF_SAFE_RELEASE
+# Enable null pointer judgement for picture buffer in VSI environment.
+#DEFINES += -DUSE_NULL_POINTER_PROTECT
+
+# For some files/tools, customer and VSI have different method,
+# use this to fix conflict.
+#DEFINES += -DUSE_VSI_ENV
+
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 #  DEFINES += -DCLEAR_OUT_BUFFER
 

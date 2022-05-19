@@ -291,12 +291,15 @@ H264EncRet H264Init(const H264EncConfig *pEncCfg, h264Instance_s **instAddr)
 
     if (H264InitRc(&inst->rateControl, 1) != ENCHW_OK)
     {
-        return H264ENC_INVALID_ARGUMENT;
+        ret = H264ENC_INVALID_ARGUMENT;
+        goto err;
     }
 
     if (EncPreProcessAlloc(&inst->preProcess,
-                           inst->mbPerRow * inst->mbPerCol) != ENCHW_OK)
-        return ENCHW_NOK;
+                           inst->mbPerRow * inst->mbPerCol) != ENCHW_OK){
+        ret = ENCHW_NOK;
+        goto err;
+    }
 
     /* Initialize ASIC */
     inst->asic.ewl = ewl;

@@ -50,8 +50,10 @@ static u32 GetMbOffset(u32 mb_num, u32 vop_width, u32 vop_height);
 
 u32 GetMbOffset(u32 mb_num, u32 vop_width, u32 vop_height) {
   u32 mb_row, mb_col;
-  u32 offset;
+  u32 offset = 0;
   UNUSED(vop_height);
+  if(vop_width == 0)
+    return offset;
 
   mb_row = mb_num / vop_width;
   mb_col = mb_num % vop_width;

@@ -78,8 +78,8 @@ typedef struct CODEC_MPEG4
     OMX_BOOL extraEosLoopDone;
     MPEG4_FORMAT format;
     MPEG4_CODEC_STATE state;
-    OMX_S32 custom1Width;
-    OMX_S32 custom1Height;
+    OMX_U32 custom1Width;
+    OMX_U32 custom1Height;
     OMX_BOOL dispatchOnlyFrame;
     OMX_BOOL interlaced;
     OMX_U32 out_count;
@@ -167,12 +167,30 @@ static CODEC_STATE decoder_decode_mpeg4(CODEC_PROTOTYPE * arg,
     {
         DBGT_PDEBUG("PARSE_METADATA");
         this->state = MPEG4_DECODE;
-        this->custom1Width =
-            (buf->bus_data[0]) | (buf->bus_data[1] << 8) |
-            (buf->bus_data[2] << 16) | (buf->bus_data[3] << 24);
-        this->custom1Height =
-            (buf->bus_data[4]) | (buf->bus_data[5] << 8) |
-            (buf->bus_data[6] << 16) | (buf->bus_data[7] << 24);
+        if ((OMX_U32)((buf->bus_data[0]) | (buf->bus_data[1] << 8) |
+            (buf->bus_data[2] << 16) | (buf->bus_data[3] << 24)) > 0x7fffffff)
+        {
+            *consumed = 0;
+            return CODEC_ERROR_STREAM;
+        }
+        else
+        {
+            this->custom1Width =
+                (OMX_U32)((buf->bus_data[0]) | (buf->bus_data[1] << 8) |
+                (buf->bus_data[2] << 16) | (buf->bus_data[3] << 24));
+        }
+        if ((OMX_U32)((buf->bus_data[4]) | (buf->bus_data[5] << 8) |
+            (buf->bus_data[6] << 16) | (buf->bus_data[7] << 24)) > 0x7fffffff)
+        {
+            *consumed = 0;
+            return CODEC_ERROR_STREAM;
+        }
+        else
+        {
+            this->custom1Height =
+                (OMX_U32)((buf->bus_data[4]) | (buf->bus_data[5] << 8) |
+                (buf->bus_data[6] << 16) | (buf->bus_data[7] << 24));
+        }
 
         MP4DecSetInfo(this->instance, this->custom1Width, this->custom1Height);
 #ifdef ENABLE_PP
@@ -956,7 +974,7 @@ CODEC_STATE decoder_setframebuffer_mpeg4(CODEC_PROTOTYPE * arg, BUFFER *buff, OM
     UNUSED_PARAMETER(available_buffers);
     CODEC_MPEG4 *this = (CODEC_MPEG4 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     MP4DecBufferInfo info;
     MP4DecRet ret;
 

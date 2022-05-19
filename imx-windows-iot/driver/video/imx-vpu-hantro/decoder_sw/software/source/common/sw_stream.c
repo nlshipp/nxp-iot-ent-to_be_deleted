@@ -98,11 +98,14 @@ u32 SwShowBits(const struct StrmData *stream, u32 num_bits) {
     return (0);
   }
 
-  tmp = SwTurnAround(stream->strm_curr_pos, stream->strm_buff_start,
-                     tmp_strm_buf, stream->strm_buff_size,
-                     num_bits + stream->bit_pos_in_word + 32);
+  if (stream->is_rb) {
+    tmp = SwTurnAround(stream->strm_curr_pos, stream->strm_buff_start,
+                       tmp_strm_buf, stream->strm_buff_size,
+                       num_bits + stream->bit_pos_in_word + 32);
 
-  if(tmp != NULL) strm = tmp;
+    if(tmp != NULL)
+      strm = tmp;
+  }
 
   if (!stream->remove_emul3_byte) {
 
@@ -137,7 +140,8 @@ u32 SwShowBits(const struct StrmData *stream, u32 num_bits) {
         out |= (u32)DWLPrivateAreaReadByte(strm) << (24 - out_bits);
         strm++;
       } else {
-        out |= (u32)DWLPrivateAreaReadByte(strm) >> (out_bits - 24);
+        out |= (out_bits - 24) > 7 ? 0: 
+                   ((u32)DWLPrivateAreaReadByte(strm) >> (out_bits - 24));
         strm++;
       }
 
@@ -197,9 +201,12 @@ u32 SwFlushBits(struct StrmData *stream, u32 num_bits) {
   ASSERT(stream->bit_pos_in_word == (stream->strm_buff_read_bits & 0x7));
 
   /* used to copy stream data when ringbuffer turnaround */
-  tmp = SwTurnAround(stream->strm_curr_pos, stream->strm_buff_start,
-                     tmp_strm_buf, stream->strm_buff_size,
-                     num_bits + stream->bit_pos_in_word + 32);
+  if (stream->is_rb) {
+    tmp = SwTurnAround(stream->strm_curr_pos, stream->strm_buff_start,
+                       tmp_strm_buf, stream->strm_buff_size,
+                       num_bits + stream->bit_pos_in_word + 32);
+  } else
+    tmp = NULL;
 
   if (!stream->remove_emul3_byte) {
     if ((stream->strm_buff_read_bits + num_bits) >

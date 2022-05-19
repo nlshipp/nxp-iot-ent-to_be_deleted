@@ -160,6 +160,14 @@ typedef struct
     i32 noiseLevel;
     i32 inputLineBufMode;
     i32 inputLineBufDepth;
+
+    u32 vuiColorDescripPresentFlag;
+    u32 vuiColorPrimaries;
+    u32 vuiTransferCharacteristics;
+    u32 vuiMatrixCoefficients;
+    u32 vuiVideoFormat;
+    u32 vuiVideoSignalTypePresentFlag;
+    u32 videoFullRange;
 } commandLine_s;
 
 void TestNaluSizes(i32 * pNaluSizes, u8 * stream, u32 strmSize, u32 picBytes);

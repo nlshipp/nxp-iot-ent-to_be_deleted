@@ -74,7 +74,20 @@
 #define ASSERT(expr)
 #endif
 
-#define DEBUG_PRINT(str) printf str
+#undef DEBUG_PRINT
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
 
 #define MAX_BUFFERS 32
 
@@ -82,7 +95,7 @@
 
 /* Generic yuv writing interface. */
 typedef const void* YuvsinkOpenFunc(const char* fname);
-typedef void YuvsinkWritePictureFunc(const void* inst, struct DecPicture pic);
+typedef void YuvsinkWritePictureFunc(const void* inst, const struct DecPicture* pic);
 typedef void YuvsinkCloseFunc(const void* inst);
 typedef struct YuvSink_ {
   const void* inst;
@@ -132,7 +145,7 @@ static void HeadersDecodedCb(ClientInst inst,
 static void BufferRequestCb(ClientInst inst);
 #endif
 static void BufferDecodedCb(ClientInst inst, struct DecInput* buffer);
-static void PictureReadyCb(ClientInst inst, struct DecPicture picture);
+static void PictureReadyCb(ClientInst inst, struct DecPicture* picture);
 static void EndOfStreamCb(ClientInst inst);
 static void ReleasedCb(ClientInst inst);
 static void NotifyErrorCb(ClientInst inst, u32 pic_id, enum DecRet rv);
@@ -211,14 +224,14 @@ int main(int argc, char* argv[]) {
 #endif
   struct DWLInitParam dwl_params = {DWL_CLIENT_TYPE_HEVC_DEC};
 
-  printf("\nHantro G2 decoder command line interface\n\n");
+  PRINT(("\nHantro G2 decoder command line interface\n\n"));
   SetupDefaultParams(&client.test_params);
   if (argc < 2) {
     PrintUsage(argv[0]);
     return 0;
   }
   if (ParseParams(argc, argv, &client.test_params)) {
-    printf("Failed to parse params.\n\n");
+    PRINT(("Failed to parse params.\n\n"));
     PrintUsage(argv[0]);
     return 1;
   }
@@ -226,30 +239,35 @@ int main(int argc, char* argv[]) {
   OpenTestHooks(&client);
 
   struct DecSwHwBuild build = DecGetBuild();
-  printf("Hardware build: 0x%x, Software build: 0x%x\n", build.hw_build,
-         build.sw_build);
-  printf("VP9 %s\n", build.hw_config[0].vp9_support ? "enabled" : "disabled");
-  printf("HEVC %s\n", build.hw_config[0].hevc_support ? "enabled" : "disabled");
-  printf("PP %s\n", build.hw_config[0].pp_support ? "enabled" : "disabled");
+  PRINT(("Hardware build: 0x%x, Software build: 0x%x\n", build.hw_build,
+         build.sw_build));
+  PRINT(("VP9 %s\n", build.hw_config[0].vp9_support ? "enabled" : "disabled"));
+  PRINT(("HEVC %s\n", build.hw_config[0].hevc_support ? "enabled" : "disabled"));
+  PRINT(("PP %s\n", build.hw_config[0].pp_support ? "enabled" : "disabled"));
   if (!build.hw_config[0].max_dec_pic_width ||
       !build.hw_config[0].max_dec_pic_height) {
-    printf("Maximum supported picture width, height unspecified");
-    printf(" (hw config reports %d, %d)\n\n", build.hw_config[0].max_dec_pic_width,
-           build.hw_config[0].max_dec_pic_height);
-  } else
-    printf("Maximum supported picture width %d, height %d\n\n",
+    PRINT(("Maximum supported picture width, height unspecified"));
+    PRINT((" (hw config reports %d, %d)\n\n", build.hw_config[0].max_dec_pic_width,
+           build.hw_config[0].max_dec_pic_height));
+  } else {
+    PRINT(("Maximum supported picture width %d, height %d\n\n",
            build.hw_config[0].max_dec_pic_width,
-           build.hw_config[0].max_dec_pic_height);
+           build.hw_config[0].max_dec_pic_height));
+  }
 
   client.demuxer.inst = CreateDemuxer(&client);
   if (client.demuxer.inst == NULL) {
-    printf("Failed to open demuxer (file missing or of wrong type?)\n");
+    PRINT(("Failed to open demuxer (file missing or of wrong type?)\n"));
     return -1;
   }
 
   if (client.test_params.extra_output_thread)
     /* Create the fifo to enable parallel output processing */
-    FifoInit(2, &client.pic_fifo);
+    if (FifoInit(2, &client.pic_fifo) != FIFO_OK) {
+      fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+      sem_destroy(&client.dec_done);
+      return -1;
+    }
 
   sem_init(&client.dec_done, 0, 0);
 
@@ -264,14 +282,17 @@ int main(int argc, char* argv[]) {
     dwl_params.client_type = DWL_CLIENT_TYPE_VP9_DEC;
     if (client.test_params.read_mode == STREAMREADMODE_FULLSTREAM) {
       fprintf(stderr, "Full-stream (-F) is not supported in VP9.\n");
+      sem_destroy(&client.dec_done);
       return -1;
     }
     if (client.test_params.disable_display_order) {
       fprintf(stderr, "Disable display reorder (-R) is not supported in VP9.\n");
+      sem_destroy(&client.dec_done);
       return -1;
     }
     break;
   default:
+    sem_destroy(&client.dec_done);
     return -1;
   }
 
@@ -289,17 +310,21 @@ int main(int argc, char* argv[]) {
   case DEC_OUT_FRM_PLANAR_420:
     if (!build.hw_config[0].pp_support) {
       fprintf(stderr, "Cannot do raster output; No PP support.\n");
+      sem_destroy(&client.dec_done);
+      DWLRelease(client.dwl);
       return -1;
     }
     config.output_format = DEC_OUT_FRM_RASTER_SCAN;
     break;
   default:
+    sem_destroy(&client.dec_done);
+    DWLRelease(client.dwl);
     return -1;
   }
-  printf("Configuring hardware to output: %s\n",
+  PRINT(("Configuring hardware to output: %s\n",
          config.output_format == DEC_OUT_FRM_RASTER_SCAN
          ? "Semiplanar YCbCr 4:2:0 (four_cc 'NV12')"
-         : "4x4 tiled YCbCr 4:2:0");
+         : "4x4 tiled YCbCr 4:2:0"));
   config.dwl = dwl;
   config.dwl_inst = client.dwl;
   config.max_num_pics_to_decode = client.test_params.num_of_decoded_pics;
@@ -312,7 +337,8 @@ int main(int argc, char* argv[]) {
   config.use_bige_output = client.test_params.bigendian_output;
 
   /* Initialize the decoder. */
-  if (DecInit(codec, &client.decoder, config, client_if) != DEC_OK) {
+  if (DecInit(codec, &client.decoder, &config, client_if) != DEC_OK) {
+    sem_destroy(&client.dec_done);
     return -1;
   }
 
@@ -325,6 +351,8 @@ int main(int argc, char* argv[]) {
   if (client.dwl != NULL) DWLRelease(client.dwl);
 
   CloseTestHooks(&client);
+
+  sem_destroy(&client.dec_done);
 
   return 0;
 }
@@ -344,7 +372,7 @@ static void DispatchBufferForDecoding(struct Client* client,
        sufficient size. */
     if (size > buffer->buffer.size) {
       i32 i;
-      DEBUG_PRINT(("Trying to reallocate buffer to fit next buffer.\n"));
+      PRINT(("Trying to reallocate buffer to fit next buffer.\n"));
       for (i = 0; i < GetStreamBufferCount(client); i++) {
         if (client->buffers[i].buffer.virtual_address ==
             buffer->buffer.virtual_address) {
@@ -418,16 +446,16 @@ static void InitializedCb(ClientInst inst) {
 
 static void HeadersDecodedCb(ClientInst inst, struct DecSequenceInfo info) {
   struct Client* client = (struct Client*)inst;
-  DEBUG_PRINT(
+  PRINT(
     ("Headers: Width %d Height %d\n", info.pic_width, info.pic_height));
-  DEBUG_PRINT(
+  PRINT(
     ("Headers: Cropping params: (%d, %d) %dx%d\n",
      info.crop_params.crop_left_offset, info.crop_params.crop_top_offset,
      info.crop_params.crop_out_width, info.crop_params.crop_out_height));
-  DEBUG_PRINT(("Headers: MonoChrome = %d\n", info.is_mono_chrome));
-  DEBUG_PRINT(("Headers: Pictures in DPB = %d\n", info.num_of_ref_frames));
-  DEBUG_PRINT(("Headers: video_range %d\n", info.video_range));
-  DEBUG_PRINT(("Headers: matrix_coefficients %d\n", info.matrix_coefficients));
+  PRINT(("Headers: MonoChrome = %d\n", info.is_mono_chrome));
+  PRINT(("Headers: Pictures in DPB = %d\n", info.num_of_ref_frames));
+  PRINT(("Headers: video_range %d\n", info.video_range));
+  PRINT(("Headers: matrix_coefficients %d\n", info.matrix_coefficients));
 
   if (client->yuvsink.inst == NULL) {
     if (client->test_params.out_file_name == NULL) {
@@ -500,8 +528,6 @@ static void BufferRequestCb(ClientInst inst) {
       break;
     if (info.buf_to_free.virtual_address != NULL) {
 #ifndef ASIC_TRACE_SUPPORT
-      DWLFreeLinear(client->dwl, &info.buf_to_free);
-
       for (i = 0; i < client->max_buffers; i++) {
         if (client->ext_buffers[i].virtual_address == info.buf_to_free.virtual_address) {
           DWLmemset(&client->ext_buffers[i], 0, sizeof(client->ext_buffers[i]));
@@ -510,10 +536,10 @@ static void BufferRequestCb(ClientInst inst) {
       }
       ASSERT(i < client->max_buffers);
       if (i == client->max_buffers - 1) client->max_buffers--;
+
+      DWLFreeLinear(client->dwl, &info.buf_to_free);
 #else
       if (info.is_frame_buffer) {
-        DWLFreeRefFrm(client->dwl, &info.buf_to_free);
-
         for (i = 0; i < client->max_frm_buffers; i++) {
           if (client->ext_frm_buffers[i].virtual_address == info.buf_to_free.virtual_address) {
             DWLmemset(&client->ext_frm_buffers[i], 0, sizeof(client->ext_frm_buffers[i]));
@@ -521,10 +547,10 @@ static void BufferRequestCb(ClientInst inst) {
           }
         }
         ASSERT(i < client->max_frm_buffers);
+
+        DWLFreeRefFrm(client->dwl, &info.buf_to_free);
         if (i == client->max_frm_buffers - 1) client->max_frm_buffers--;
       } else {
-        DWLFreeLinear(client->dwl, &info.buf_to_free);
-
         for (i = 0; i < client->max_buffers; i++) {
           if (client->ext_buffers[i].virtual_address == info.buf_to_free.virtual_address) {
             DWLmemset(&client->ext_buffers[i], 0, sizeof(client->ext_buffers[i]));
@@ -533,6 +559,8 @@ static void BufferRequestCb(ClientInst inst) {
         }
         ASSERT(i < client->max_buffers);
         if (i == client->max_buffers - 1) client->max_buffers--;
+
+        DWLFreeLinear(client->dwl, &info.buf_to_free);
       }
 #endif
     }
@@ -590,7 +618,7 @@ static void BufferDecodedCb(ClientInst inst, struct DecInput* buffer) {
   }
 }
 
-static void PictureReadyCb(ClientInst inst, struct DecPicture picture) {
+static void PictureReadyCb(ClientInst inst, struct DecPicture* picture) {
   static char* pic_types[] = {"        IDR", "Non-IDR (P)", "Non-IDR (B)"};
   struct Client* client = (struct Client*)inst;
   client->num_of_output_pics++;
@@ -598,26 +626,28 @@ static void PictureReadyCb(ClientInst inst, struct DecPicture picture) {
   client->num_pics_to_display++;
 #endif
   DEBUG_PRINT(("PIC %2d/%2d, type %s,", client->num_of_output_pics,
-               picture.picture_info.pic_id,
-               pic_types[picture.picture_info.pic_coding_type]));
-  if (picture.picture_info.cycles_per_mb) {
-    client->cycle_count += picture.picture_info.cycles_per_mb;
-    DEBUG_PRINT((" %4d cycles / mb,", picture.picture_info.cycles_per_mb));
+               picture->picture_info.pic_id,
+               pic_types[picture->picture_info.pic_coding_type]));
+  if (picture->picture_info.cycles_per_mb) {
+    client->cycle_count += picture->picture_info.cycles_per_mb;
+    DEBUG_PRINT((" %4d cycles / mb,", picture->picture_info.cycles_per_mb));
   }
   DEBUG_PRINT((" %d x %d, Crop: (%d, %d), %d x %d %s\n",
-               picture.sequence_info.pic_width,
-               picture.sequence_info.pic_height,
-               picture.sequence_info.crop_params.crop_left_offset,
-               picture.sequence_info.crop_params.crop_top_offset,
-               picture.sequence_info.crop_params.crop_out_width,
-               picture.sequence_info.crop_params.crop_out_height,
-               picture.picture_info.is_corrupted ? "CORRUPT" : ""));
+               picture->sequence_info.pic_width,
+               picture->sequence_info.pic_height,
+               picture->sequence_info.crop_params.crop_left_offset,
+               picture->sequence_info.crop_params.crop_top_offset,
+               picture->sequence_info.crop_params.crop_out_width,
+               picture->sequence_info.crop_params.crop_out_height,
+               picture->picture_info.is_corrupted ? "CORRUPT" : ""));
   if (client->test_params.extra_output_thread) {
     struct DecPicture* copy = malloc(sizeof(struct DecPicture));
-    *copy = picture;
+    if (copy == NULL)
+      return;
+    *copy = *picture;
     FifoPush(client->pic_fifo, copy, FIFO_EXCEPTION_DISABLE);
   } else {
-    PostProcessPicture(client, &picture);
+    PostProcessPicture(client, picture);
   }
 #ifdef USE_EXTERNAL_BUFFER
   client->num_pics_to_display--;
@@ -643,8 +673,9 @@ static void ReleasedCb(ClientInst inst) {
       DWLFreeLinear(client->dwl, &client->buffers[i].buffer);
     }
   }
-  if(client->cycle_count && client->num_of_output_pics)
-    DEBUG_PRINT(("\nAverage cycles/MB: %4d", client->cycle_count/client->num_of_output_pics));
+  if(client->cycle_count && client->num_of_output_pics) {
+    PRINT(("\nAverage cycles/MB: %4d", client->cycle_count/client->num_of_output_pics));
+  }
   ReleaseSink(client);
 
 #ifdef USE_EXTERNAL_BUFFER
@@ -761,7 +792,7 @@ static void PostProcessPicture(struct Client* client,
   }
 
   YuvfilterPrepareOutput(&copy);
-  client->yuvsink.WritePicture(client->yuvsink.inst, copy);
+  client->yuvsink.WritePicture(client->yuvsink.inst, &copy);
 
   free(copy.luma.virtual_address);
   free(copy.chroma.virtual_address);
@@ -798,7 +829,7 @@ static void PostProcessPicture(struct Client* client,
 #endif
 
 PIC_CONSUMED:
-  DecPictureConsumed(client->decoder, *picture);
+  DecPictureConsumed(client->decoder, picture);
 }
 
 static void* ParallelOutput(void* arg) {
@@ -807,7 +838,7 @@ static void* ParallelOutput(void* arg) {
   do {
     FifoPop(client->pic_fifo, (void**)&pic, FIFO_EXCEPTION_DISABLE);
     if (pic == NULL) {
-      DEBUG_PRINT(("END-OF-STREAM received in output thread\n"));
+      PRINT(("END-OF-STREAM received in output thread\n"));
       return NULL;
     }
     PostProcessPicture(client, pic);
@@ -861,6 +892,7 @@ static void ReleaseDemuxer(struct Client* client) {
 
 static const void* CreateSink(struct Client* client) {
   YuvSink yuvsink;
+  yuvsink.open = NULL;
   switch (client->test_params.sink_type) {
   case SINK_FILE_SEQUENCE:
     yuvsink.open = FilesinkOpen;
@@ -897,6 +929,8 @@ static const void* CreateSink(struct Client* client) {
   default:
     assert(0);
   }
+  if (yuvsink.open == NULL)
+    return NULL;
   yuvsink.inst = yuvsink.open(client->test_params.out_file_name);
   client->yuvsink = yuvsink;
   return client->yuvsink.inst;
@@ -949,8 +983,8 @@ static void OpenTestHooks(struct Client* client) {
   TBSetDefaultCfg(&tb_cfg);
   FILE* f_tbcfg = fopen("tb.cfg", "r");
   if (f_tbcfg == NULL) {
-    DEBUG_PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
-    DEBUG_PRINT(("USING DEFAULT CONFIGURATION\n"));
+    PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
+    PRINT(("USING DEFAULT CONFIGURATION\n"));
   } else {
     fclose(f_tbcfg);
     if (TBParseConfig("tb.cfg", TBReadParam, &tb_cfg) == TB_FALSE) return;
@@ -983,10 +1017,10 @@ static void OpenTestHooks(struct Client* client) {
   if (client->test_params.trace_target) tb_cfg.tb_params.extra_cu_ctrl_eof = 1;
 
   if (client->test_params.hw_traces) {
-    if (!OpenTraceFiles())
-      DEBUG_PRINT(
-        ("UNABLE TO OPEN TRACE FILE(S) Do you have a trace.cfg "
+    if (!OpenTraceFiles()) {
+      PRINT(("UNABLE TO OPEN TRACE FILE(S) Do you have a trace.cfg "
          "file?\n"));
+    }
   }
 
   if (f_tbcfg != NULL) {
@@ -1050,15 +1084,15 @@ static int HwconfigOverride(DecInst dec_inst, struct TBCfg* tbcfg) {
   u32 output_format = TBGetDecOutputFormat(&tb_cfg);
   u32 service_merge_disable = TBGetDecServiceMergeDisable(&tb_cfg);
 
-  DEBUG_PRINT(("TBCfg: Decoder Data Discard %d\n", data_discard));
-  DEBUG_PRINT(("TBCfg: Decoder Latency Compensation %d\n", latency_comp));
-  DEBUG_PRINT(
+  PRINT(("TBCfg: Decoder Data Discard %d\n", data_discard));
+  PRINT(("TBCfg: Decoder Latency Compensation %d\n", latency_comp));
+  PRINT(
     ("TBCfg: Decoder Output Picture Endian %d\n", output_picture_endian));
-  DEBUG_PRINT(("TBCfg: Decoder Bus Burst Length %d\n", bus_burst_length));
-  DEBUG_PRINT(
+  PRINT(("TBCfg: Decoder Bus Burst Length %d\n", bus_burst_length));
+  PRINT(
     ("TBCfg: Decoder Asic Service Priority %d\n", asic_service_priority));
-  DEBUG_PRINT(("TBCfg: Decoder Output Format %d\n", output_format));
-  DEBUG_PRINT(
+  PRINT(("TBCfg: Decoder Output Format %d\n", output_format));
+  PRINT(
     ("TBCfg: Decoder Service Merge Disable %d\n", service_merge_disable));
 
   /* TODO(vmr): Enable these, remove what's not needed, add what's needed.

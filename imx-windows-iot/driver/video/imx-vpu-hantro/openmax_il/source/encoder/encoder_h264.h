@@ -71,6 +71,14 @@ typedef struct H264_CONFIG
     ENCODER_COMMON_CONFIG common_config;
     RATE_CONTROL_CONFIG rate_config;
     PRE_PROCESSOR_CONFIG pp_config;
+
+    OMX_U32 colorDescription;
+    OMX_U32 primaries;
+    OMX_U32 transfer;
+    OMX_U32 matrixCoeffs;
+    OMX_U32 fullRange;
+    OMX_U32 videoFormat;
+    OMX_U32 videoSignalTypePresent;
 } H264_CONFIG;
 
 // create codec instance

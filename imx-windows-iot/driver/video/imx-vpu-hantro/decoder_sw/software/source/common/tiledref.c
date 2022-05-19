@@ -64,7 +64,7 @@ u32 DecCheckTiledMode( u32 tiled_mode_support, enum DecDpbMode dpb_mode,
                        u32 interlaced_stream ) {
 
   return 0;
-
+#if 0
   if(interlaced_stream) {
     if( (tiled_mode_support != TILED_SUPPORT_INTERLACED_8x4) ||
         (dpb_mode != DEC_DPB_INTERLACED_FIELD ))
@@ -75,6 +75,7 @@ u32 DecCheckTiledMode( u32 tiled_mode_support, enum DecDpbMode dpb_mode,
   }
 
   return 0;
+#endif
 }
 
 /*------------------------------------------------------------------------------

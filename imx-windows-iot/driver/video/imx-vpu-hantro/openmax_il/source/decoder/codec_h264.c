@@ -215,6 +215,7 @@ static CODEC_STATE decoder_decode_h264(CODEC_PROTOTYPE * arg,
     case H264DEC_ADVANCED_TOOLS:
         stat = CODEC_NEED_MORE;
         break;
+    case H264DEC_FIELD_DECODED:
     case H264DEC_STRM_PROCESSED:
         stat = CODEC_NEED_MORE;
         break;
@@ -857,8 +858,8 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_h264(const void *DWLInstance,
 
     /* Version */
     DBGT_PDEBUG("X170 PP API v%d.%d - SW build: %d.%d - HW build: %x",
-            ppVer.major, ppVer.minor, ppBuild.swBuild >> 16,
-            ppBuild.swBuild & 0xFFFF, ppBuild.hwBuild);
+            ppVer.major, ppVer.minor, ppBuild.sw_build >> 16,
+            ppBuild.sw_build & 0xFFFF, ppBuild.hw_build);
 #endif
 
 #ifdef IS_G1_DECODER
@@ -880,7 +881,7 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_h264(const void *DWLInstance,
                         DWLInstance,
 #endif
                         DISABLE_OUTPUT_REORDER,
-                        ERROR_HANDLING, USE_DISPLAY_SMOOTHING,
+                        DEC_EC_NONE, USE_DISPLAY_SMOOTHING,   /*use ec_none as default to aovid display freeze*/
                         dpbFlags,
                         g1Conf->bEnableAdaptiveBuffers,
                         g1Conf->nGuardSize,
@@ -943,7 +944,7 @@ CODEC_STATE decoder_setframebuffer_h264(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX
     UNUSED_PARAMETER(available_buffers);
     CODEC_H264 *this = (CODEC_H264 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     H264DecBufferInfo info;
     H264DecRet ret;
 

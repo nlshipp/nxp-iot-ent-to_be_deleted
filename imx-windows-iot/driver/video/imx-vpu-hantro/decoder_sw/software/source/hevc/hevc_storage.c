@@ -595,8 +595,13 @@ u32 IsExternalBuffersRealloc(void *dec_inst, struct Storage *storage) {
   else
     dec_cont->reset_ext_buffer = 1;
 
-  if (!dec_cont->use_adaptive_buffers)
-    dec_cont->reset_ext_buffer = 1;
+  if (!dec_cont->use_adaptive_buffers) {
+    if ((storage->dpb->pic_size == pic_size) &&
+        (storage->dpb->dpb_size == dpb_size))
+      dec_cont->reset_ext_buffer = 0;
+    else
+      dec_cont->reset_ext_buffer = 1;
+  }
 
   (void)buf_type;
 

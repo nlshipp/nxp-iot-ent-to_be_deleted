@@ -297,6 +297,8 @@ MP4DecRet MP4DecPeek(MP4DecInst        dec_inst,
 #ifdef USE_EXTERNAL_BUFFER
 MP4DecRet MP4DecGetBufferInfo(MP4DecInst dec_inst, MP4DecBufferInfo *mem_info);
 
+MP4DecRet MP4DecRemoveBuffer(MP4DecInst dec_inst);
+
 MP4DecRet MP4DecAddBuffer(MP4DecInst dec_inst, struct DWLLinearMem *info);
 #endif
 

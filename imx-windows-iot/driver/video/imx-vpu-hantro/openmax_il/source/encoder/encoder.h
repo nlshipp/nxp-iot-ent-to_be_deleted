@@ -108,6 +108,13 @@ typedef struct VIDEO_ENCODER_CONFIG
 #ifdef ENCH2
     OMX_VIDEO_PARAM_HEVCTYPE             hevc;
 #endif
+    OMX_U32 colorDescription;
+    OMX_U32 primaries;
+    OMX_U32 transfer;
+    OMX_U32 matrixCoeffs;
+    OMX_U32 fullRange;
+    OMX_U32 videoFormat;
+    OMX_U32 videoSignalTypePresent;
 }VIDEO_ENCODER_CONFIG;
 //#endif //OMX_ENCODER_VIDEO_DOMAIN
 

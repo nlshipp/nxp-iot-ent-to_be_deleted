@@ -217,11 +217,17 @@ void JpegDecClearStructs(JpegDecContainer * jpeg_dec_cont, u32 mode) {
     jpeg_dec_cont->info.out_luma.virtual_address = NULL;
     jpeg_dec_cont->info.out_chroma.virtual_address = NULL;
     jpeg_dec_cont->info.out_chroma2.virtual_address = NULL;
+    jpeg_dec_cont->info.out_luma.bus_address = 0;
+    jpeg_dec_cont->info.out_chroma.bus_address = 0;
+    jpeg_dec_cont->info.out_chroma2.bus_address = 0;
 
     /* user allocated addresses */
     jpeg_dec_cont->info.given_out_luma.virtual_address = NULL;
     jpeg_dec_cont->info.given_out_chroma.virtual_address = NULL;
     jpeg_dec_cont->info.given_out_chroma2.virtual_address = NULL;
+    jpeg_dec_cont->info.given_out_luma.bus_address = 0;
+    jpeg_dec_cont->info.given_out_chroma.bus_address = 0;
+    jpeg_dec_cont->info.given_out_chroma2.bus_address = 0;
   }
 
   /* asic running flag */
@@ -1205,9 +1211,6 @@ static void JpegDecSetHwStrmParams(JpegDecContainer * jpeg_dec_cont) {
   case 7:
     JPG_STR.bit_pos_in_byte += 56;
     break;
-  default:
-    ASSERT(0);
-    break;
   }
 
   SetDecRegister(PTR_JPGC->jpeg_regs, HWIF_STRM_START_BIT,
@@ -1348,9 +1351,9 @@ JpegDecRet JpegDecAllocateResidual(JpegDecContainer * jpeg_dec_cont) {
   /* if pipelined PP -> decoder's output is not written external memory */
   if(PTR_JPGC->pp_instance == NULL ||
       (PTR_JPGC->pp_instance != NULL && !PTR_JPGC->pp_control.use_pipeline)) {
-    if(PTR_JPGC->info.given_out_luma.virtual_address == NULL) {
+    if(PTR_JPGC->info.given_out_luma.bus_address == 0) {
       /* allocate luminance output */
-      if(PTR_JPGC->asic_buff.out_luma_buffer.virtual_address == NULL) {
+      if(PTR_JPGC->asic_buff.out_luma_buffer.bus_address == 0) {
         tmp =
           DWLMallocRefFrm(PTR_JPGC->dwl, (PTR_JPGC->image.size_luma),
                           &(PTR_JPGC->asic_buff.out_luma_buffer));
@@ -1381,9 +1384,9 @@ JpegDecRet JpegDecAllocateResidual(JpegDecContainer * jpeg_dec_cont) {
 
     /* allocate chrominance output */
     if(PTR_JPGC->image.size_chroma) {
-      if(PTR_JPGC->info.given_out_chroma.virtual_address == NULL) {
+      if(PTR_JPGC->info.given_out_chroma.bus_address == 0) {
         if(PTR_JPGC->info.operation_type != JPEGDEC_BASELINE) {
-          if(PTR_JPGC->asic_buff.out_chroma_buffer.virtual_address == NULL) {
+          if(PTR_JPGC->asic_buff.out_chroma_buffer.bus_address == 0) {
             tmp =
               DWLMallocRefFrm(PTR_JPGC->dwl,
                               (PTR_JPGC->image.size_chroma / 2),
@@ -1392,7 +1395,7 @@ JpegDecRet JpegDecAllocateResidual(JpegDecContainer * jpeg_dec_cont) {
               return (JPEGDEC_MEMFAIL);
           }
 
-          if(PTR_JPGC->asic_buff.out_chroma_buffer2.virtual_address == NULL) {
+          if(PTR_JPGC->asic_buff.out_chroma_buffer2.bus_address == 0) {
             tmp =
               DWLMallocRefFrm(PTR_JPGC->dwl,
                               (PTR_JPGC->image.size_chroma / 2),
@@ -1401,7 +1404,7 @@ JpegDecRet JpegDecAllocateResidual(JpegDecContainer * jpeg_dec_cont) {
               return (JPEGDEC_MEMFAIL);
           }
         } else {
-          if(PTR_JPGC->asic_buff.out_chroma_buffer.virtual_address == NULL) {
+          if(PTR_JPGC->asic_buff.out_chroma_buffer.bus_address == 0) {
             tmp =
               DWLMallocRefFrm(PTR_JPGC->dwl,
                               (PTR_JPGC->image.size_chroma),
@@ -2457,10 +2460,7 @@ static void JpegDecWriteTablesNonInterleaved(JpegDecContainer * jpeg_dec_cont) {
     }
 
     /* set pointer */
-    if(count == 3)
-      qp_table_base = 0;
-    else
-      qp_table_base = JPEGDEC_QP_BASE;
+    qp_table_base = JPEGDEC_QP_BASE;
 
     p_table_base =
       &PTR_JPGC->frame.p_table_base.virtual_address[JPEGDEC_AC1_BASE -
@@ -2511,10 +2511,7 @@ static void JpegDecWriteTablesNonInterleaved(JpegDecContainer * jpeg_dec_cont) {
     }
 
     /* set pointer */
-    if(count == 3)
-      qp_table_base = 0;
-    else
-      qp_table_base = JPEGDEC_QP_BASE;
+    qp_table_base = JPEGDEC_QP_BASE;
 
     p_table_base =
       &PTR_JPGC->frame.p_table_base.virtual_address[JPEGDEC_DC1_BASE -
@@ -2980,9 +2977,9 @@ static void JpegDecWriteLenBitsNonInterleaved(JpegDecContainer * jpeg_dec_cont) 
 #define JPG_FRM     jpeg_dec_cont->frame
 
   VlcTable *p_table1 = NULL;
-  VlcTable *p_table2 = NULL;
+  //VlcTable *p_table2 = NULL;
 #ifdef NDEBUG
-  UNUSED(p_table2);
+  //UNUSED(p_table2);
 #endif
 
   /* first select the table we'll use */
@@ -2991,16 +2988,16 @@ static void JpegDecWriteLenBitsNonInterleaved(JpegDecContainer * jpeg_dec_cont) 
   if(JPG_SCN.Ta[PTR_JPGC->info.component_id] == 0) {
 
     p_table1 = &(JPG_VLC.ac_table0);
-    p_table2 = &(JPG_VLC.ac_table1);
+    //p_table2 = &(JPG_VLC.ac_table1);
 
   } else {
 
     p_table1 = &(JPG_VLC.ac_table1);
-    p_table2 = &(JPG_VLC.ac_table0);
+    //p_table2 = &(JPG_VLC.ac_table0);
   }
 
   ASSERT(p_table1);
-  ASSERT(p_table2);
+  //ASSERT(p_table2);
 
   /* write AC table 1 (luma) */
 
@@ -3024,16 +3021,16 @@ static void JpegDecWriteLenBitsNonInterleaved(JpegDecContainer * jpeg_dec_cont) 
   if(JPG_SCN.Td[PTR_JPGC->info.component_id] == 0) {
 
     p_table1 = &(JPG_VLC.dc_table0);
-    p_table2 = &(JPG_VLC.dc_table1);
+    //p_table2 = &(JPG_VLC.dc_table1);
 
   } else {
 
     p_table1 = &(JPG_VLC.dc_table1);
-    p_table2 = &(JPG_VLC.dc_table0);
+    //p_table2 = &(JPG_VLC.dc_table0);
   }
 
   ASSERT(p_table1);
-  ASSERT(p_table2);
+  //ASSERT(p_table2);
 
   /* write DC table 1 (luma) */
   SetDecRegister(PTR_JPGC->jpeg_regs, HWIF_DC1_CODE1_CNT, p_table1->bits[0]);

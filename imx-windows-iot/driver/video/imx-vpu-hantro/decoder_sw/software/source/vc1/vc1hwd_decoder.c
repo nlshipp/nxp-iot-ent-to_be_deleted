@@ -270,7 +270,7 @@ u16x AllocateMemories( decContainer_t *dec_cont,
       dec_cont->storage.pp_buffer[i] = pp_buffer;
       InputQueueAddBuffer(dec_cont->pp_buffer_queue, &pp_buffer);
     }
-    (void)DWLmemset(p_pic[i].data.virtual_address, 0 , size);
+    //(void)DWLmemset(p_pic[i].data.virtual_address, 0 , size);
     /* init coded image size to max coded image size */
     p_pic[i].coded_width = storage->max_coded_width;
     p_pic[i].coded_height = storage->max_coded_height;
@@ -282,7 +282,7 @@ u16x AllocateMemories( decContainer_t *dec_cont,
         (void)vc1hwdRelease(dwl, storage);
         return (VC1HWD_MEMORY_FAIL);
       }
-      (void)DWLmemset(p_pic[i].data.virtual_address, 0 , size);
+      //(void)DWLmemset(p_pic[i].data.virtual_address, 0 , size);
       /* init coded image size to max coded image size */
       p_pic[i].coded_width = storage->max_coded_width;
       p_pic[i].coded_height = storage->max_coded_height;
@@ -470,7 +470,12 @@ u16x vc1hwdDecode( decContainer_t *dec_cont,
     storage->missing_field = HANTRO_FALSE;
     do {
       /* Get Start Code */
-      start_code = vc1hwdGetStartCode(stream_data);
+      if(stream_data->raw_frame_data) {
+        start_code = SC_FRAME;
+      }
+      else {
+        start_code = vc1hwdGetStartCode(stream_data);
+      }
       switch (start_code) {
       case SC_SEQ:
         DPRINT(("\nSc_seq found\n"));
@@ -721,12 +726,15 @@ u16x vc1hwdDecode( decContainer_t *dec_cont,
         BqueueDiscard( &storage->bq, storage->work_out );
         storage->work_out_prev = storage->work_out;
         storage->work_out = storage->work0;
+#ifndef USE_PICTURE_DISCARD
+
 #ifdef USE_OUTPUT_RELEASE
         BqueueWaitBufNotInUse( &dec_cont->storage.bq, dec_cont->storage.work_out);
 #endif
         if(dec_cont->pp_enabled) {
-          InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+          InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
         }
+#endif
         EPRINT(("Skipped picture with MAXBFRAMES>0!"));
         return(VC1HWD_ERROR);
       } else {
@@ -1091,10 +1099,12 @@ void vc1hwdErrorConcealment( const u16x flush,
 
   tmp_out = storage->work_out;
   if(flush) {
+#if 0
     (void)DWLmemset(
       storage->p_pic_buf[ storage->work_out ].data.virtual_address,
       128,
       storage->num_of_mbs * 384 );
+#endif
     /* if other buffer contains non-paired field -> throw away */
     if (storage->p_pic_buf[1-(i32)storage->work_out].fcm == FIELD_INTERLACE &&
         storage->p_pic_buf[1-(i32)storage->work_out].is_first_field == HANTRO_TRUE) {
@@ -1201,6 +1211,7 @@ u32 vc1hwdSeekFrameStart(swStrmStorage_t * storage,
                                  p_strm_data->strm_buff_size;
   }
 
+  (void)(rv);
   if (vc1hwdIsExhausted(p_strm_data))
     rv = END_OF_STREAM;
   else
@@ -1633,7 +1644,7 @@ void vc1hwdUpdateWorkBufferIndexes( decContainer_t *dec_cont, u32 is_bpic ) {
               (dec_cont->storage.p_pic_buf[dec_cont->storage.outp_buf[i]].pp_data ==
                dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data)) {
             flag = 1;
-            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
           }
         }
       } while (flag == 1);

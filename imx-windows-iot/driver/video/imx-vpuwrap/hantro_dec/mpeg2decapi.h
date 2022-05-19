@@ -264,6 +264,8 @@ Mpeg2DecRet Mpeg2DecPeek(Mpeg2DecInst dec_inst, Mpeg2DecPicture * picture);
 #ifdef USE_EXTERNAL_BUFFER
 Mpeg2DecRet Mpeg2DecGetBufferInfo(Mpeg2DecInst dec_inst, Mpeg2DecBufferInfo *mem_info);
 
+Mpeg2DecRet Mpeg2DecRemoveBuffer(Mpeg2DecInst dec_inst);
+
 Mpeg2DecRet Mpeg2DecAddBuffer(Mpeg2DecInst dec_inst, struct DWLLinearMem *info);
 #endif
 

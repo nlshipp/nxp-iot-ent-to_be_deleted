@@ -467,8 +467,10 @@ u32 DecodeVp7FrameHeader( vpBoolCoder_t*bc, vp8_decoder_t* dec ) {
 
         if(feature_bits[i]) {
           for( j = 0 ; j < 4 ; ++j ) {
-            if( vp8hwdReadBits( bc, 1 ) )
+            if( vp8hwdReadBits( bc, 1 ) ) {
+              (void)(tmp);
               tmp = vp8hwdReadBits( bc, feature_bits[i] );
+            }
           }
         }
 

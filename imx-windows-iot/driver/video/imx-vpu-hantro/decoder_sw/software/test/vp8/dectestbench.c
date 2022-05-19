@@ -166,7 +166,20 @@ void HandlePpOutput(u32 pic_num, VP8DecInst decoder);
     Module defines
 ------------------------------------------------------------------------------*/
 
-#define DEBUG_PRINT(str) printf str
+#undef DEBUG_PRINT
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
 
 #define VP8_MAX_STREAM_SIZE  DEC_X170_MAX_STREAM>>1
 
@@ -212,6 +225,7 @@ static void *AddBufferThread(void *arg) {
     pthread_mutex_lock(&ext_buffer_contro);
     if(add_extra_flag && (num_buffers < MAX_BUFFERS)) {
       struct DWLLinearMem mem;
+      mem.mem_type = DWL_MEM_TYPE_DPB;
       i32 dwl_ret;
       if (pp_enabled)
         dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -239,7 +253,7 @@ void ReleaseExtBuffers() {
   int i;
   pthread_mutex_lock(&ext_buffer_contro);
   for(i=0; i<num_buffers; i++) {
-    DEBUG_PRINT(("Freeing buffer %p\n", ext_buffers[i].virtual_address));
+    PRINT(("Freeing buffer %p\n", ext_buffers[i].virtual_address));
     if (pp_enabled)
       DWLFreeLinear(dwl_inst, &ext_buffers[i]);
     else
@@ -282,6 +296,7 @@ static void* buf_release_thread(void* arg) {
         pthread_mutex_lock(&ext_buffer_contro);
         if(add_extra_flag && num_buffers < MAX_BUFFERS) {
           struct DWLLinearMem mem;
+          mem.mem_type = DWL_MEM_TYPE_DPB;
           i32 dwl_ret;
           if (pp_enabled)
             dwl_ret  = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -491,6 +506,11 @@ int main(int argc, char**argv) {
     /* Check expiry date */
     time(&sys_time);
     tm = localtime(&sys_time);
+    if (tm == NULL) {
+      fprintf(stderr,"Get localtime failed!\n");
+      return -1;
+    }
+
     strftime(tm_buf, sizeof(tm_buf), "%y%m%d", tm);
     tmp1 = 1000000+atoi(tm_buf);
     if (tmp1 > (EXPIRY_DATE) && (EXPIRY_DATE) > 1 ) {
@@ -508,32 +528,32 @@ int main(int argc, char**argv) {
 
 #ifndef PP_PIPELINE_ENABLED
   if (argc < 2) {
-    printf("Usage: %s [options] file.ivf\n", argv[0]);
-    printf("\t-Nn forces decoding to stop after n pictures\n");
-    printf("\t-Ooutfile write output to \"outfile\" (default out.yuv)\n");
-    printf("\t--md5 Output frame based md5 checksum. No YUV output!\n");
-    printf("\t-C display cropped image\n");
-    printf("\t-P write planar output.\n");
-    printf("\t-E use tiled reference frame format.\n");
-    printf("\t-G convert tiled output pictures to raster scan\n");
-    printf("\t-F Enable frame picture writing (filled black).\n");
-    printf("\t-W Set frame picture width (default 1. frame width).\n");
-    printf("\t-H Set frame picture height (default 1. frame height).\n");
-    printf("\t-Bn to use n frame buffers in decoder\n");
-    printf("\t-Z output pictures using VP8DecPeek() function\n");
-    printf("\t-ln Set luma buffer stride\n");
-    printf("\t-cn Set chroma buffer stride\n");
-    printf("\t-X user allocates picture buffers\n");
-    printf("\t-Xa same as above but alternate allocation order\n");
-    printf("\t-I use interleaved frame buffers (requires stride mode and "\
-           "user allocated buffers\n");
-    printf("\t-R write uncropped output (if strides used)\n");
-    printf("\t-xn Add n bytes of extra space after "\
-           "stream buffer for decoder\n");
+    PRINT(("Usage: %s [options] file.ivf\n", argv[0]));
+    PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
+    PRINT(("\t-Ooutfile write output to \"outfile\" (default out.yuv)\n"));
+    PRINT(("\t--md5 Output frame based md5 checksum. No YUV output!\n"));
+    PRINT(("\t-C display cropped image\n"));
+    PRINT(("\t-P write planar output.\n"));
+    PRINT(("\t-E use tiled reference frame format.\n"));
+    PRINT(("\t-G convert tiled output pictures to raster scan\n"));
+    PRINT(("\t-F Enable frame picture writing (filled black).\n"));
+    PRINT(("\t-W Set frame picture width (default 1. frame width).\n"));
+    PRINT(("\t-H Set frame picture height (default 1. frame height).\n"));
+    PRINT(("\t-Bn to use n frame buffers in decoder\n"));
+    PRINT(("\t-Z output pictures using VP8DecPeek() function\n"));
+    PRINT(("\t-ln Set luma buffer stride\n"));
+    PRINT(("\t-cn Set chroma buffer stride\n"));
+    PRINT(("\t-X user allocates picture buffers\n"));
+    PRINT(("\t-Xa same as above but alternate allocation order\n"));
+    PRINT(("\t-I use interleaved frame buffers (requires stride mode and "\
+           "user allocated buffers\n"));
+    PRINT(("\t-R write uncropped output (if strides used)\n"));
+    PRINT(("\t-xn Add n bytes of extra space after "\
+           "stream buffer for decoder\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    printf("\t-A add extra external buffer randomly\n");
+    PRINT(("\t-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    printf("\t-a add extra external buffer in ouput thread\n");
+    PRINT(("\t-a add extra external buffer in ouput thread\n"));
 #endif
 #endif
 
@@ -558,9 +578,15 @@ int main(int argc, char**argv) {
       out_frame_width = (u32)atoi(argv[i] + 2);
     else if (strncmp(argv[i], "-H", 2) == 0)
       out_frame_height = (u32)atoi(argv[i] + 2);
-    else if (strncmp(argv[i], "-O", 2) == 0)
-      strcpy(out_file_name, argv[i] + 2);
-    else if(strncmp(argv[i], "-B", 2) == 0) {
+    else if (strncmp(argv[i], "-O", 2) == 0) {
+      /* -1 to accomodate for the null tern=minator */
+      if (sizeof(out_file_name) - 1 < strlen(argv[i] + 2)) {
+        PRINT(("The output file name size overflows buffer size(256)!\n"));
+        return 1;
+      } else {
+        strcpy(out_file_name, argv[i] + 2);
+      }
+    } else if(strncmp(argv[i], "-B", 2) == 0) {
       num_frame_buffers = atoi(argv[i] + 2);
       if(num_frame_buffers > MAX_BUFFERS)
         num_frame_buffers = MAX_BUFFERS;
@@ -599,7 +625,7 @@ int main(int argc, char**argv) {
 #endif
 #endif
     else {
-      DEBUG_PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
+      PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
       return 1;
     }
   }
@@ -623,20 +649,20 @@ int main(int argc, char**argv) {
   }
 #else
   if (argc < 3) {
-    printf("Usage: %s [options] file.ivf\n", argv[0]);
-    printf("\t-Bn to use n frame buffers in decoder\n");
-    printf("\t-E use tiled reference frame format.\n");
-    printf("\t-Nn forces decoding to stop after n pictures\n");
-    printf("\t-X user allocates picture buffers\n");
-    printf("\t-Xa same as above but alternate allocation order\n");
-    printf("\t-I use interleaved frame buffers (requires stride mode and "\
-           "user allocated buffers\n");
-    printf("\t-xn Add n bytes of extra space after "\
-           "stream buffer for decoder\n");
+    PRINT(("Usage: %s [options] file.ivf\n", argv[0]));
+    PRINT(("\t-Bn to use n frame buffers in decoder\n"));
+    PRINT(("\t-E use tiled reference frame format.\n"));
+    PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
+    PRINT(("\t-X user allocates picture buffers\n"));
+    PRINT(("\t-Xa same as above but alternate allocation order\n"));
+    PRINT(("\t-I use interleaved frame buffers (requires stride mode and "\
+           "user allocated buffers\n"));
+    PRINT(("\t-xn Add n bytes of extra space after "\
+           "stream buffer for decoder\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    printf("\t-A add extra external buffer randomly\n");
+    PRINT(("\t-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    printf("\t-a add extra external buffer in output thread\n");
+    PRINT(("\t-a add extra external buffer in output thread\n"));
 #endif
 #endif
     return 0;
@@ -682,7 +708,7 @@ int main(int argc, char**argv) {
 #ifdef ASIC_TRACE_SUPPORT
   tmp = openTraceFiles();
   if (!tmp) {
-    DEBUG_PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
+    PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
   }
 #endif
 
@@ -690,8 +716,8 @@ int main(int argc, char**argv) {
   TBSetDefaultCfg(&tb_cfg);
   f_tbcfg = fopen("tb.cfg", "r");
   if (f_tbcfg == NULL) {
-    DEBUG_PRINT(("UNABLE TO OPEN TEST BENCH CONFIGURATION FILE: \"tb.cfg\"\n"));
-    DEBUG_PRINT(("USING DEFAULT CONFIGURATION\n"));
+    PRINT(("UNABLE TO OPEN TEST BENCH CONFIGURATION FILE: \"tb.cfg\"\n"));
+    PRINT(("USING DEFAULT CONFIGURATION\n"));
   } else {
     fclose(f_tbcfg);
     if (TBParseConfig("tb.cfg", TBReadParam, &tb_cfg) == TB_FALSE)
@@ -710,13 +736,13 @@ int main(int argc, char**argv) {
   output_format = TBGetDecOutputFormat(&tb_cfg);
   service_merge_disable = TBGetDecServiceMergeDisable(&tb_cfg);
 
-  DEBUG_PRINT(("Decoder Clock Gating %d\n", clock_gating));
-  DEBUG_PRINT(("Decoder Data Discard %d\n", data_discard));
-  DEBUG_PRINT(("Decoder Latency Compensation %d\n", latency_comp));
-  DEBUG_PRINT(("Decoder Output Picture Endian %d\n", output_picture_endian));
-  DEBUG_PRINT(("Decoder Bus Burst Length %d\n", bus_burst_length));
-  DEBUG_PRINT(("Decoder Asic Service Priority %d\n", asic_service_priority));
-  DEBUG_PRINT(("Decoder Output Format %d\n", output_format));
+  PRINT(("Decoder Clock Gating %d\n", clock_gating));
+  PRINT(("Decoder Data Discard %d\n", data_discard));
+  PRINT(("Decoder Latency Compensation %d\n", latency_comp));
+  PRINT(("Decoder Output Picture Endian %d\n", output_picture_endian));
+  PRINT(("Decoder Bus Burst Length %d\n", bus_burst_length));
+  PRINT(("Decoder Asic Service Priority %d\n", asic_service_priority));
+  PRINT(("Decoder Output Format %d\n", output_format));
   seed_rnd = tb_cfg.tb_params.seed_rnd;
   stream_header_corrupt = TBGetTBStreamHeaderCorrupt(&tb_cfg);
   /* if headers are to be corrupted
@@ -752,24 +778,25 @@ int main(int argc, char**argv) {
     dec_api = VP8DecGetAPIVersion();
     dec_build = VP8DecGetBuild();
     DWLReadAsicConfig(&hw_config,DWL_CLIENT_TYPE_VP8_DEC);
-    DEBUG_PRINT((
+    PRINT((
                   "\n8170 VP8 Decoder API v%d.%d - SW build: %d - HW build: %x\n",
                   dec_api.major, dec_api.minor, dec_build.sw_build, dec_build.hw_build));
-    DEBUG_PRINT((
+    PRINT((
                   "HW Supports video decoding up to %d pixels,\n",
                   hw_config.max_dec_pic_width));
 
-    DEBUG_PRINT((
+    PRINT((
                   "supported codecs: %s%s\n",
                   hw_config.vp7_support ? "VP-7 " : "",
                   hw_config.vp8_support ? "VP-8" : ""));
 
-    if(hw_config.pp_support)
-      DEBUG_PRINT((
+    if(hw_config.pp_support) {
+      PRINT((
                     "Maximum Post-processor output size %d pixels\n\n",
                     hw_config.max_pp_out_pic_width));
-    else
-      DEBUG_PRINT(("Post-Processor not supported\n\n"));
+    } else {
+      PRINT(("Post-Processor not supported\n\n"));
+    }
   }
 
   /* check format */
@@ -794,7 +821,7 @@ int main(int argc, char**argv) {
 #ifdef USE_EXTERNAL_BUFFER
   dwl_inst = DWLInit(&dwl_init);
   if(dwl_inst == NULL) {
-    DEBUG_PRINT(("H264DecInit# ERROR: DWL Init failed\n"));
+    PRINT(("H264DecInit# ERROR: DWL Init failed\n"));
     goto end;
   }
 #endif
@@ -806,7 +833,7 @@ int main(int argc, char**argv) {
                    dwl_inst,
 #endif
                    dec_format, TBGetDecErrorConcealment( &tb_cfg ),
-                   num_frame_buffers, tiled_output, 0, 0 );
+                   num_frame_buffers, tiled_output, 1, 0 );
   END_SW_PERFORMANCE;
   decsw_performance();
 
@@ -931,8 +958,8 @@ int main(int argc, char**argv) {
       if (ret == VP8DEC_HDRS_RDY) {
 #ifdef USE_EXTERNAL_BUFFER
         rv = VP8DecGetBufferInfo(dec_inst, &hbuf);
-        DEBUG_PRINT(("VP8DecGetBufferInfo ret %d\n", rv));
-        DEBUG_PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+        PRINT(("VP8DecGetBufferInfo ret %d\n", rv));
+        PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
                      (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
 #endif
         i32 mcu_in_row;
@@ -946,7 +973,7 @@ int main(int argc, char**argv) {
         /* Handle incorrect slice size for HW testing */
         if(dec_input.slice_height > (info.frame_height >> 4)) {
           dec_input.slice_height = (info.frame_height >> 4);
-          printf("FIXED Decoder Slice MB Set %d\n", dec_input.slice_height);
+          PRINT(("FIXED Decoder Slice MB Set %d\n", dec_input.slice_height));
         }
 #endif /* ASIC_TRACE_SUPPORT */
 
@@ -961,9 +988,9 @@ int main(int argc, char**argv) {
           } while(((dec_input.slice_height * (mcu_in_row / mcu_size_divider)) +
                    (mcu_in_row / mcu_size_divider)) <
                   VP8DEC_MAX_SLICE_SIZE);
-          printf
-          ("Force to slice mode (over 16M) ==> Decoder Slice MB Set %d\n",
-           dec_input.slice_height);
+          PRINT
+          (("Force to slice mode (over 16M) ==> Decoder Slice MB Set %d\n",
+           dec_input.slice_height));
           forced_slice_mode = 1;
         }
 #else
@@ -977,19 +1004,19 @@ int main(int argc, char**argv) {
           } while(((dec_input.slice_height * (mcu_in_row / mcu_size_divider)) +
                    (mcu_in_row / mcu_size_divider)) <
                   VP8DEC_MAX_SLICE_SIZE);
-          printf
-          ("Force to slice mode (over 16M) ==> Decoder Slice MB Set %d\n",
-           dec_input.slice_height);
+          PRINT
+          (("Force to slice mode (over 16M) ==> Decoder Slice MB Set %d\n",
+           dec_input.slice_height));
           forced_slice_mode = 1;
         }
 #endif /* ASIC_TRACE_SUPPORT */
 #endif /* PP_PIPELINE_ENABLED */
-        DEBUG_PRINT(("\nStream info:\n"));
-        DEBUG_PRINT(("VP Version %d, Profile %d\n", info.vp_version, info.vp_profile));
-        DEBUG_PRINT(("Frame size %dx%d\n", info.frame_width, info.frame_height));
-        DEBUG_PRINT(("Coded size %dx%d\n", info.coded_width, info.coded_height));
-        DEBUG_PRINT(("Scaled size %dx%d\n", info.scaled_width, info.scaled_height));
-        DEBUG_PRINT(("Output format %s\n\n", info.output_format == VP8DEC_SEMIPLANAR_YUV420
+        PRINT(("\nStream info:\n"));
+        PRINT(("VP Version %d, Profile %d\n", info.vp_version, info.vp_profile));
+        PRINT(("Frame size %dx%d\n", info.frame_width, info.frame_height));
+        PRINT(("Coded size %dx%d\n", info.coded_width, info.coded_height));
+        PRINT(("Scaled size %dx%d\n", info.scaled_width, info.scaled_height));
+        PRINT(("Output format %s\n\n", info.output_format == VP8DEC_SEMIPLANAR_YUV420
                      ? "VP8DEC_SEMIPLANAR_YUV420" : "VP8DEC_TILED_YUV420"));
 
         if (user_mem_alloc) {
@@ -1010,7 +1037,7 @@ int main(int argc, char**argv) {
               DWLFreeRefFrm(((VP8DecContainer_t *) dec_inst)->dwl, &user_alloc_chroma[i]);
           }
 
-          DEBUG_PRINT(("User allocated memory,width=%d,height=%d\n",
+          PRINT(("User allocated memory,width=%d,height=%d\n",
                        info.frame_width, info.frame_height));
 
           slice_height = ((VP8DecContainer_t *) dec_inst)->slice_height;
@@ -1029,10 +1056,11 @@ int main(int argc, char**argv) {
 #ifdef PP_PIPELINE_ENABLED
             rotation = pp_rotation_used();
             cropping = pp_cropping_used();
-            if (rotation || (cropping && (info.frame_width <= hw_config.max_dec_pic_width || info.frame_height < 4096)))
-              printf("User allocated output memory");
-            else
+            if (rotation || (cropping && (info.frame_width <= hw_config.max_dec_pic_width || info.frame_height < 4096))) {
+              PRINT(("User allocated output memory"));
+            } else {
               size_luma = size_chroma = 2; /* ugly hack*/
+            }
 #endif
 
             if (DWLMallocRefFrm(((VP8DecContainer_t *) dec_inst)->dwl,
@@ -1075,7 +1103,7 @@ int main(int argc, char**argv) {
               if( ((pbp.luma_stride == pbp.chroma_stride) ||
                    ((2*pbp.luma_stride) == pbp.chroma_stride)) &&
                   pbp.luma_stride >= info.frame_width*2*pbp.num_buffers) {
-                DEBUG_PRINT(("Interleave mode 1: One buffer\n"));
+                PRINT(("Interleave mode 1: One buffer\n"));
                 size_buffer = pbp.luma_stride * (info.frame_height+1);
                 if (DWLMallocRefFrm(((VP8DecContainer_t *) dec_inst)->dwl,
                                     size_buffer, &user_alloc_luma[0]) != DWL_OK) {
@@ -1095,7 +1123,7 @@ int main(int argc, char**argv) {
                 }
 
               } else { /* Mode 2: separate buffers for luma and chroma */
-                DEBUG_PRINT(("Interleave mode 2: Two buffers\n"));
+                PRINT(("Interleave mode 2: Two buffers\n"));
                 if( (pbp.luma_stride < info.frame_width*pbp.num_buffers) ||
                     (pbp.chroma_stride < info.frame_width*pbp.num_buffers)) {
                   fprintf(stderr, "CHROMA STRIDE LENGTH TOO SMALL FOR INTERLEAVED FRAME BUFFERS\n");
@@ -1215,13 +1243,13 @@ int main(int argc, char**argv) {
       }
 #ifdef USE_EXTERNAL_BUFFER
       if (ret == VP8DEC_WAITING_FOR_BUFFER) {
-        DEBUG_PRINT(("Waiting for frame buffers\n"));
+        PRINT(("Waiting for frame buffers\n"));
         struct DWLLinearMem mem;
         mem.mem_type = DWL_MEM_TYPE_CPU;
 
         rv = VP8DecGetBufferInfo(dec_inst, &hbuf);
-        DEBUG_PRINT(("VP8DecGetBufferInfo ret %d\n", rv));
-        DEBUG_PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+        PRINT(("VP8DecGetBufferInfo ret %d\n", rv));
+        PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
                      (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
 
 #if 0
@@ -1247,7 +1275,7 @@ int main(int argc, char**argv) {
             else
               DWLMallocRefFrm(dwl_inst, hbuf.next_buf_size, &mem);
             rv = VP8DecAddBuffer(dec_inst, &mem);
-            DEBUG_PRINT(("VP8DecAddBuffer ret %d\n", rv));
+            PRINT(("VP8DecAddBuffer ret %d\n", rv));
             if(rv != VP8DEC_OK && rv != VP8DEC_WAITING_FOR_BUFFER) {
               if (pp_enabled)
                 DWLFreeLinear(dwl_inst, &mem);
@@ -1437,9 +1465,6 @@ int main(int argc, char**argv) {
   while (!use_peek_output &&
          VP8DecNextPicture(dec_inst, &dec_picture, 1) == VP8DEC_PIC_RDY) {
 
-    END_SW_PERFORMANCE;
-    decsw_performance();
-
 #ifndef PP_PIPELINE_ENABLED
     writeRawFrame(fout,
                   (unsigned char *) dec_picture.p_output_frame,
@@ -1458,6 +1483,9 @@ int main(int argc, char**argv) {
 #else
   VP8DecEndOfStream(dec_inst, 1);
 #endif
+
+  END_SW_PERFORMANCE;
+  decsw_performance();
 
 end:
 #ifdef USE_EXTERNAL_BUFFER
@@ -1527,10 +1555,10 @@ end:
     if (dec_picture.num_slice_rows)
 #endif
     {
-      char cmd[256];
-      sprintf(cmd, "md5sum %s | tr 'a-z' 'A-Z' | sed 's/ .*//' > .md5sum.txt", out_file_name);
+      char cmd[310];
+      sprintf(cmd, "md5sum %255s | tr 'a-z' 'A-Z' | sed 's/ .*//' > .md5sum.txt", out_file_name);
       ret = system(cmd);
-      sprintf(cmd, "mv .md5sum.txt %s", out_file_name);
+      sprintf(cmd, "mv .md5sum.txt %255s", out_file_name);
       ret = system(cmd);
     }
   }
@@ -1596,7 +1624,7 @@ void writeRawFrame(FILE * fp, unsigned char *buffer,
 
       pic_big_endian = (u8 *) malloc(frame_size);
       if(pic_big_endian == NULL) {
-        DEBUG_PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
+        PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
         if(raster_scan)
           free(raster_scan);
         return;
@@ -1624,6 +1652,8 @@ void writeRawFrame(FILE * fp, unsigned char *buffer,
 
       if(raster_scan)
         free(raster_scan);
+      if(pic_big_endian)
+        free(pic_big_endian);
 
       return;
     }
@@ -1700,6 +1730,8 @@ void writeRawFrame(FILE * fp, unsigned char *buffer,
 
   if(raster_scan)
     free(raster_scan);
+  if(pic_big_endian)
+    free(pic_big_endian);
 
 }
 
@@ -1788,6 +1820,10 @@ void writeSlice(FILE * fp, VP8DecPicture *dec_pic) {
 
   if (tmp_ch == NULL) {
     tmp_ch = (u8*)malloc(chroma_size);
+    if (tmp_ch == NULL) {
+      PRINT(("malloc error!\n"));
+      return;
+    }
   }
 
   slice_rows = dec_pic->num_slice_rows;
@@ -1887,11 +1923,12 @@ u32 FfReadFrame( reader_inst reader, const u8 *buffer, u32 max_buffer_size,
   if (stream_truncate && pic_rdy && (hdrs_rdy || stream_header_corrupt)) {
     DEBUG_PRINT(("strm_len %d\n", *frame_size));
     ret = TBRandomizeU32(frame_size);
-    DEBUG_PRINT(("Randomized strm_len %d\n", *frame_size));
+    PRINT(("Randomized strm_len %d\n", *frame_size));
   }
   if (stream_bit_swap) {
     if (stream_header_corrupt || hdrs_rdy) {
       if (pic_rdy) {
+        (void)(ret);
         ret = TBRandomizeBitSwapInStream((u8 *)buffer,
                                          *frame_size, tb_cfg.tb_params.stream_bit_swap);
       }

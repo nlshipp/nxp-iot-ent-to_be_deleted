@@ -122,7 +122,9 @@ u32 AllocateIdUsed(FrameBufferList *fb_list, const void * data) {
     return FB_NOT_VALID_ID;
 
   fb_list->fb_stat[id].b_used = FB_ALLOCATED;
+  pthread_mutex_lock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].n_ref_count = 0;
+  pthread_mutex_unlock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].data = data;
 
   return id;
@@ -144,7 +146,9 @@ u32 AllocateIdFree(FrameBufferList *fb_list, const void * data) {
   fb_list->free_buffers++;
 
   fb_list->fb_stat[id].b_used = FB_FREE;
+  pthread_mutex_lock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].n_ref_count = 0;
+  pthread_mutex_unlock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].data = data;
   return id;
 }
@@ -170,7 +174,9 @@ void ReleaseId(FrameBufferList *fb_list, u32 id) {
   }
 
   fb_list->fb_stat[id].b_used = FB_UNALLOCATED;
+  pthread_mutex_lock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].n_ref_count = 0;
+  pthread_mutex_unlock(&fb_list->ref_count_mutex);
   fb_list->fb_stat[id].data = NULL;
 }
 
@@ -204,8 +210,8 @@ void DecrementRefUsage(FrameBufferList *fb_list, u32 id) {
   FrameBufferStatus *bs = fb_list->fb_stat + id;
 
   pthread_mutex_lock(&fb_list->ref_count_mutex);
-  assert(bs->n_ref_count > 0);
-  bs->n_ref_count--;
+  if (bs->n_ref_count > 0)
+    bs->n_ref_count--;
 
   if (bs->n_ref_count == 0) {
     if (bs->b_used == FB_FREE) {
@@ -244,7 +250,8 @@ void ClearHWOutput(FrameBufferList *fb_list, u32 id, u32 type) {
 
   assert(bs->b_used & (FB_HW_ONGOING | FB_ALLOCATED));
 
-  bs->n_ref_count--;
+  if (bs->n_ref_count > 0)
+    bs->n_ref_count--;
   bs->b_used &= ~type;
 
   if (bs->n_ref_count == 0) {
@@ -505,7 +512,10 @@ void MarkOutputPicCorrupt(FrameBufferList *fb_list, u32 id, u32 errors) {
   pthread_mutex_lock(&fb_list->out_count_mutex);
 
   rd_id = fb_list->rd_id;
-
+  if (rd_id < 0) {
+    pthread_mutex_unlock(&fb_list->out_count_mutex);
+    return;
+  }
   for(i = 0; i < fb_list->num_out; i++) {
     if(fb_list->out_fifo[rd_id].mem_idx == id) {
       DPB_TRACE("id = %d\n", id);
@@ -658,6 +668,10 @@ void RemoveOutputAll(FrameBufferList *fb_list) {
 #else
   i32 id;
   i32 rd_id = fb_list->rd_id;
+  if (rd_id < 0) {
+    return;
+  }
+
   for (i = 0; i < fb_list->num_out; i++) {
     id = fb_list->out_fifo[rd_id].mem_idx;
     if (fb_list->fb_stat[id].b_used & FB_OUTPUT) {
@@ -735,7 +749,7 @@ void MarkIdAllocated(FrameBufferList *fb_list, u32 id) {
   DPB_TRACE(" id = %d\n", id);
   pthread_mutex_lock(&fb_list->ref_count_mutex);
 
-  if (fb_list->fb_stat[id].b_used | FB_FREE) {
+  if (fb_list->fb_stat[id].b_used & FB_FREE) {
     fb_list->fb_stat[id].b_used &= ~FB_FREE;
     if (fb_list->fb_stat[id].n_ref_count == 0)
       fb_list->free_buffers--;
@@ -749,7 +763,7 @@ void MarkIdFree(FrameBufferList *fb_list, u32 id) {
   DPB_TRACE(" id = %d\n", id);
   pthread_mutex_lock(&fb_list->ref_count_mutex);
 
-  if (fb_list->fb_stat[id].b_used | FB_ALLOCATED) {
+  if (fb_list->fb_stat[id].b_used & FB_ALLOCATED) {
     fb_list->fb_stat[id].b_used &= ~FB_ALLOCATED;
     if (fb_list->fb_stat[id].n_ref_count == 0)
       fb_list->free_buffers++;
@@ -783,9 +797,11 @@ void ClearAbortStatusInList(FrameBufferList *fb_list) {
 
 void ResetOutFifoInList(FrameBufferList *fb_list) {
   (void)DWLmemset(fb_list->out_fifo, 0, MAX_FRAME_BUFFER_NUMBER * sizeof(struct OutElement_));
+  pthread_mutex_lock(&fb_list->out_count_mutex);
   fb_list->wr_id = 0;
   fb_list->rd_id = 0;
   fb_list->num_out = 0;
+  pthread_mutex_unlock(&fb_list->out_count_mutex);
 }
 
 #endif

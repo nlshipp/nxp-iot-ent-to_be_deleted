@@ -63,9 +63,10 @@ void RbmRelease(RasterBufferMgr inst);
 #ifdef USE_EXTERNAL_BUFFER
 struct DWLLinearMem RbmNextReleaseBuffer(RasterBufferMgr inst);
 void RbmAddPpBuffer(RasterBufferMgr instance, struct DWLLinearMem *pp_buffer, i32 i);
-struct DWLLinearMem * RbmReturnPpBuffer(RasterBufferMgr instance, const u32 *addr);
+struct DWLLinearMem * RbmReturnPpBuffer(RasterBufferMgr instance, const addr_t addr);
 void RbmReturnAllPpBuffer(RasterBufferMgr instance);
 void RbmResetPpBuffer(RasterBufferMgr instance);
+void RbmResetPpBuffer2(RasterBufferMgr instance);
 void RbmWaitPending(RasterBufferMgr instance);
 void RbmSetAbortStatus(RasterBufferMgr instance);
 void RbmClearAbortStatus(RasterBufferMgr instance);

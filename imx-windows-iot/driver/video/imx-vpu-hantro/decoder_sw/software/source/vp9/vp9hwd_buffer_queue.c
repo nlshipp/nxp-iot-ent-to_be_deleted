@@ -240,6 +240,9 @@ void Vp9BufferQueueRemoveRef(BufferQueue queue, i32 buffer) {
 #endif /* BUFFER_QUEUE_PRINT_STATUS */
   if (queue == NULL) return;
   struct BQueue* q = (struct BQueue*)queue;
+#ifdef USE_EXTERNAL_BUFFER
+  if (q->n_buffers == 0) return;
+#endif
   assert(buffer >= 0 && buffer < q->n_buffers);
   pthread_mutex_lock(&q->cs);
   DecreaseRefCount(q, buffer);
@@ -436,6 +439,24 @@ static void ClearRefCount(struct BQueue* q, i32 i) {
   }
 }
 
+void vp9BufferQueueReset2(BufferQueue queue) {
+  assert(queue);
+  struct BQueue* q = (struct BQueue*)queue;
+  enum FifoRet ret;
+  if (q->empty_fifo) {/* Empty the fifo before releasing. */
+    FifoRelease(q->empty_fifo);
+  }
+  pthread_mutex_destroy(&q->cs);
+  pthread_mutex_init(&q->cs, NULL);
+  ret = FifoInit(VP9DEC_MAX_PIC_BUFFERS, &q->empty_fifo);
+  if (FIFO_ERROR_MEMALLOC == ret)
+    return;
+  assert(q->empty_fifo);
+  q->n_buffers = 0;
+  memset(q->n_references, 0, sizeof(q->n_references));
+  Vp9BufferQueueResetReferences(q);
+}
+
 void Vp9BufferQueueReset(BufferQueue queue) {
 #ifdef BUFFER_QUEUE_PRINT_STATUS
   printf(__FUNCTION__);
@@ -453,7 +474,9 @@ void Vp9BufferQueueReset(BufferQueue queue) {
   pthread_mutex_destroy(&q->cs);
   pthread_mutex_init(&q->cs, NULL);
 
-  FifoInit(VP9DEC_MAX_PIC_BUFFERS, &q->empty_fifo);
+  ret = FifoInit(VP9DEC_MAX_PIC_BUFFERS, &q->empty_fifo);
+  if (FIFO_ERROR_MEMALLOC == ret)
+    return;
   assert(q->empty_fifo);
 #ifdef USE_OMXIL_BUFFER
   q->n_buffers = 0;

@@ -105,6 +105,9 @@ EXTERN_C_END
 // Helper functions
 //
 void FreeVpuBuffer(VpuAlloc *buffer);
+NTSTATUS AllocEntry(VpuAlloc **entry);
+NTSTATUS AllocVpuBuffer(VpuAlloc **alloc, ULONG size, ULONG cacheType, WDFFILEOBJECT file);
+NTSTATUS PrepareVpuBuffer(VpuAlloc **alloc, ULONG size, ULONG cacheType);
 
 NTSTATUS UnlockVpu(
     _In_ IMXVPU_DEVICE_CONTEXT *deviceContextPtr, _In_ ULONG CoreId, _In_ WDFFILEOBJECT File);

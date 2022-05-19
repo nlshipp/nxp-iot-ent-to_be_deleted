@@ -787,14 +787,22 @@ int main(int argc, char **argv) {
   DEBUG_PRINT(("TB Stream Packet Loss %d; odds %s\n", stream_packet_loss,
                tb_cfg.tb_params.stream_packet_loss));
 
+#ifdef ASIC_TRACE_SUPPORT
   {
-    remove("regdump.txt");
-    remove("mbcontrol.hex");
-    remove("intra4x4_modes.hex");
-    remove("motion_vectors.hex");
-    remove("rlc.hex");
-    remove("picture_ctrl_dec.trc");
+    if (remove("regdump.txt") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("mbcontrol.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("intra4x4_modes.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("motion_vectors.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("rlc.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("picture_ctrl_dec.trc") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
+#endif
 
   if (trace_target) tb_cfg.tb_params.extra_cu_ctrl_eof = 1;
 
@@ -936,7 +944,8 @@ int main(int argc, char **argv) {
   TBInitializeRandom(seed_rnd);
 
   /* check size of the input file -> length of the stream in bytes */
-  fseek(finput, 0L, SEEK_END);
+  if (fseek(finput, 0L, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   strm_len = ftell(finput);
   rewind(finput);
 
@@ -1040,7 +1049,8 @@ int main(int argc, char **argv) {
           DEBUG_PRINT(("STREAM WILL END\n"));
           stream_will_end = 1;
         } else {
-          fseek(findex, -2, SEEK_CUR);
+          if (fseek(findex, -2, SEEK_CUR) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         }
       }
 
@@ -1428,7 +1438,8 @@ end:
 
   strm_len = 0;
   if (foutput) {
-    fseek(foutput, 0L, SEEK_END);
+    if (fseek(foutput, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     strm_len = (u32)ftell(foutput);
     fclose(foutput);
   }
@@ -2131,7 +2142,8 @@ u32 NextPacketFromFile(u8 **strm) {
     /* check position */
     f_pos = ftell(finput);
     if (f_pos != cur_index) {
-      fseeko64(finput, cur_index - f_pos, SEEK_CUR);
+      if (fseeko64(finput, cur_index - f_pos, SEEK_CUR) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     }
 
     if (nal_unit_stream) {
@@ -2305,7 +2317,8 @@ u32 fill_buffer(u8 *stream) {
   u32 data_len = 0;
 
   if (cur_index != ftell(finput)) {
-    fseeko64(finput, cur_index, SEEK_SET);
+    if (fseeko64(finput, cur_index, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
 
   /* read next index */

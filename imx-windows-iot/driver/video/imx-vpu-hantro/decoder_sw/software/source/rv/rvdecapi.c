@@ -276,6 +276,8 @@ RvDecRet RvDecInit(RvDecInst * dec_inst,
 
   pthread_mutex_init(&dec_cont->protect_mutex, NULL);
 
+  rv_api_init_data_structures(dec_cont);
+
   dec_cont->ApiStorage.DecStat = INITIALIZED;
 
   *dec_inst = (DecContainer *) dec_cont;
@@ -600,12 +602,31 @@ RvDecRet RvDecDecode(RvDecInst dec_inst,
     for( i = 0 ; i < num_pics_resampled ; ++i ) {
       u32 j = resample_pics[i];
       picture_t * p_ref_pic;
+      u32 rpr_buf_idx = 0;
 
       p_ref_pic = &dec_cont->StrmStorage.p_pic_buf[j];
 
       if( p_ref_pic->coded_width == new_width &&
           p_ref_pic->coded_height == new_height )
         continue;
+
+      /* Get rpr buffer from bq */
+      rpr_buf_idx = BqueueNext2(&dec_cont->StrmStorage.bq,
+                                dec_cont->StrmStorage.work0,
+                                dec_cont->StrmStorage.work1,
+                                BQUEUE_UNUSED,
+                                dec_cont->StrmStorage.rpr_next_pic_type == RV_B_PIC );
+
+      if (rpr_buf_idx == (u32)0xFFFFFFFFU) {
+        dec_cont->StrmStorage.rpr_detected = 1;
+        rvFreeRprBuffer( dec_cont );
+        return RVDEC_NO_DECODING_BUFFER;
+      }
+      dec_cont->StrmStorage.p_rpr_buf = dec_cont->StrmStorage.p_pic_buf[rpr_buf_idx];
+
+#ifndef DISABLE_CPU_ACCESS
+      if (DWLFlushCache(dec_cont->dwl, &p_ref_pic->data))
+        return RVDEC_MEMFAIL;
 
       rvRpr( p_ref_pic,
              &dec_cont->StrmStorage.p_rpr_buf,
@@ -615,14 +636,19 @@ RvDecRet RvDecDecode(RvDecInst dec_inst,
              new_height,
              dec_cont->tiled_reference_enable);
 
+      if (DWLFlushCache(dec_cont->dwl,
+          &dec_cont->StrmStorage.p_rpr_buf.data))
+        return RVDEC_MEMFAIL;
+
+#endif
+
       p_ref_pic->coded_width = new_width;
       p_ref_pic->frame_width = ( 15 + new_width ) & ~15;
       p_ref_pic->coded_height = new_height;
       p_ref_pic->frame_height = ( 15 + new_height ) & ~15;
 
-      tmp_data = dec_cont->StrmStorage.p_rpr_buf.data;
-      dec_cont->StrmStorage.p_rpr_buf.data = p_ref_pic->data;
-      p_ref_pic->data = tmp_data;
+      /* set rpr buffer as forward reference */
+      dec_cont->StrmStorage.work0 = rpr_buf_idx;
     }
 
     dec_cont->Hdrs.horizontal_size = new_width;
@@ -974,7 +1000,7 @@ RvDecRet RvDecDecode(RvDecInst dec_inst,
               RVFLUSH;
             }
             if (dec_cont->pp_enabled) {
-              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
             }
             ret = rvHandleVlcModeError(dec_cont, input->pic_id);
             error_concealment = HANTRO_TRUE;
@@ -1135,6 +1161,8 @@ void RvDecRelease(RvDecInst dec_inst) {
 
   if (dec_cont->StrmStorage.slices.virtual_address != NULL)
     DWLFreeLinear(dec_cont->dwl, &dec_cont->StrmStorage.slices);
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
 
   DWLfree(dec_cont);
 #ifndef USE_EXTERNAL_BUFFER
@@ -1318,11 +1346,12 @@ u32 rvHandleVlcModeError(DecContainer * dec_cont, u32 pic_num) {
 
   /* error in first picture -> set reference to grey */
   if(!dec_cont->FrameDesc.frame_number) {
+#if 0
     (void) DWLmemset(dec_cont->StrmStorage.
                      p_pic_buf[dec_cont->StrmStorage.work_out].data.
                      virtual_address, 128,
                      384 * dec_cont->FrameDesc.total_mb_in_frame);
-
+#endif
     rvDecPreparePicReturn(dec_cont);
 
     /* no pictures finished -> return STRM_PROCESSED */
@@ -1904,7 +1933,7 @@ RvDecRet RvDecNextPicture_INTERNAL(RvDecInst dec_inst,
         return RVDEC_ABORTED;
 
       if(dec_cont->pp_enabled) {
-        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 #endif
 
@@ -1914,7 +1943,7 @@ RvDecRet RvDecNextPicture_INTERNAL(RvDecInst dec_inst,
       BqueueSetBufferAsUsed(&dec_cont->StrmStorage.bq, pic_index);
 
       if(dec_cont->pp_enabled)
-        InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+        InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
 
       dec_cont->StrmStorage.picture_info[dec_cont->fifo_index] = *picture;
       FifoPush(dec_cont->fifo_display, dec_cont->fifo_index, FIFO_EXCEPTION_DISABLE);
@@ -1980,7 +2009,7 @@ RvDecRet RvDecPictureConsumed(RvDecInst dec_inst, RvDecPicture * picture) {
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue,(u32 *)picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
     return (RVDEC_OK);
   }
   return (RVDEC_PARAM_ERROR);
@@ -2185,8 +2214,8 @@ u32 RvSetRegs(DecContainer * dec_container, addr_t strm_bus_address) {
                    dec_container->StrmDesc.bit_pos_in_word + 8 * (tmp & 0x7));
   else
 #endif
-    SetDecRegister(dec_container->rv_regs, HWIF_STRM_START_BIT, 0);
-
+    SetDecRegister(dec_container->rv_regs, HWIF_STRM_START_BIT,
+                   ((addr_t)tmp & 0x7) * 8);
   /* swReg13 */
   SET_ADDR_REG(dec_container->rv_regs, HWIF_DEC_OUT_BASE,
                dec_container->StrmStorage.p_pic_buf[dec_container->StrmStorage.work_out].
@@ -2516,7 +2545,7 @@ void RvPpControl(DecContainer * dec_container, u32 pipeline_off) {
           dec_container->StrmStorage.p_pic_buf[index_for_pp].send_to_pp = 2;
         } else {
           RVDEC_API_DEBUG(("PIPELINE OFF, DON*T SEND B TO PP\n"));
-          index_for_pp = dec_container->StrmStorage.work_out;
+          //index_for_pp = dec_container->StrmStorage.work_out;
           index_for_pp = RV_BUFFER_UNDEFINED;
           pc->input_bus_luma = 0;
         }
@@ -2852,17 +2881,15 @@ void RvSetExternalBufferInfo(DecContainer * dec_cont) {
   u32 ref_buff_size = pic_size;
   ext_buffer_size = ref_buff_size;
 
-  u32 buffers = 3;
+  u32 buffers = 4;
 
   if( dec_cont->pp_instance ) { /* Combined mode used */
-    buffers = 3;
+    buffers = 4;
   } else { /* Dec only or separate PP */
     buffers = dec_cont->StrmStorage.max_num_buffers;
-    if( buffers < 3 )
-      buffers = 3;
+    if( buffers < 4 )
+      buffers = 4;
   }
-
-  dec_cont->tot_buffers_added = dec_cont->tot_buffers;
 
   if(pic_size > (dec_cont->use_adaptive_buffers ?
                  dec_cont->n_ext_buf_size :  dec_cont->next_buf_size))
@@ -2882,11 +2909,7 @@ void RvSetExternalBufferInfo(DecContainer * dec_cont) {
     ext_buffer_size = pp_buff_size;
   }
 
-  dec_cont->tot_buffers_added = dec_cont->tot_buffers;
-  if (dec_cont->pp_enabled)
-    dec_cont->tot_buffers = dec_cont->buf_num =  buffers;
-  else
-    dec_cont->tot_buffers = dec_cont->buf_num =  buffers + 1;
+  dec_cont->tot_buffers = dec_cont->buf_num =  buffers;
   dec_cont->next_buf_size = ext_buffer_size;
 }
 
@@ -2941,6 +2964,7 @@ RvDecRet RvDecGetBufferInfo(RvDecInst dec_inst, RvDecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -2949,7 +2973,7 @@ RvDecRet RvDecGetBufferInfo(RvDecInst dec_inst, RvDecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return RVDEC_WAITING_FOR_BUFFER;
 }
@@ -2959,13 +2983,16 @@ RvDecRet RvDecAddBuffer(RvDecInst dec_inst, struct DWLLinearMem *info) {
   RvDecRet dec_ret = RVDEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return RVDEC_PARAM_ERROR;
   }
 
   u32 i = dec_cont->buffer_index;
+
+  if (dec_cont->buffer_index >= 16)
+    /* Too much buffers added. */
+    return RVDEC_EXT_BUFFER_REJECTED;
 
   dec_cont->n_ext_buf_size = info->size;
   dec_cont->ext_buffers[dec_cont->ext_buffer_num] = *info;
@@ -2977,11 +3004,13 @@ RvDecRet RvDecAddBuffer(RvDecInst dec_inst, struct DWLLinearMem *info) {
         dec_cont->StrmStorage.p_pic_buf[i].data = *info;
 
         dec_cont->buffer_index++;
+        dec_cont->tot_buffers_added++;
         if(dec_cont->buffer_index < dec_cont->tot_buffers)
           dec_ret = RVDEC_WAITING_FOR_BUFFER;
       } else {
-        dec_cont->StrmStorage.p_rpr_buf.data = *info;
+        dec_cont->StrmStorage.p_pic_buf[i].data = *info;
         dec_cont->buffer_index++;
+        dec_cont->tot_buffers_added++;
         dec_ret = RVDEC_OK;
       }
     } else {
@@ -2991,9 +3020,10 @@ RvDecRet RvDecAddBuffer(RvDecInst dec_inst, struct DWLLinearMem *info) {
         return RVDEC_EXT_BUFFER_REJECTED;
       }
 
-      dec_cont->StrmStorage.p_pic_buf[i - 1].data = *info;
+      dec_cont->StrmStorage.p_pic_buf[i].data = *info;
 
       dec_cont->buffer_index++;
+      dec_cont->tot_buffers_added++;
       dec_cont->tot_buffers++;
       dec_cont->StrmStorage.bq.queue_size++;
       dec_cont->StrmStorage.num_buffers++;
@@ -3032,19 +3062,20 @@ void RvEmptyBufferQueue(DecContainer *dec_cont) {
 }
 
 void RvStateReset(DecContainer *dec_cont) {
-  u32 buffers = 3;
+  u32 buffers = 4;
 
   if( !dec_cont->pp_instance ) { /* Combined mode used */
     buffers = dec_cont->StrmStorage.max_num_buffers;
-    if( buffers < 3 )
-      buffers = 3;
+    if( buffers < 4 )
+      buffers = 4;
   }
 
   /* Clear internal parameters in DecContainer */
 #ifdef USE_EXTERNAL_BUFFER
 #ifdef USE_OMXIL_BUFFER
-  dec_cont->tot_buffers = buffers + 1;
+  dec_cont->tot_buffers = buffers;
   dec_cont->buffer_index = 0;
+  dec_cont->tot_buffers_added = 0;
 #endif
   dec_cont->no_reallocation = 1;
 #endif
@@ -3086,7 +3117,9 @@ void RvStateReset(DecContainer *dec_cont) {
 #endif
 
   /* Clear internal parameters in DecApiStorage */
-  dec_cont->ApiStorage.DecStat = STREAMDECODING;
+  if (dec_cont->ApiStorage.DecStat != INITIALIZED &&
+      dec_cont->ApiStorage.DecStat != HEADERSDECODED)
+      dec_cont->ApiStorage.DecStat = STREAMDECODING;
 
   /* Clear internal parameters in DecFrameDesc */
   dec_cont->FrameDesc.frame_number = 0;
@@ -3100,7 +3133,6 @@ void RvStateReset(DecContainer *dec_cont) {
   (void) DWLmemset(dec_cont->StrmStorage.out_buf, 0, 16 * sizeof(u32));
 #ifdef USE_OMXIL_BUFFER
   (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf, 0, 16 * sizeof(picture_t));
-  (void) DWLmemset(&dec_cont->StrmStorage.p_rpr_buf, 0, sizeof(picture_t));
   (void) DWLmemset(dec_cont->StrmStorage.picture_info, 0, 32 * sizeof(RvDecPicture));
 #endif
 #ifdef CLEAR_HDRINFO_IN_SEEK
@@ -3111,8 +3143,54 @@ void RvStateReset(DecContainer *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(32, &dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
+}
+
+RvDecRet RvDecRemoveBuffer(RvDecInst dec_inst) {
+  DecContainer *dec_cont = (DecContainer *)dec_inst;
+  RvDecRet re = RVDEC_OK;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  FifoSetAbort(dec_cont->fifo_display);
+  BqueueRemove(&dec_cont->StrmStorage.bq);
+  dec_cont->StrmStorage.work_out = 0;
+  dec_cont->StrmStorage.work0 =
+    dec_cont->StrmStorage.work1 = INVALID_ANCHOR_PICTURE;
+
+  RvStateReset(dec_cont);
+
+  u32 buffers = 4;
+  if( !dec_cont->pp_instance ) { /* Combined mode used */
+    buffers = dec_cont->StrmStorage.max_num_buffers;
+    if( buffers < 4 )
+      buffers = 4;
+  }
+
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->tot_buffers_added = 0;
+
+  dec_cont->fifo_index = 0;
+  dec_cont->ext_buffer_num = 0;
+
+  dec_cont->StrmStorage.bq.queue_size = buffers;
+  dec_cont->StrmStorage.num_buffers = buffers;
+  (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf, 0, 16 * sizeof(picture_t));
+  (void) DWLmemset(dec_cont->StrmStorage.picture_info, 0, 32 * sizeof(RvDecPicture));
+
+  if (dec_cont->fifo_display)
+    FifoRelease(dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    re = RVDEC_MEMFAIL;
+    goto end;
+  }
+  FifoClearAbort(dec_cont->fifo_display);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 RvDecRet RvDecAbort(RvDecInst dec_inst) {

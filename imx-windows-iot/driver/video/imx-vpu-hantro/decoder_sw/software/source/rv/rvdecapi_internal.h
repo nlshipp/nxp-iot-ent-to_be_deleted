@@ -84,6 +84,7 @@ RvDecRet rvAllocateBuffers(DecContainer * dec_cont);
 RvDecRet rvDecCheckSupport(DecContainer * dec_cont);
 void rvDecPreparePicReturn(DecContainer * dec_cont);
 void rvDecAspectRatio(DecContainer * dec_cont, RvDecInfo * dec_info);
+void rvFreeRprBuffer(DecContainer * dec_cont);
 void rvDecBufferPicture(DecContainer * dec_cont, u32 pic_id, u32 buffer_b,
                         u32 is_inter, RvDecRet return_value, u32 nbr_err_mbs);
 void rvFreeBuffers(DecContainer * dec_cont);

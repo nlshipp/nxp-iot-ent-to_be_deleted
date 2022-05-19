@@ -218,6 +218,16 @@ OnFileClose(
             ptr = ptr->next;
         }
     }
+
+    for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+        ptr = deviceContextPtr->preallocated_mem[i];
+        if (ptr->file == FxFile) {
+            MmUnmapLockedPages(ptr->virtAddr, ptr->mdl);
+            ptr->occupied = REUSABLE;
+            deviceContextPtr->memCounter--;
+        }
+    }
+
     ExReleaseFastMutex(&deviceContextPtr->Mutex);
 }
 

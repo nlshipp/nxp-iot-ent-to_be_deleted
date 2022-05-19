@@ -165,6 +165,7 @@ u32 h264bsdDecode(decContainer_t * dec_cont, const u8 * byte_strm, u32 len,
 
   DEBUG_PRINT(("Valid slice in access unit %d\n",
                storage->valid_slice_in_access_unit));
+  strm.emul_byte_count = 0;
 
   if(dec_cont->rlc_mode) {
     storage->strm[0].remove_emul3_byte = 1;
@@ -361,7 +362,7 @@ u32 h264bsdDecode(decContainer_t * dec_cont, const u8 * byte_strm, u32 len,
 #endif
         }
       }
-
+      (void)(ret);
       ret = H264BSD_RDY;
       goto NEXT_NAL;
 
@@ -375,11 +376,18 @@ u32 h264bsdDecode(decContainer_t * dec_cont, const u8 * byte_strm, u32 len,
         FREE(pic_param_set.bottom_right);
         FREE(pic_param_set.slice_group_id);
         ret = H264BSD_ERROR;
+        (void)(ret);
       } else {
         tmp = h264bsdStorePicParamSet(storage, &pic_param_set);
+         /* allocated new memory inside h264bsdStorePicParamSet */
+        FREE(pic_param_set.run_length);
+        FREE(pic_param_set.top_left);
+        FREE(pic_param_set.bottom_right);
+        FREE(pic_param_set.slice_group_id);
         if(tmp != HANTRO_OK) {
           ERROR_PRINT("PIC_PARAM_SET allocation");
           ret = H264BSD_ERROR;
+          (void)(ret);
         }
       }
       ret = H264BSD_RDY;
@@ -1355,8 +1363,9 @@ u32 h264bsdFixFrameNum(u8 *stream, u32 strm_len, u32 frame_num, u32 max_frame_nu
 
 #define BIT 12
   u8 *p, *p_end;
-  u32 value, tmp, first = 1;
-  strmData_t strm_data;
+  u32 value, tmp;
+  //u32 first = 1;
+  strmData_t strm_data = { 0 };
   u32 frame_num_len = 0;
   u32 bit_pos;
   u32 loop = 0;
@@ -1412,8 +1421,8 @@ u32 h264bsdFixFrameNum(u8 *stream, u32 strm_len, u32 frame_num, u32 max_frame_nu
         return 0;
 
       /* start of frame */
-      if (value == 0 && !first)
-        return 0;
+      //if (value == 0 && !first)
+      //  return 0;
 
       /* skip slice_type */
       tmp = h264bsdDecodeExpGolombUnsigned(&strm_data, &value);

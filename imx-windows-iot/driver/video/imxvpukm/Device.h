@@ -19,6 +19,23 @@ Environment:
 EXTERN_C_START
 
 //
+// Defines
+//
+#define REUSABLE_MEM_BLOCKS_MAX  2
+#define VPU_MEM_ALIGN            0x1000
+#define VPU_BITS_BUF_SIZE        (16*1024*1024)//bitstream buffer size : big enough contain two big frames
+#define STREAM_BUFF_CACHE_TYPE   MmWriteCombined
+
+//
+// Memory occupation enum
+//
+enum occupation {
+    ONE_TIME_MEM = 0,
+    REUSABLE,
+    OCCUPIED
+};
+
+//
 // Memory allocation list
 //
 typedef struct _VpuAlloc {
@@ -27,6 +44,7 @@ typedef struct _VpuAlloc {
     intptr_t physAddr;
     PMDL mdl;
     WDFFILEOBJECT file;
+    ULONG occupied;
 } VpuAlloc;
 
 //
@@ -39,7 +57,8 @@ typedef struct {
     ULONG RegistersLen;
     PMDL MdlRegisters;  // MDL of VPU registers
     VpuAlloc memList;   // list of allocated memory blocks
-
+    ULONG memCounter;   // counter of allocated reusable memory blocks
+    VpuAlloc **preallocated_mem;
     WDFFILEOBJECT vpuOwner[2]; // current owner of VPU device
     WDFQUEUE waitQueue[2]; // Operations waiting for VPU access
 

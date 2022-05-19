@@ -60,8 +60,11 @@ output_inst output_open(char* filename, test_params *params) {
   if (inst==NULL)
     return NULL;
 
-  if(params==NULL)
+  if(params==NULL) {
+    if (inst)
+      free(inst);
     return NULL;
+  }
 
   inst->params = params;
 
@@ -88,151 +91,6 @@ void output_close(output_inst inst) {
   }
 
   free(output);
-}
-
-i32 output_write_pic(output_inst inst, unsigned char *buffer,
-                     unsigned char *buffer_ch, i32 frame_width,
-                     i32 frame_height, i32 cropped_width, i32 cropped_height, i32 planar,
-                     i32 tiled_mode, u32 luma_stride, u32 chroma_stride, u32 pic_num) {
-  output_t* output = (output_t *)inst;
-
-  int luma_size = luma_stride * frame_height;
-  int frame_size = luma_size + (chroma_stride*frame_height/2);
-  static int pic_number = 0;
-  int height_crop = 0;
-  int include_strides  = 0;
-  static struct MD5Context ctx;
-  unsigned char digest[16];
-  int i = 0;
-  unsigned char *cb,*cr;
-  int ret;
-  unsigned char *output_l = buffer;
-  unsigned char *output_ch = buffer_ch;
-  int write_planar = planar;
-  unsigned int stride_luma_local = luma_stride;
-  unsigned int stride_chroma_local = chroma_stride;
-  unsigned char *local_buffer = buffer;
-
-
-  if(output->file_ == NULL)
-    return 0;
-
-  /* TODO(mheikkinen) TILED format */
-  /* TODO(mheikkinen) DEC_X170_BIG_ENDIAN */
-  if (output->params->num_of_decoded_pics_ <= pic_num &&
-      output->params->num_of_decoded_pics_) {
-    return 1;
-  }
-
-
-  if (output->params->frame_picture_) {
-    if (output->frame_pic_ == NULL) {
-      output->frame_pic_ =
-        (u8*)malloc( frame_height * frame_width *3/2 * sizeof(u8));
-    }
-    FramePicture((u8*)buffer,
-                 (u8*)buffer_ch,
-                 cropped_width,
-                 cropped_height,
-                 frame_width,
-                 frame_height,
-                 output->frame_pic_, frame_width, frame_height,
-                 output->params->luma_stride_,
-                 output->params->chroma_stride_);
-    output_l = output->frame_pic_;
-    output_ch = NULL;
-    write_planar = 1;
-    stride_luma_local = stride_chroma_local = frame_width;
-    luma_size = frame_width * frame_height;
-    frame_size = luma_size * 3/2;
-    local_buffer = output->frame_pic_;
-  }
-
-  if (output->params->md5_) {
-    /* chroma should be right after luma */
-    MD5Init(&ctx);
-    MD5Update(&ctx, buffer, frame_size);
-    MD5Final(digest, &ctx);
-
-    for(i = 0; i < sizeof digest; i++) {
-      fprintf(output->file_, "%02X", digest[i]);
-    }
-    fprintf(output->file_, "\n");
-
-    return 0;
-  } else {
-    if (output_ch == NULL) {
-      output_ch = output_l + luma_size;
-    }
-
-    if (!height_crop || (cropped_height == frame_height && cropped_width == frame_width)) {
-      u32 i, j;
-      u8 *buffer_tmp;
-      buffer_tmp = local_buffer;
-
-      for( i = 0 ; i < frame_height ; ++i ) {
-        fwrite( buffer_tmp, include_strides ? stride_luma_local : frame_width, 1, output->file_);
-        buffer_tmp += stride_luma_local;
-      }
-
-      if (!write_planar) {
-
-        buffer_tmp = output_ch;
-        for( i = 0 ; i < frame_height / 2 ; ++i ) {
-          fwrite( buffer_tmp, include_strides ? stride_chroma_local : frame_width, 1, output->file_);
-          buffer_tmp += stride_chroma_local;
-        }
-      } else {
-        buffer_tmp = output_ch;
-        for(i = 0; i < frame_height / 2; i++) {
-          for( j = 0 ; j < (include_strides ? stride_chroma_local / 2 : frame_width / 2); ++j) {
-            fwrite(buffer_tmp + j * 2, 1, 1, output->file_);
-          }
-          buffer_tmp += stride_chroma_local;
-        }
-        buffer_tmp = output_ch + 1;
-        for(i = 0; i < frame_height / 2; i++) {
-          for( j = 0 ; j < (include_strides ? stride_chroma_local / 2: frame_width / 2); ++j) {
-            fwrite(buffer_tmp + j * 2, 1, 1, output->file_);
-          }
-          buffer_tmp += stride_chroma_local;
-        }
-      }
-    } else {
-      u32 row;
-      for( row = 0 ; row < cropped_height ; row++) {
-        fwrite(local_buffer + row*stride_luma_local, cropped_width, 1, output->file_);
-      }
-      if (!write_planar) {
-        if(cropped_height &1)
-          cropped_height++;
-        if(cropped_width & 1)
-          cropped_width++;
-        for( row = 0 ; row < cropped_height/2 ; row++)
-          fwrite(output_ch + row*stride_chroma_local, (cropped_width*2)/2, 1, output->file_);
-      } else {
-        u32 i, tmp;
-        tmp = frame_width*cropped_height/4;
-
-        if(cropped_height &1)
-          cropped_height++;
-        if(cropped_width & 1)
-          cropped_width++;
-
-        for( row = 0 ; row < cropped_height/2 ; ++row ) {
-          for(i = 0; i < cropped_width/2; i++)
-            fwrite(output_ch + row*stride_chroma_local + i * 2, 1, 1, output->file_);
-        }
-        for( row = 0 ; row < cropped_height/2 ; ++row ) {
-          for(i = 0; i < cropped_width/2; i++)
-            fwrite(output_ch + 1 + row*stride_chroma_local + i * 2, 1, 1, output->file_);
-        }
-      }
-    }
-  }
-
-  return 0;
-
 }
 
 static void FramePicture( u8 *p_in, u8* p_ch, i32 in_width, i32 in_height,

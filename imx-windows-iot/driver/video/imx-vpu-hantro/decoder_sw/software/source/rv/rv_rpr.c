@@ -355,6 +355,7 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
   u32 last_col, last_row;
   u32 m,n;
   u32 tmp;
+  i32 tmp_i;
   u32 D;
   const u32 P = 16;
   u32 Hprime, Vprime;
@@ -382,8 +383,11 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
     tmp >>= 1;
   }
   /* check for case when inp_w is power of two */
-  if (inp_w == (u32)(1<<(m-1))) m--;
-  Hprime = 1<<m;
+  if (inp_w == (u32)((m-1) > 31 ? 0 : (1<<(m-1)))) m--;
+  if (m > 31)
+    Hprime = 0;
+  else
+    Hprime = 1<<m;
   D = (64*Hprime)/P;
 
   n = 0;
@@ -393,12 +397,16 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
     tmp >>= 1;
   }
   /* check for case when inp_h is power of two */
-  if (inp_h == (u32)(1<<(n-1))) n--;
-  Vprime = 1<<n;
+  /* add 31 check to avoid bad bit shift*/
+  if (inp_h == (u32)((n-1) > 31 ? 0 : (1<<(n-1)))) n--;
+  if (n > 31)
+    Vprime = 0;
+  else
+    Vprime = 1<<n;
 
   /* uxl and uxr are independent of row, so compute once only */
   uxl = 0;
-  uxr = (outp_w - Hprime)*uxl + ((((inp_w - outp_w)<<1))<<(4+m));    /* numerator part */
+  uxr = (outp_w - Hprime)*uxl + ((4+m) > 31 ? 0 : (((inp_w - outp_w)<<1))<<(4+m));    /* numerator part */
   /* complete uxr init by dividing by H with rounding to nearest integer, */
   /* half-integers away from 0 */
   if (uxr >= 0)
@@ -416,7 +424,7 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
   /* compute once only */
   uy00 = 0;
   uy0_v = ((inp_h - outp_h)<<1)<<4;
-  uyl_b = outp_h*uy00 + ((uy0_v - uy00)<<n); /* numerator */
+  uyl_b = outp_h*uy00 + (n > 31 ? 0 : (uy0_v - uy00)<<n); /* numerator */
   /* complete uyl_b by dividing by V with rounding to nearest integer, */
   /* half-integers away from 0 */
   if (uyl_b >= 0)
@@ -436,7 +444,8 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
   }
   for( i = 0 ; i < outp_w ; ++i ) {
     i32 x0, x1;
-    x0 = ax >> (m+6);
+    x0 = ax >= 0 ? ((m+6) > 31 ?  0 : ax >> (m+6)) :
+                   ((m+6) > 31 ? -1 : ax >> (m+6));
     x1 = x0 + 1;
     if( x0 < 0 ) {
       x0 = 0;
@@ -451,7 +460,8 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
     }
     if( x0 != x1 ) {
       p_src_col[j] = luma_coeffs ? x0 : 2*x0;
-      p_coeff_x[j] = (ax >> (m+2)) & 0xf;
+      p_coeff_x[j] = (ax >= 0 ? ((m+2) > 31 ?  0 : ax >> (m+2)) :
+                                ((m+2) > 31 ? -1 : ax >> (m+2)))& 0xf;
       j++;
     }
     ax += ax_increment;
@@ -463,11 +473,15 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
     i32 y0, y1;
     /* ay var is constant for all columns */
 
-    add = (uyl_num >> (n + luma_coeffs))
-          << (m + luma_coeffs);
+    tmp_i = (uyl_num >= 0 ? ((n + luma_coeffs) > 31 ?  0 : (uyl_num >> (n + luma_coeffs))) :
+                            ((n + luma_coeffs) > 31 ? -1 : (uyl_num >> (n + luma_coeffs))));
+    add = (tmp_i >= 0 ? ((m + luma_coeffs) > 31 ? 0 : (tmp_i << (m + luma_coeffs))) :
+                        ((m + luma_coeffs) > 31 ? -1 : (tmp_i << (m + luma_coeffs))));
+
     ay_row = ay + add;
 
-    y0 = ( ay_row ) >> (m+6);
+    y0 = (ay_row >= 0 ? ((m+6) > 31 ?  0 : ay_row  >> (m+6)) :
+                        ((m+6) > 31 ? -1 : ay_row  >> (m+6))) ;
     y1 = y0 + 1;
     if( y0 < 0 )                y0 = 0;
     else if ( y0 > (i32)last_row )    y0 = last_row;
@@ -475,7 +489,8 @@ void CoeffTables( u32 inp_w, u32 inp_h, u32 outp_w, u32 outp_h,
     else if ( y1 > (i32)last_row )    y1 = last_row;
     *p_src_row_buf++ = inp + y0*inp_wfrm;
     *p_src_row_buf++ = inp + y1*inp_wfrm;
-    p_coeff_y[i] = ((ay_row) >> (m+2)) & 0xf;
+    p_coeff_y[i] = (ay_row >= 0 ? ((m+2) > 31 ?  0 : (ay_row) >> (m+2)) :
+                                  ((m+2) > 31 ? -1 : (ay_row) >> (m+2))) & 0xf;
 
     ay += ay_increment;
     uyl_num += uyl_inc;

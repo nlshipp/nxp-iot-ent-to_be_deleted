@@ -52,11 +52,6 @@ typedef void* output_inst;
 output_inst output_open(char* filename, test_params* params);
 void output_close(output_inst inst);
 
-i32 output_write_pic(output_inst inst, unsigned char *buffer,
-                     unsigned char *buffer_ch, i32 frame_width,
-                     i32 frame_height, i32 cropped_width, i32 cropped_height, i32 planar,
-                     i32 tiled_mode, u32 luma_stride, u32 chroma_stride, u32 pic_num);
-
 #ifdef __cplusplus
 }
 #endif

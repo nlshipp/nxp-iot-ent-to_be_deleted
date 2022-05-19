@@ -59,7 +59,7 @@ typedef void ClientBufferDecoded(ClientInst inst, struct DecInput* input);
 /* Function to notify about picture that is ready to be outputted. Client is
  * expected to notify the decoder when it has finished processing the picture,
  * so decoder can reuse the picture buffer for another picture. */
-typedef void ClientPictureReady(ClientInst inst, struct DecPicture picture);
+typedef void ClientPictureReady(ClientInst inst, struct DecPicture* picture);
 /* Function to notify the client that all the pending pictures have been
  * outputted and decoder can be safely shut down. */
 typedef void ClientEndOfStream(ClientInst inst);
@@ -96,7 +96,7 @@ struct DecSwHwBuild DecGetBuild(void);
  * callbacks parameter must be valid until client has successfully executed
  * a call to DecRelease function. */
 enum DecRet DecInit(enum DecCodec codec, DecInst* decoder,
-                    struct DecConfig config, struct DecClientHandle callbacks);
+                    struct DecConfig* config, struct DecClientHandle callbacks);
 
 /* Function to dispatch a buffer containing video bitstream to be decoded by the
  * component. Buffer can be reused after the function has returned, during the
@@ -120,7 +120,7 @@ enum DecRet DecSetPictureBuffers(DecInst dec_inst,
 /* Function to tell the decoder that client has finished processing a specific
  * picture that was previously sent to client through the PictureReady callback.
  */
-enum DecRet DecPictureConsumed(DecInst dec_inst, struct DecPicture picture);
+enum DecRet DecPictureConsumed(DecInst dec_inst, struct DecPicture* picture);
 
 /* Function to tell the decoder that it should not be expecting any more input
  * stream and Finish decoding and outputting all the buffers that are currently

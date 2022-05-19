@@ -297,6 +297,43 @@ u32 h264bsdStorePicParamSet(storage_t * storage, picParamSet_t * p_pic_param_set
 
   *storage->pps[id] = *p_pic_param_set;
 
+  /* to fix klocwork warning we have to allocate new memory for pStorage->pps[id] */
+  if (p_pic_param_set->run_length) {
+    ALLOCATE(storage->pps[id]->run_length,
+        p_pic_param_set->num_slice_groups, u32);
+    if (storage->pps[id]->run_length == NULL)
+      return(MEMORY_ALLOCATION_ERROR);
+    (void)DWLmemcpy(storage->pps[id]->run_length,
+        p_pic_param_set->run_length, p_pic_param_set->num_slice_groups * sizeof(32));
+  }
+
+  if (p_pic_param_set->top_left) {
+    ALLOCATE(storage->pps[id]->top_left,
+        p_pic_param_set->num_slice_groups - 1, u32);
+    if (storage->pps[id]->top_left == NULL)
+      return(MEMORY_ALLOCATION_ERROR);
+    (void)DWLmemcpy(storage->pps[id]->top_left,
+        p_pic_param_set->top_left, (p_pic_param_set->num_slice_groups - 1) * sizeof(32));
+  }
+
+  if (p_pic_param_set->bottom_right) {
+    ALLOCATE(storage->pps[id]->bottom_right,
+        p_pic_param_set->num_slice_groups - 1, u32);
+    if (storage->pps[id]->bottom_right == NULL)
+      return(MEMORY_ALLOCATION_ERROR);
+    (void)DWLmemcpy(storage->pps[id]->bottom_right,
+      p_pic_param_set->bottom_right, (p_pic_param_set->num_slice_groups - 1) * sizeof(32));
+  }
+
+  if (p_pic_param_set->slice_group_id) {
+    ALLOCATE(storage->pps[id]->slice_group_id,
+        p_pic_param_set->pic_size_in_map_units, u32);
+    if (storage->pps[id]->slice_group_id == NULL)
+      return(MEMORY_ALLOCATION_ERROR);
+    (void)DWLmemcpy(storage->pps[id]->slice_group_id,
+        p_pic_param_set->slice_group_id, p_pic_param_set->pic_size_in_map_units * sizeof(32));
+  }
+
   return (HANTRO_OK);
 
 }
@@ -943,7 +980,7 @@ u32 h264bsdAllocateSwResources(
   u32 max_dpb_size;
   struct dpbInitParams dpb_params;
   dpbStorage_t * dpb = storage->dpb;
-
+  u32 pre_pic_size_in_mbs = storage->pic_size_in_mbs;
   storage->pic_size_in_mbs = p_sps->pic_width_in_mbs * p_sps->pic_height_in_mbs;
   storage->curr_image->width = p_sps->pic_width_in_mbs;
   storage->curr_image->height = p_sps->pic_height_in_mbs;
@@ -1034,6 +1071,7 @@ u32 h264bsdAllocateSwResources(
 
     if (storage->ext_buffer_added && (pp_buff_size > storage->ext_buffer_size || new_tot_buffers > dpb->tot_buffers)) {
       storage->release_buffer = 1;
+      storage->pic_size_in_mbs = pre_pic_size_in_mbs;
       return H264DEC_WAITING_FOR_BUFFER;
     }
   }
@@ -1050,9 +1088,10 @@ u32 h264bsdAllocateSwResources(
   dpb->pic_width = h264bsdPicWidth(storage) << 4;
   dpb->pic_height = h264bsdPicHeight(storage) << 4;
 
-  if(tmp != HANTRO_OK)
+  if(tmp != HANTRO_OK) {
+    storage->pic_size_in_mbs = pre_pic_size_in_mbs;
     return (tmp);
-
+  }
   return HANTRO_OK;
 }
 
@@ -1062,6 +1101,7 @@ u32 h264bsdMVCAllocateSwResources(const void *dwl, storage_t * storage,
   u32 tmp;
   u32 no_reorder;
   u32 max_dpb_size;
+  u32 pre_pic_size_in_mbs = storage->pic_size_in_mbs;
   struct dpbInitParams dpb_params;
 
   for(u32 i = 0; i < 2; i ++) {
@@ -1112,8 +1152,10 @@ u32 h264bsdMVCAllocateSwResources(const void *dwl, storage_t * storage,
     storage->dpbs[i]->pic_height = h264bsdPicHeight(storage) << 4;
   }
 
-  if(tmp != HANTRO_OK)
+  if(tmp != HANTRO_OK) {
+    storage->pic_size_in_mbs = pre_pic_size_in_mbs;
     return (tmp);
+  }
 
   return HANTRO_OK;
 }

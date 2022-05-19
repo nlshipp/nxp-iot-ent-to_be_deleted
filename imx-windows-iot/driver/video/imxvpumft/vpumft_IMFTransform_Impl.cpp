@@ -1400,6 +1400,7 @@ HRESULT CVpuMft::SetInputType(
             vpuParam.nAdaptiveMode = 1;
             vpuParam.nPicHeight = inputHeight;
             vpuParam.nPicWidth = inputWidth;
+            vpuParam.nTiled2LinearEnable = 0;
 
             if (m_vpuHandle != 0)
             {

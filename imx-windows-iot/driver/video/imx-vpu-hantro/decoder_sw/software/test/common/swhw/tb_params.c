@@ -216,7 +216,7 @@
 ------------------------------------------------------------------------------*/
 #define IMPLEMENT_PARAM_STRING(b, k, tgt)     \
   if (!strcmp(block, b) && !strcmp(key, k)) { \
-    strncpy(tgt, value, sizeof(tgt));         \
+    strncpy(tgt, value, sizeof(tgt) - 1);         \
   }
 
 /*------------------------------------------------------------------------------
@@ -898,8 +898,7 @@ u32 TBCheckCfg(const struct TBCfg* tb_cfg) {
     return 1;
   }
 
-  if (tb_cfg->dec_params.latency_compensation > 63 ||
-      tb_cfg->dec_params.latency_compensation < 0) {
+  if (tb_cfg->dec_params.latency_compensation > 63) {
     printf("Error in DecParams.LatencyCompensation: %d\n",
            tb_cfg->dec_params.latency_compensation);
     return 1;

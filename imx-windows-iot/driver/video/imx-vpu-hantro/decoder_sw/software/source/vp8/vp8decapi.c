@@ -101,7 +101,7 @@ void vp8hwdErrorConceal(VP8DecContainer_t *dec_cont, addr_t bus_address,
 static struct DWLLinearMem* GetPrevRef(VP8DecContainer_t *dec_cont);
 void ConcealRefAvailability(u32 * output, u32 height, u32 width);
 
-static i32 FindIndex(VP8DecContainer_t* dec_cont, const u32* address);
+static i32 FindIndex(VP8DecContainer_t* dec_cont, addr_t address);
 #ifdef USE_OUTPUT_RELEASE
 static VP8DecRet VP8DecNextPicture_INTERNAL(VP8DecInst dec_inst,
     VP8DecPicture * output, u32 end_of_stream);
@@ -281,6 +281,7 @@ VP8DecRet VP8DecInit(VP8DecInst * dec_inst,
   VP8HwdAsicInit(dec_cont);   /* Init ASIC */
 
   if(!DWLReadAsicCoreCount()) {
+    DWLfree(dec_cont);
     return (VP8DEC_DWL_ERROR);
   }
   dec_cont->num_cores = 1;
@@ -290,6 +291,7 @@ VP8DecRet VP8DecInit(VP8DecInst * dec_inst,
   DWLReadAsicConfig(&config,DWL_CLIENT_TYPE_VP8_DEC);
 
   if(!config.addr64_support && sizeof(void *) == 8) {
+    DWLfree(dec_cont);
     DEC_API_TRC("VP8DecInit# ERROR: HW not support 64bit address!\n");
     return (VP8DEC_PARAM_ERROR);
   }
@@ -326,8 +328,10 @@ VP8DecRet VP8DecInit(VP8DecInst * dec_inst,
   if ((dec_format == VP8DEC_VP8) || (dec_format == VP8DEC_WEBP))
     dec_cont->stride_support = config.stride_support;
 #ifdef USE_OUTPUT_RELEASE
-  if (FifoInit(VP8DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK)
+  if (FifoInit(VP8DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK) {
+    DWLfree(dec_cont);
     return VP8DEC_MEMFAIL;
+  }
 #endif
 #ifdef USE_EXTERNAL_BUFFER
   dec_cont->no_reallocation = 1;
@@ -792,7 +796,7 @@ VP8DecRet VP8DecDecode(VP8DecInst dec_inst,
         (dec_cont->height != (dec_cont->decoder.height))) {
 #ifdef USE_EXTERNAL_BUFFER
       if ((!dec_cont->use_adaptive_buffers &&
-           (dec_cont->decoder.width * dec_cont->decoder.height >
+           (dec_cont->decoder.width * dec_cont->decoder.height !=
             dec_cont->width * dec_cont->height)) ||
           (dec_cont->use_adaptive_buffers &&
            ((dec_cont->decoder.width * dec_cont->decoder.height >
@@ -893,7 +897,7 @@ VP8DecRet VP8DecDecode(VP8DecInst dec_inst,
 #endif
       {
 #ifdef USE_OUTPUT_RELEASE
-        FifoPush(dec_cont->fifo_out, (FifoObject)FLUSH_MARKER, FIFO_EXCEPTION_DISABLE);
+        FifoPush(dec_cont->fifo_out, (void *)FLUSH_MARKER, FIFO_EXCEPTION_DISABLE);
         if(dec_cont->abort)
           return(VP8DEC_ABORTED);
         else
@@ -1072,7 +1076,9 @@ VP8DecRet VP8DecDecode(VP8DecInst dec_inst,
   /* If in asynchronous mode, just return OK  */
   if (asic_status == VP8HWDEC_ASYNC_MODE) {
     /* find first free buffer and use it as next output */
-    if (!error_concealment || dec_cont->intra_only) {
+    /* Coverity:!error_concealment must be ture */
+    //if (!error_concealment || dec_cont->intra_only) 
+    {
       p_asic_buff->prev_out_buffer = p_asic_buff->out_buffer;
       p_asic_buff->prev_out_buffer_i = p_asic_buff->out_buffer_i;
       p_asic_buff->out_buffer = NULL;
@@ -1303,10 +1309,12 @@ VP8DecRet VP8DecDecode(VP8DecInst dec_inst,
   } else {
     dec_cont->ref_to_out = 1;
     dec_cont->picture_broken = 1;
+#if 0
     if (!dec_cont->pic_number) {
       (void) DWLmemset( GetPrevRef(dec_cont)->virtual_address, 128,
                         p_asic_buff->width * p_asic_buff->height * 3 / 2);
     }
+#endif
   }
 
   dec_cont->pic_number++;
@@ -1573,7 +1581,7 @@ VP8DecRet VP8DecNextPicture(VP8DecInst dec_inst,
       }
     }
     output->pic_id = 0;
-    buff_id = FindIndex(dec_cont, output->p_output_frame);
+    buff_id = FindIndex(dec_cont, output->output_frame_bus_address);
     output->decode_id = p_asic_buff->decode_id[buff_id];
     output->is_intra_frame = dec_cont->decoder.key_frame;
     output->is_golden_frame = 0;
@@ -1764,7 +1772,7 @@ VP8DecRet VP8DecNextPicture_INTERNAL(VP8DecInst dec_inst,
     output->coded_height = dec_cont->height;
 #endif
 
-    buff_id = FindIndex(dec_cont, output->p_output_frame);
+    buff_id = FindIndex(dec_cont, output->output_frame_bus_address);
     output->frame_width = dec_cont->asic_buff->frame_width[buff_id];
     output->frame_height = dec_cont->asic_buff->frame_height[buff_id];
     output->coded_width = dec_cont->asic_buff->coded_width[buff_id];
@@ -1816,7 +1824,7 @@ VP8DecRet VP8DecPictureConsumed(VP8DecInst dec_inst,
   }
 
   VP8DecContainer_t *dec_cont = (VP8DecContainer_t *)dec_inst;
-  buffer_id = FindIndex(dec_cont, picture->p_output_frame);
+  buffer_id = FindIndex(dec_cont, picture->output_frame_bus_address);
 
   /* Remove the reference to the buffer. */
   if(dec_cont->asic_buff->not_displayed[buffer_id]) {
@@ -1837,7 +1845,7 @@ VP8DecRet VP8DecPictureConsumed(VP8DecInst dec_inst,
 ------------------------------------------------------------------------------*/
 VP8DecRet VP8DecEndOfStream(VP8DecInst dec_inst, u32 strm_end_flag) {
   VP8DecContainer_t *dec_cont = (VP8DecContainer_t *)dec_inst;
-  VP8DecPicture output;
+  VP8DecPicture output = { 0 };
   VP8DecRet ret;
 
   if (dec_inst == NULL) {
@@ -1955,7 +1963,7 @@ VP8DecRet VP8DecPeek(VP8DecInst dec_inst, VP8DecPicture * output) {
   }
 
   output->pic_id = 0;
-  buff_id = FindIndex(dec_cont, output->p_output_frame);
+  buff_id = FindIndex(dec_cont, output->output_frame_bus_address);
   output->decode_id = p_asic_buff->decode_id[buff_id];
   output->is_intra_frame = dec_cont->decoder.key_frame;
   output->is_golden_frame = 0;
@@ -2277,18 +2285,18 @@ static struct DWLLinearMem* GetPrevRef(VP8DecContainer_t *dec_cont) {
          VP8HwdBufferQueueGetPrevRef(dec_cont->bq);
 }
 
-static i32 FindIndex(VP8DecContainer_t* dec_cont, const u32* address) {
+static i32 FindIndex(VP8DecContainer_t* dec_cont, addr_t address) {
   i32 i;
 
   if(dec_cont->user_mem) {
     for (i = 0; i < (i32)dec_cont->num_buffers; i++) {
-      if(dec_cont->asic_buff->user_mem.p_pic_buffer_y[i] == address)
+      if(dec_cont->asic_buff->user_mem.pic_buffer_bus_addr_y[i] == address)
         break;
     }
     ASSERT((u32)i < dec_cont->num_buffers);
   } else {
     for (i = 0; i < (i32)dec_cont->num_buffers; i++) {
-      if (dec_cont->asic_buff->pictures[i].virtual_address == address)
+      if (dec_cont->asic_buff->pictures[i].bus_address == address)
         break;
     }
     ASSERT((u32)i < dec_cont->num_buffers);
@@ -2298,8 +2306,8 @@ static i32 FindIndex(VP8DecContainer_t* dec_cont, const u32* address) {
 
 #ifdef USE_OUTPUT_RELEASE
 static VP8DecRet VP8PushOutput(VP8DecContainer_t* dec_cont) {
-  u32 ret=VP8DEC_OK;
-  VP8DecPicture output;
+  u32 ret = VP8DEC_OK;
+  VP8DecPicture output = { 0 };
 
   /* Sample dec_cont->out_count for Peek */
   dec_cont->fullness = dec_cont->out_count;
@@ -2384,6 +2392,7 @@ VP8DecRet VP8DecGetBufferInfo(VP8DecInst dec_inst, VP8DecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -2392,7 +2401,7 @@ VP8DecRet VP8DecGetBufferInfo(VP8DecInst dec_inst, VP8DecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return VP8DEC_WAITING_FOR_BUFFER;
 }
@@ -2403,7 +2412,7 @@ VP8DecRet VP8DecAddBuffer(VP8DecInst dec_inst, struct DWLLinearMem *info) {
   VP8DecRet dec_ret = VP8DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
+
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return VP8DEC_PARAM_ERROR;
@@ -2422,6 +2431,7 @@ VP8DecRet VP8DecAddBuffer(VP8DecInst dec_inst, struct DWLLinearMem *info) {
       p_asic_buff->pictures[i].bus_address +
       p_asic_buff->chroma_buf_offset;
 
+    if (dec_cont->num_cores > 1)
     {
       void *base = (char*)p_asic_buff->pictures[i].virtual_address
                    + p_asic_buff->sync_mc_offset;
@@ -2446,6 +2456,7 @@ VP8DecRet VP8DecAddBuffer(VP8DecInst dec_inst, struct DWLLinearMem *info) {
       p_asic_buff->pictures[i].bus_address +
       p_asic_buff->chroma_buf_offset;
 
+    if (dec_cont->num_cores > 1)
     {
       void *base = (char*)p_asic_buff->pictures[i].virtual_address
                    + p_asic_buff->sync_mc_offset;
@@ -2492,7 +2503,9 @@ void VP8StateReset(VP8DecContainer_t* dec_cont) {
   u32 buffers = dec_cont->num_buffers_reserved;
 
   /* Clear internal parameters in VP8DecContainer_t */
-  dec_cont->dec_stat = VP8DEC_INITIALIZED;
+  if (dec_cont->dec_stat != VP8DEC_INITIALIZED &&
+      dec_cont->dec_stat != VP8DEC_NEW_HEADERS)
+    dec_cont->dec_stat = VP8DEC_DECODING;
   dec_cont->pic_number = 0;
   dec_cont->display_number = 0;
 #ifdef USE_EXTERNAL_BUFFER
@@ -2543,9 +2556,64 @@ void VP8StateReset(VP8DecContainer_t* dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_out);
-  FifoInit(VP8DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out);
+  if (FifoInit(VP8DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
   (void)buffers;
+}
+
+VP8DecRet VP8DecRemoveBuffer(VP8DecInst dec_inst) {
+  VP8DecContainer_t *dec_cont = (VP8DecContainer_t *)dec_inst;
+  VP8DecRet re = VP8DEC_OK;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+
+  FifoSetAbort(dec_cont->fifo_out);
+  VP8EmptyBufferQueue(dec_cont);
+  VP8StateReset(dec_cont);
+
+  DecAsicBuffers_t *p_asic_buff = dec_cont->asic_buff;
+  u32 buffers = dec_cont->num_buffers_reserved;
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->num_buffers = buffers;
+  if (dec_cont->bq)
+    VP8HwdBufferQueueRelease(dec_cont->bq);
+  dec_cont->bq = VP8HwdBufferQueueInitialize(dec_cont->num_buffers);
+  if (dec_cont->bq == NULL) {
+    re = VP8DEC_MEMFAIL;
+    goto end;
+  }
+  (void) DWLmemset(p_asic_buff->not_displayed, 0, VP8DEC_MAX_PIC_BUFFERS * sizeof(u32));
+  (void) DWLmemset(p_asic_buff->display_index, 0, VP8DEC_MAX_PIC_BUFFERS * sizeof(u32));
+  (void) DWLmemset(p_asic_buff->picture_info, 0, VP8DEC_MAX_PIC_BUFFERS * sizeof(VP8DecPicture));
+  if (dec_cont->fifo_out)
+    FifoRelease(dec_cont->fifo_out);
+  if (FifoInit(VP8DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK) {
+    re = VP8DEC_MEMFAIL;
+    goto end;
+  }
+
+  p_asic_buff->out_buffer_i = VP8HwdBufferQueueGetBuffer(dec_cont->bq);
+  if(p_asic_buff->out_buffer_i != 0xFFFFFFFF) {
+      p_asic_buff->first_show[p_asic_buff->out_buffer_i] = 1;
+      p_asic_buff->out_buffer = &p_asic_buff->pictures[p_asic_buff->out_buffer_i];
+      VP8HwdBufferQueueUpdateRef(dec_cont->bq,
+          BQUEUE_FLAG_PREV | BQUEUE_FLAG_GOLDEN | BQUEUE_FLAG_ALT,
+          p_asic_buff->out_buffer_i);
+ }
+
+  if(dec_cont->intra_only != HANTRO_TRUE)
+  {
+      VP8HwdBufferQueueAddRef(dec_cont->bq, VP8HwdBufferQueueGetPrevRef(dec_cont->bq));
+      VP8HwdBufferQueueAddRef(dec_cont->bq, VP8HwdBufferQueueGetAltRef(dec_cont->bq));
+      VP8HwdBufferQueueAddRef(dec_cont->bq, VP8HwdBufferQueueGetGoldenRef(dec_cont->bq));
+  }
+  FifoClearAbort(dec_cont->fifo_out);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 VP8DecRet VP8DecAbort(VP8DecInst dec_inst) {

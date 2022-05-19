@@ -847,7 +847,7 @@ CODEC_STATE decoder_setframebuffer_mpeg2(CODEC_PROTOTYPE * arg, BUFFER *buff, OM
     UNUSED_PARAMETER(available_buffers);
     CODEC_MPEG2 *this = (CODEC_MPEG2 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     Mpeg2DecBufferInfo info;
     Mpeg2DecRet ret;
 
@@ -864,8 +864,9 @@ CODEC_STATE decoder_setframebuffer_mpeg2(CODEC_PROTOTYPE * arg, BUFFER *buff, OM
     mem.virtual_address = (u32*)buff->bus_data;
     mem.bus_address = buff->bus_address;
     mem.size = buff->allocsize;
-    DBGT_PDEBUG("virtual_address %p, bus_address %lu, size %d",
-    mem.virtual_address, mem.bus_address, mem.size);
+    mem.ion_fd = buff->ion_fd;
+    DBGT_PDEBUG("virtual_address %p, bus_address %lu, size %d, ion fd %d",
+    mem.virtual_address, mem.bus_address, mem.size, mem.ion_fd);
 
     ret = Mpeg2DecAddBuffer(this->instance, &mem);
     DBGT_PDEBUG("Mpeg2DecAddBuffer ret (%d)", ret);

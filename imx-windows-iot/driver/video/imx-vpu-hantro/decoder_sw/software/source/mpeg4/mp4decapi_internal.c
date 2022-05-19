@@ -327,7 +327,7 @@ MP4DecRet MP4AllocateBuffers(DecContainer * dec_cont) {
 
   /* initialize first picture buffer grey, may be used as reference
    * in certain error cases */
-#ifndef USE_EXTERNAL_BUFFER
+#if 0
   (void) DWLmemset(dec_cont->StrmStorage.data[0].virtual_address,
                    128, 384 * DEC_VOPD.total_mb_in_vop);
 #endif
@@ -386,14 +386,15 @@ void MP4FreeBuffers(DecContainer * dec_cont) {
   }
 #ifndef USE_EXTERNAL_BUFFER
   for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-    if(dec_cont->StrmStorage.data[i].virtual_address != NULL) {
+    if(dec_cont->StrmStorage.data[i].bus_address != 0) {
       DWLFreeRefFrm(dec_cont->dwl, &dec_cont->StrmStorage.data[i]);
       dec_cont->StrmStorage.data[i].virtual_address = NULL;
+      dec_cont->StrmStorage.data[i].bus_address = 0;
     }
   }
   if (dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-      if(dec_cont->StrmStorage.pp_buffer[i].virtual_address != NULL) {
+      if(dec_cont->StrmStorage.pp_buffer[i].bus_address != 0) {
         DWLFreeLinear(dec_cont->dwl,
                       &dec_cont->StrmStorage.pp_buffer[i]);
         dec_cont->StrmStorage.pp_buffer[i].virtual_address = NULL;
@@ -408,9 +409,10 @@ void MP4FreeBuffers(DecContainer * dec_cont) {
   }
 #else
   if (dec_cont->pp_enabled) {
-    if(dec_cont->StrmStorage.data[i].virtual_address != NULL) {
+    if(dec_cont->StrmStorage.data[i].bus_address != 0) {
       DWLFreeRefFrm(dec_cont->dwl, &dec_cont->StrmStorage.data[i]);
       dec_cont->StrmStorage.data[i].virtual_address = NULL;
+      dec_cont->StrmStorage.data[i].bus_address = 0;
     }
   }
 #endif
@@ -551,6 +553,7 @@ MP4DecRet MP4DecAllocExtraBPic(DecContainer * dec_cont) {
   if (dec_cont->pp_enabled) {
     /* Add PP output buffers. */
     struct DWLLinearMem pp_buffer;
+    pp_buffer.mem_type = DWL_MEM_TYPE_DPB;
     u32 pp_width, pp_height, pp_stride, pp_buff_size;
 
     pp_width = (dec_cont->VopDesc.vop_width * 16) >> dec_cont->dscale_shift_x;
@@ -574,6 +577,7 @@ MP4DecRet MP4DecAllocExtraBPic(DecContainer * dec_cont) {
     if (dec_cont->pp_enabled) {
       /* Add PP output buffers. */
       struct DWLLinearMem pp_buffer;
+      pp_buffer.mem_type = DWL_MEM_TYPE_DPB;
       u32 pp_width, pp_height, pp_stride, pp_buff_size;
 
       pp_width = (dec_cont->VopDesc.vop_width * 16) >> dec_cont->dscale_shift_x;
@@ -918,7 +922,8 @@ u32 MP4DecBFrameSupport(DecContainer * dec_cont) {
 
 ------------------------------------------------------------------------------*/
 u32 * MP4DecResolveVirtual(DecContainer * dec_cont, u32 index ) {
-  if( (i32)index < 0 )
+  if( (i32)index < 0  ||
+      index >= sizeof(dec_cont->StrmStorage.p_pic_buf) / sizeof(dec_cont->StrmStorage.p_pic_buf[0]))
     return NULL;
   return dec_cont->StrmStorage.data[dec_cont->StrmStorage.
                                     p_pic_buf[index].data_index].virtual_address;

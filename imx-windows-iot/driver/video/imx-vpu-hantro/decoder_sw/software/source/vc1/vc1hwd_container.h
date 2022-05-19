@@ -135,6 +135,8 @@ typedef struct {
 
   InputQueue pp_buffer_queue;
   u32 send_out;
+
+  u32 raw_frame_data;
 } decContainer_t;
 
 /*------------------------------------------------------------------------------

@@ -59,7 +59,7 @@ INCLUDE = -I../../source/inc -I../../source/vc1 -I../../source/config \
           -I../common/utils
 
 DECLIBDIR = -L../../linux/vc1 -L../../linux/dwl -L../common/swhw \
-	    -L../../../lib -L../common/utils
+	    -L../../../system/models/g1hw -L../common/utils
 DECLIB = libdecx170v.a
 DWLLIB = libdwlx170.a
 TBLIB = libtbcommon.a
@@ -69,6 +69,8 @@ TARGET_ENV=integrator
 
 # Enable SW performance  measurement
 #CFLAGS = -DSW_PERFORMANCE
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_MD5SUM), y)
         MD5SUM = -DMD5SUM

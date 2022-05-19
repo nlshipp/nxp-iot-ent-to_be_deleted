@@ -269,7 +269,7 @@ enum DecPicCodingType {
   DEC_PIC_TYPE_D           = 3,
   DEC_PIC_TYPE_FI          = 4,
   DEC_PIC_TYPE_BI          = 5
-} DecPicCodingType;
+};
 
 /* Output picture pixel format types for raster scan or down scale output */
 enum DecPicturePixelFormat {
@@ -285,7 +285,8 @@ enum DecErrorHandling {
   DEC_EC_VIDEO_FREEZE = 1,
   DEC_EC_PARTIAL_FREEZE = 2,
   DEC_EC_PARTIAL_IGNORE = 3,
-  DEC_EC_FAST_FREEZE = 4
+  DEC_EC_FAST_FREEZE = 4,
+  DEC_EC_NONE = 5		/*no freeze: h264 only*/
 };
 
 struct DecDownscaleCfg {

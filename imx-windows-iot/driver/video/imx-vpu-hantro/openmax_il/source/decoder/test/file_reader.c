@@ -740,7 +740,8 @@ int read_DIVX3_file(FILE* strm, char* buffer, int bufflen, void* state, OMX_BOOL
             /* skip "00dc" from frame beginning (may signal video chunk start code) */
             for(;;)
             {
-                fseek( strm, offset, SEEK_SET );
+                if (fseek( strm, offset, SEEK_SET ) != 0)
+                    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
                 fread( &sizeTmp, sizeof(OMX_U8), 4, strm );
                 if(feof(strm))
                 {
@@ -905,7 +906,8 @@ int read_webp_file(FILE* strm, char* buffer, int bufflen, void* state, OMX_BOOL*
     u8 tmp[4];
     u32 frameSize = 0;
     
-    fseek(strm, 8, SEEK_CUR);
+    if (fseek(strm, 8, SEEK_CUR) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     fread(tmp, sizeof(u8), 4, strm);
     
     if (strncmp(signature, (char*)tmp, 4))
@@ -1018,7 +1020,8 @@ int read_avs_file(FILE* strm, char* buffer, int bufflen, void* state, OMX_BOOL* 
 
     if (buffBytes)
     {
-        fseek(strm, -buffBytes, SEEK_CUR);
+        if (fseek(strm, -buffBytes, SEEK_CUR) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     }
     if (VERBOSE_OUTPUT)
         printf("READ DECODE UNIT %d\n", idx);
@@ -1191,14 +1194,17 @@ int read_rcv_file(FILE* strm, char* buffer, int bufflen, void* state, OMX_BOOL* 
     {
         case 0:
         {
-            fseek(strm, 0, SEEK_END);
+            if (fseek(strm, 0, SEEK_END) != 0)
+                fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
             rcv->filesize = ftell(strm);
-            fseek(strm, 0, SEEK_SET);
+            if (fseek(strm, 0, SEEK_SET) != 0)
+                fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
             char buff[4];
             fread(buff, 1, 4, strm);
             rcv->advanced = buff[2];
             rcv->rcV1     = !(buff[3] & 0x40);
-            fseek(strm, 0, SEEK_SET);
+            if (fseek(strm, 0, SEEK_SET) != 0)
+                fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
             if (rcv->advanced)
                 break;
                 //return fread(buffer, 1, bufflen, strm);

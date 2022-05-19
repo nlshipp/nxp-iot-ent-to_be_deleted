@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Copyright 2020 NXP
+// Copyright 2020, 2022 NXP
 // Licensed under the MIT License.
 //
 // Module Name:
@@ -30,6 +30,7 @@ DEFINE_GUID(GUID_TEMPERATURE_SENSOR,
 
 extern "C" DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD                   SensorDriverDeviceAdd;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP              EvtDriverContextCleanup;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL          SensorIoDeviceControl;
 EVT_WDF_IO_QUEUE_IO_INTERNAL_DEVICE_CONTROL SensorIoInternalDeviceControl;
 EVT_WDF_IO_QUEUE_IO_STOP                    SensorQueueIoStop;
@@ -189,11 +190,13 @@ DriverEntry (
     // Initialize attributes and a context area for the driver object.
     WDF_OBJECT_ATTRIBUTES_INIT(&driverAttributes);
     driverAttributes.SynchronizationScope = WdfSynchronizationScopeNone;
+    driverAttributes.EvtCleanupCallback = EvtDriverContextCleanup;
     // Create the driver object
     status = WdfDriverCreate(DriverObject, RegistryPath, &driverAttributes, &driverConfig, WDF_NO_HANDLE);
 
     if (!NT_SUCCESS(status)) {
         IMXTMU_LOG_ERROR("WdfDriverCreate() Failed. Status 0x%x\n", status);
+        WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
         goto DriverEntryEnd;
     }
 
@@ -202,6 +205,18 @@ DriverEntryEnd:
     return status;
 }
 IMX_TMU_INIT_SEGMENT_END;
+
+/*++
+Routine Description:
+    Free all the resources allocated in DriverEntry.
+Arguments:
+    DriverObject - handle to a WDF Driver object.
+--*/
+VOID EvtDriverContextCleanup(_In_ WDFOBJECT DriverObject) {
+    UNREFERENCED_PARAMETER(DriverObject);
+    /* Stop WPP Tracing */
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
+}
 
 IMX_TMU_PAGED_SEGMENT_BEGIN;
 /*++
@@ -299,12 +314,6 @@ SensorDriverDeviceAdd (
         goto DriverDeviceAddEnd;
     }
 
-    status = WdfWaitLockCreate(NULL, &devExt->Sensor.Lock);
-    if (!NT_SUCCESS(status)) {
-        IMXTMU_LOG_ERROR("WdfWaitLockCreate() Failed. 0x%x\n", status);
-        goto DriverDeviceAddEnd;
-    }
-
 DriverDeviceAddEnd:
     IMXTMU_LOG_TRACE("Exit 0x%x", status);
     return status;
@@ -348,7 +357,7 @@ SensorQueueIoStopEnd:
     return;
 }
 
-IMX_TMU_PAGED_SEGMENT_BEGIN;
+IMX_TMU_NONPAGED_SEGMENT_BEGIN;
 /*++
 Routine Description:
     Handles requests to read or write the simulated device state.
@@ -383,7 +392,6 @@ SensorIoDeviceControl (
 
     UNREFERENCED_PARAMETER(InputBufferLength);
     UNREFERENCED_PARAMETER(OutputBufferLength);
-    PAGED_CODE();
 
     device = WdfIoQueueGetDevice(Queue);
 
@@ -407,7 +415,7 @@ SensorIoDeviceControl (
         break;
     }
 }
-IMX_TMU_PAGED_SEGMENT_END;
+IMX_TMU_NONPAGED_SEGMENT_END;
 
 /*++
 Description:
@@ -486,7 +494,7 @@ SensorAreConstraintsSatisfied (
 
     return FALSE;
 }
-IMX_TMU_PAGED_SEGMENT_BEGIN;
+IMX_TMU_NONPAGED_SEGMENT_BEGIN;
 /*++
 Routine Description:
     Handles IOCTL_THERMAL_READ_TEMPERATURE. If the request can be satisfied,
@@ -518,7 +526,6 @@ SensorAddReadRequest (
     PTHERMAL_WAIT_READ thermalWaitRead;
     volatile IMXTMU_REGISTERS *registersPtr;
 
-    PAGED_CODE();
     IMXTMU_LOG_TRACE("Enter");
 
     devExt = GetDeviceExtension(Device);
@@ -625,7 +632,7 @@ AddReadRequestEnd:
 
     IMXTMU_LOG_TRACE("Exit 0x%x", status);
 }
-IMX_TMU_PAGED_SEGMENT_END;
+IMX_TMU_NONPAGED_SEGMENT_END;
 
 /*++
 Routine Description:
@@ -1023,33 +1030,20 @@ SensorReadTemperature (
     )
 {
     PFDO_DATA devExt;
-    LONG tempInTenthsOfKelvin = -1;
-    ULONG retries = 11;
+    LONG tempInTenthsOfKelvin;
     UINT32 siteTemp;
     volatile IMXTMU_REGISTERS *registersPtr;
 
     devExt = GetDeviceExtension(Device);
     registersPtr = devExt->RegistersPtr;
 
-    WdfWaitLockAcquire(devExt->Sensor.Lock, NULL);
     siteTemp = registersPtr->TRITSR0;
-    while (--retries) {
-        if (siteTemp & IMX_TMU_TEMP_VALID) {
-            tempInTenthsOfKelvin = ((siteTemp & IMX_TMU_TEMP_MASK) + KELVIN273) * 10;
-            IMXTMU_LOG_TRACE("SensorReadTemperature in tenths of Kelvin %d", tempInTenthsOfKelvin);
-            break;
-        }
-        LARGE_INTEGER interval;
-        interval.QuadPart = -100 * 10 * 1000LL;  // 100ms
-        NTSTATUS status = KeDelayExecutionThread(KernelMode, FALSE, &interval);
-        UNREFERENCED_PARAMETER(status);
-        NT_ASSERT(status == STATUS_SUCCESS);
-    }
-    WdfWaitLockRelease(devExt->Sensor.Lock);
-
-    if (tempInTenthsOfKelvin == -1) {
+    if (siteTemp & IMX_TMU_TEMP_VALID) {
+        tempInTenthsOfKelvin = ((siteTemp & IMX_TMU_TEMP_MASK) + KELVIN273) * 10;
+        IMXTMU_LOG_TRACE("SensorReadTemperature in tenths of Kelvin %d", tempInTenthsOfKelvin);
+    } else {
+        tempInTenthsOfKelvin = -1;
         IMXTMU_LOG_ERROR("Error in temperature reading! (TSR value: 0x%x)", registersPtr->TSR);
     }
-
     return tempInTenthsOfKelvin;
 }

@@ -159,7 +159,7 @@ u32 h264bsdShowBits(strmData_t * p_strm_data, u32 num_bits) {
       if(out_bits <= 24)
         out |= (u32) (*p_strm++) << (24 - out_bits);
       else
-        out |= (u32) (*p_strm++) >> (out_bits - 24);
+        out |= (out_bits - 24) > 7 ? 0 : ((u32) (*p_strm++) >> (out_bits - 24));
 
       out_bits += 8;
       bits -= 8;

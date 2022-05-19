@@ -1,9 +1,8 @@
 /*
  *  Copyright (c) 2010-2016, Freescale Semiconductor Inc.,
- *  All Rights Reserved.
- * Copyright 2017-2018 NXP
+ *  Copyright 2017-2020, 2022 NXP
  *
- *  The following programs are the sole property of Freescale Semiconductor Inc.,
+ *  The following programs are the sole property of NXP,
  *  and contain its proprietary and confidential information.
  *
  */
@@ -11,6 +10,7 @@
 /*
  *	Vpu_wrapper.h
  *	header file contain all related vpu interface info
+ *
  *	History :
  *	Date	(y.m.d)		Author			Version			Description
  *	2010-09-07		eagle zhou		0.1				Created
@@ -35,6 +35,7 @@ extern "C" {
 
 /**************************** decoder part **********************************/
 
+#define VPU_WRAPPER_HAS_PIC_ID 1   /* Only hantro decoder implement PIC map */
 #define VPU_DEC_MAX_NUM_MEM_REQS 2
 
 //typedef RetCode VpuRetCode;
@@ -112,9 +113,10 @@ typedef enum {
 	VPU_DEC_CONF_INIT_CNT_THRESHOLD,  /*at seqinit stage: vpu will report error if data count reach the threshold*/
 
 	VPU_DEC_CONF_ENABLE_TILED,  /*configure output frame to tiled after parsed sequence header and before register frame buffer */
+    VPU_DEC_CONF_RESET_CODECDATA, /*configure to reset codec data so that new codec data can be handled */
 } VpuDecConfig;
 
-typedef enum 
+typedef enum
 {
 	VPU_DEC_RET_SUCCESS = 0,
 	VPU_DEC_RET_FAILURE,
@@ -150,9 +152,9 @@ typedef enum
 	/*bit[11]: reserved to represent one frame is decoded*/
 	VPU_DEC_ONE_FRM_CONSUMED=0x800,/*added for case: need to get decoded(or skipped,corrupt...) frame length*/
 										/*user may call related api to get the decoded/skipped/.. frame related info*/
-	/*bit[12]: reolution changed*/	
+	/*bit[12]: reolution changed*/
 	VPU_DEC_RESOLUTION_CHANGED=0x1000,/*added for case: upward change in resolution*/
-										/*user need to release all frames, call VPU_DecGetInitialInfo() and re-allocation/register frames according to new bigger resolution*/	
+										/*user need to release all frames, call VPU_DecGetInitialInfo() and re-allocation/register frames according to new bigger resolution*/
 	/* bit[31]: flush is recommended */
 	VPU_DEC_FLUSH=0x80000000,			/*for some clisps, special for h.264 TS stream(may has no IDR at all), the random start/seek point may introduce unrecoverable mosaic*/
 }VpuDecBufRetCode;
@@ -164,7 +166,7 @@ typedef enum {
 	VPU_DEC_CAP_RESOLUTION_CHANGE, /*resolution change notification ? 0: not; 1: yes*/
 }VpuDecCapability;
 
-typedef enum 
+typedef enum
 {
 	VPU_MEM_VIRT   = 0,    	/* 0 for virtual Memory */
 	VPU_MEM_PHY    = 1,		/* 1 for physical continuous Memory */
@@ -197,7 +199,7 @@ typedef struct {
 	VpuMemType MemType; /* Flag to indicate Static, Scratch or output data memory */
 	unsigned char* pVirtAddr;		/* virtual address:Pointer to the base memory , which will be allocated and filled by the application*/
 	unsigned char* pPhyAddr;		/* physical address: Pointer to the base memory , which will be allocated and filled by the application*/
-
+    int nFd;
 	int nReserved[3];				/*reserved for future extension*/
 } VpuMemSubBlockInfo;
 
@@ -207,7 +209,7 @@ typedef struct{
 }VpuMemInfo;
 
 
-typedef struct 
+typedef struct
 {
 	int nFwMajor;		/* firmware major version */
 	int nFwMinor;		/* firmware minor version */
@@ -219,7 +221,7 @@ typedef struct
 	int nReserved;		/*reserved for future extension*/
 }VpuVersionInfo;
 
-typedef struct 
+typedef struct
 {
 	int nMajor;		/* major version */
 	int nMinor;		/* minor version */
@@ -239,7 +241,7 @@ typedef struct {
 	int nReorderEnable;
 	int nChromaInterleave;	//should be set to 1 when (nMapType!=0)
 	int nMapType;			//registered frame buffer type: 0--linear; 1--frame tile; 2--field tile
-	int nTiled2LinearEnable;	//output frame(only valid when nMapType!=0) : 0--tile. eg. same with registered frame ; 1--linear(not supported)  
+	int nTiled2LinearEnable;	//output frame(only valid when nMapType!=0) : 0--tile. eg. same with registered frame ; 1--linear(not supported)
 	//int filePlayEnable;
 	int nPicWidth;
 	int nPicHeight;
@@ -262,6 +264,8 @@ typedef struct {
 
 
 typedef struct {
+    /* buffer id */
+    int nBufferId;
 	/* stride info */
 	unsigned int nStrideY;
 	unsigned int nStrideC;
@@ -283,6 +287,9 @@ typedef struct {
 	unsigned char* pbufVirtY_tilebot;	//for field tile: luma bottom pointer
 	unsigned char* pbufVirtCb_tilebot;	//for field tile: chroma bottom pointer
 	//unsigned char* pbufVirtCr_tilebot;	//not required since always enable interleave for tile
+
+    /* ion fd */
+    int nIonFd;
 
 	int nReserved[5];				/*reserved for future extension*/
 	void* pPrivate;				/*reserved for future special extension*/
@@ -383,7 +390,7 @@ typedef struct {
 	int chunkSize;
 	int picStartByteOffset;
 	unsigned int picStreamBufferAddr;
-#endif	
+#endif
 } VpuDecParam;
 */
 
@@ -394,7 +401,8 @@ typedef struct {
 	unsigned int nQ16ShiftWidthDivHeightRatio;	/*support dynamic ratio, refer to definition in struct 'VpuDecInitInfo'*/
 	int rfc_luma_offset;
 	int rfc_chroma_offset;
-	int nReserved[7];		/*reserved for recording other info*/
+	int nPicId[2];          /*Picture ID, Identifier of the picture in decoding order, passed in VpuBufferNode::nPicId, see: OUTPUT_BUFFER_PRIVATE::nPicId[2]*/
+	int nReserved[5];		/*reserved for recording other info*/
 }VpuFrameExtInfo;
 
 typedef struct {
@@ -447,7 +455,7 @@ typedef struct {
 typedef struct
 {
 	unsigned char* pData;		/*buffer virtual addr*/
-	unsigned int nSize;		/*valid data length */	
+	unsigned int nSize;		/*valid data length */
 }VpuCodecData;
 
 
@@ -457,8 +465,9 @@ typedef struct
 	unsigned char* pVirAddr;	/*buffer virtual base addr*/
 	unsigned int nSize;		/*valid data length */
 	VpuCodecData sCodecData;	/*private data specified by codec*/
+	int nPicId;      /* Picture ID, which will be returned by decoder in VpuFrameExtInfo::nPicId[2]*/
 
-	int nReserved[2];				/*reserved for future extension*/
+	int nReserved[1];				/*reserved for future extension*/
 	void* pPrivate;				/*reserved for future special extension*/
 }VpuBufferNode;
 
@@ -468,12 +477,12 @@ typedef enum{
 }VpuMemDescType;
 
 #ifndef WIN32
-typedef struct 
+typedef struct
 {
 	int nSize;				/*!requested memory size */
 	unsigned long nPhyAddr;	/*!physical memory address allocated */
 	unsigned long nCpuAddr;	/*!cpu addr for system free usage */
-	unsigned long nVirtAddr;	/*!virtual user space address */	
+	unsigned long nVirtAddr;	/*!virtual user space address */
     VpuMemDescType nType;
 	int nReserved[3];			/*reserved for future extension*/
 }VpuMemDesc;
@@ -498,7 +507,7 @@ typedef struct {
 
 /**************************** encoder part **********************************/
 
-typedef void* VpuEncHandle;
+typedef void * VpuEncHandle;
 
 typedef enum
 {
@@ -506,7 +515,7 @@ typedef enum
 	VPU_COLOR_420=0,
 	VPU_COLOR_422H=1,
 	VPU_COLOR_422V=2,
-	VPU_COLOR_444=3,	
+	VPU_COLOR_444=3,
 	VPU_COLOR_400=4,
 	VPU_COLOR_422YUYV=13,
 	VPU_COLOR_422UYVY=14,
@@ -530,7 +539,7 @@ typedef struct {
 	VpuType eType;
 } VpuEncInitInfo;
 
-typedef enum 
+typedef enum
 {
 	VPU_ENC_RET_SUCCESS = 0,
 	VPU_ENC_RET_FAILURE,
@@ -553,17 +562,29 @@ typedef enum
 	VPU_ENC_OUTPUT_SEQHEADER=0x4,	/*sequence header(for H.264: SPS/PPS)*/
 	VPU_ENC_OUTPUT_DIS=0x8,
 	VPU_ENC_OUTPUT_NODIS=0x10,
-	//VPU_ENC_OUTPUT_REPEAT=,	
+	//VPU_ENC_OUTPUT_REPEAT=,
 }VpuEncBufRetCode;
+typedef struct {
+    int nColourDescPresentFlag;
+    int nPrimaries;
+    int nTransfer;
+    int nMatrixCoeffs;
+    int nVideoSignalPresentFlag;
+    int nFullRange;
+} VpuIsoColorAspects;
 
 typedef struct {
 	VpuCodStd eFormat;
 	int nPicWidth;
-	int nPicHeight;	
+	int nPicHeight;
+	int nOrigWidth;
+	int nOrigHeight;
 	int nRotAngle;
 	int nFrameRate;
 	int nBitRate;				/*unit: kbps*/
 	int nGOPSize;
+	int nColorConversionType;
+	int nStreamSliceCount;
 	int nIntraRefresh;		/*intra macro block numbers*/
 	int nIntraQP;				/*0: auto, >0: qp value*/
 	int nChromaInterleave;	/*should be set to 1 when (nMapType!=0)*/
@@ -573,6 +594,8 @@ typedef struct {
 	int nLinear2TiledEnable; 	/*valid when (nMapType!=0): 0--tile input; 1--yuv input*/
 	VpuColorFormat eColorFormat;	/*only MJPG support non-420*/
 	int nIsAvcc;				/*it is used for H.264 data format, 0: byte stream ; 1: avcc format*/
+
+    VpuIsoColorAspects sColorAspects;
 
 	int nReserved[3];				/*reserved for future extension*/
 	void* pAppCxt;				/*reserved for future extension*/
@@ -595,7 +618,7 @@ typedef struct {
 } VpuEncMp4Param;
 
 typedef struct {
-	int h263_annexIEnable;	
+	int h263_annexIEnable;
 	int h263_annexJEnable;
 	int h263_annexKEnable;
 	int h263_annexTEnable;
@@ -619,11 +642,15 @@ typedef struct {
 typedef struct {
 	VpuCodStd eFormat;
 	int nPicWidth;
-	int nPicHeight;	
+	int nPicHeight;
+	int nOrigWidth;
+	int nOrigHeight;
 	int nRotAngle;
 	int nFrameRate;
 	int nBitRate;				/*unit: kbps*/
 	int nGOPSize;
+	int nColorConversionType;
+	int nStreamSliceCount;
 	int nChromaInterleave;	/*should be set to 1 when (nMapType!=0)*/
 	VpuEncMirrorDirection sMirror;
 	//int nQuantParam;
@@ -659,23 +686,24 @@ typedef struct {
 	int nMEUseZeroPmv;       // 0: PMV_ENABLE, 1: PMV_DISABLE
 	int nIntraCostWeight;    // Additional weight of Intra Cost for mode decision to reduce Intra MB density
 	int nIsAvcc;				/*it is used for H.264 data format, 0: byte stream ; 1: avcc format*/
+    VpuIsoColorAspects sColorAspects;
 
 	int nReserved[8];				/*reserved for future extension*/
 	void* pAppCxt;			/*reserved for future extension*/
 } VpuEncOpenParam;
 
 typedef struct {
-//[IN]	
+//[IN]
 	VpuCodStd eFormat;
 	int nPicWidth;
-	int nPicHeight;	
+	int nPicHeight;
 	int nFrameRate;
 	int nQuantParam;
 
 #ifndef WIN32
 	unsigned long nInPhyInput;	//input buffer address
 	unsigned long nInVirtInput;
-	int nInInputSize;	
+	int nInInputSize;
 	unsigned long nInPhyOutput;	//output frame address
 	unsigned long nInVirtOutput;
 	unsigned int nInOutputBufLen;
@@ -692,8 +720,8 @@ typedef struct {
 	int nForceIPicture;
 	int nSkipPicture;
 	int nEnableAutoSkip;
-	
-//[OUT]	
+
+//[OUT]
 	VpuEncBufRetCode eOutRetCode;
 	int nOutOutputSize;
 //[Reserved]
@@ -705,7 +733,7 @@ typedef struct {
 typedef enum {
 	VPU_ENC_CONF_NONE=0,
 	//VPU_DEC_CONF_SKIPPB,
-	//VPU_DEC_CONF_SKIPB,	
+	//VPU_DEC_CONF_SKIPB,
 	//VPU_DEC_CONF_SKIPALL,
 	//VPU_DEC_CONF_ISEARCH,
 	//VPU_DEC_CONF_BLOCK,
@@ -730,7 +758,7 @@ VpuDecRetCode VPU_DecGetCapability(VpuDecHandle InHandle,VpuDecCapability eInCap
 VpuDecRetCode VPU_DecDisCapability(VpuDecHandle InHandle,VpuDecCapability eInCapability);
 
 //VpuDecRetCode VPU_DecSeqInit(VpuDecHandle InHandle, VpuBufferNode* pInData, VpuSeqInfo * pOutInfo);
-VpuDecRetCode VPU_DecConfig(VpuDecHandle InHandle, VpuDecConfig InDecConf, void* pInParam); 
+VpuDecRetCode VPU_DecConfig(VpuDecHandle InHandle, VpuDecConfig InDecConf, void* pInParam);
 VpuDecRetCode VPU_DecDecodeBuf(VpuDecHandle InHandle, VpuBufferNode* pInData,int* pOutBufRetCode);
 VpuDecRetCode VPU_DecGetInitialInfo(VpuDecHandle InHandle, VpuDecInitInfo * pOutInitInfo);
 

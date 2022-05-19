@@ -43,6 +43,8 @@
 async_task run_task(task_func func, void* param) {
   int ret;
   pthread_t* thread_handle = malloc(sizeof(pthread_t));
+  if (thread_handle == NULL)
+    return NULL;
   ret = pthread_create(thread_handle, NULL, func, param);
   assert(ret == 0);
 

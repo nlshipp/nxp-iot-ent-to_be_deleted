@@ -256,6 +256,8 @@ AvsDecRet AvsDecPeek(AvsDecInst dec_inst, AvsDecPicture * picture);
 #ifdef USE_EXTERNAL_BUFFER
 AvsDecRet AvsDecGetBufferInfo(AvsDecInst dec_inst, AvsDecBufferInfo *mem_info);
 
+AvsDecRet AvsDecRemoveBuffer(AvsDecInst dec_inst);
+
 AvsDecRet AvsDecAddBuffer(AvsDecInst dec_inst, struct DWLLinearMem *info);
 #endif
 #ifdef USE_OUTPUT_RELEASE

@@ -99,6 +99,7 @@ u32 mpeg2_strm_dec_decode(DecContainer * dec_container) {
     switch (start_code) {
     case SC_SEQUENCE:
       /* Sequence header */
+      (void)(status);
       status = mpeg2_strm_dec_decode_sequence_header(dec_container);
       dec_container->StrmStorage.valid_sequence = status == HANTRO_OK;
       if( dec_container->StrmStorage.new_headers_change_resolution)
@@ -107,11 +108,13 @@ u32 mpeg2_strm_dec_decode(DecContainer * dec_container) {
 
     case SC_GROUP:
       /* GOP header */
+      (void)(status);
       status = mpeg2_strm_dec_decode_gopheader(dec_container);
       break;
 
     case SC_EXTENSION:
       /* Extension headers */
+      (void)(status);
       status = mpeg2_strm_dec_decode_extension_header(dec_container);
       if(status == DEC_PIC_HDR_RDY_ERROR)
         return DEC_PIC_HDR_RDY_ERROR;
@@ -128,6 +131,7 @@ u32 mpeg2_strm_dec_decode(DecContainer * dec_container) {
         dec_container->StrmDesc.strm_curr_pos -= 4;
         return (DEC_HDRS_RDY);
       } else if(dec_container->StrmStorage.strm_dec_ready) {
+        (void)(status);
         status = mpeg2_strm_dec_decode_picture_header(dec_container);
         if(status != HANTRO_OK)
           return (DEC_PIC_HDR_RDY_ERROR);

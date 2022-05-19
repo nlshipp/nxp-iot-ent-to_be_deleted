@@ -1,8 +1,8 @@
 /*
  *  Copyright (c) 2010-2014, Freescale Semiconductor Inc.,
- *  All Rights Reserved.
+ *  Copyright 2019-2020 NXP
  *
- *  The following programs are the sole property of Freescale Semiconductor Inc.,
+ *  The following programs are the sole property of NXP,
  *  and contain its proprietary and confidential information.
  *
  */
@@ -10,6 +10,7 @@
 /*
  *	test_enc_arm_elinux.c
  *	vpu unit test application
+ *
  *	History :
  *	Date	(y.m.d)		Author			Version			Description
  *	2010-12-31		eagle zhou		0.1				Created
@@ -93,7 +94,7 @@ static void usage(char*program)
 		   "			[default: no save]\n"
 		   "	-n <frame_num>	:encode max <frame_num> frames\n"
 		   "			[default: all frames will be encoded]\n"
-		   "	-f <codec>	:set codec format with <codec>.\n"
+		   "	-f <codec>	:set codec format with <codec>. For 8mm, only support H264 \n"
 		   "			Mpeg4:	0 (default)\n"
 		   "			H263:	1 \n"
 		   "			H264:	2 \n"

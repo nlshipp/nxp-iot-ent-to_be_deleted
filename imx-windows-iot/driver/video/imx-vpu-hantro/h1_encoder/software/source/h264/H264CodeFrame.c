@@ -204,7 +204,8 @@ h264EncodeFrame_e H264CodeFrame(h264Instance_s * inst)
     H264ConfigureTestPenalties(inst);
 #endif
 
-    EncAsicFrameStart(inst->asic.ewl, &inst->asic.regs);
+    if (EncTryAsicFrameStart(inst->asic.ewl, &inst->asic.regs) != 0)
+        return H264ENCODE_HW_ERROR;
 
     do {
         /* Encode one frame */
@@ -234,6 +235,7 @@ h264EncodeFrame_e H264CodeFrame(h264Instance_s * inst)
             EncAsicStop(asic->ewl);
             /* Release HW so that it can be used by other codecs */
             EWLReleaseHw(asic->ewl);
+            go_on = 0;
 
         }
         else

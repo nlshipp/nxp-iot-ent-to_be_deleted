@@ -28,8 +28,8 @@
     </servers>
   </COM>
   <regKeys>
-    <regKey keyName="$(hklm.software)\Microsoft\Windows\CurrentVersion\DeviceAccess\Classes\{ADA9253V-628C-40CE-B2C1-19F489A0F3DA}">
-      <!-- Set interface policy to unrestricted.  Don't require {ADA9253V-628C-40CE-B2C1-19F489A0F3DA} capability in client process appx manifest for apps using VPU decoding-->
+    <regKey keyName="$(hklm.software)\Microsoft\Windows\CurrentVersion\DeviceAccess\Classes\{ADA9253B-628C-40CE-B2C1-19F489A0F3DA}">
+      <!-- Set interface policy to unrestricted.  Don't require {ADA9253B-628C-40CE-B2C1-19F489A0F3DA} capability in client process appx manifest for apps using VPU decoding-->
       <regValue
           name="Policy"
           type="REG_DWORD"
@@ -93,6 +93,30 @@
       <!-- VP9 -->
       <regValue
           name="{30395056-0000-0010-8000-00AA00389B71}"
+          type="REG_SZ"
+          value="{8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0}"
+          />
+      <!-- MPEG-4 SP -->
+      <regValue
+          name="{5334504D-0000-0010-8000-00AA00389B71}"
+          type="REG_SZ"
+          value="{8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0}"
+      />
+      <!-- MPEG-4 ASP -->
+      <regValue
+          name="{3253344D-0000-0010-8000-00AA00389B71}"
+          type="REG_SZ"
+          value="{8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0}"
+          />
+       <!-- MPEG-4 Part 2 -->
+      <regValue
+          name="{5634504D-0000-0010-8000-00AA00389B71}"
+          type="REG_SZ"
+          value="{8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0}"
+          />
+      <!-- MPEG-2 -->
+      <regValue
+          name="{E06D8026-DB46-11CF-B4D1-00805F6CBBEA}"
           type="REG_SZ"
           value="{8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0}"
           />

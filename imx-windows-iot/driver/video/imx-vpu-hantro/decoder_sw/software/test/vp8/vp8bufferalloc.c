@@ -55,8 +55,10 @@ useralloc_inst useralloc_open(test_params* params) {
   if (inst==NULL)
     return NULL;
 
-  if(params==NULL)
+  if (params == NULL) {
+    free(inst);
     return NULL;
+  }
 
   inst->params = params;
 

@@ -29,11 +29,15 @@ bool VpuFailed(VpuDecRetCode result);
 // Global Variables
 const struct _codecMap g_ppguidInputTypes[] =
     {
-        { &MFVideoFormat_H264, VPU_V_AVC},
-        { &MFVideoFormat_H265, VPU_V_HEVC},
-        { &MFVideoFormat_HEVC, VPU_V_HEVC},
-        { &MFVideoFormat_VP80, VPU_V_VP8},
-        { &MFVideoFormat_VP90, VPU_V_VP9},
+        { &MFVideoFormat_H264,  VPU_V_AVC},
+        { &MFVideoFormat_H265,  VPU_V_HEVC},
+        { &MFVideoFormat_HEVC,  VPU_V_HEVC},
+        { &MFVideoFormat_VP80,  VPU_V_VP8},
+        { &MFVideoFormat_VP90,  VPU_V_VP9},
+        { &MFVideoFormat_MPEG2, VPU_V_MPEG2},
+        { &MFVideoFormat_MP4S,  VPU_V_MPEG4},
+        { &MFVideoFormat_M4S2,  VPU_V_MPEG4},
+        { &MFVideoFormat_MP4V,  VPU_V_MPEG4},
     };
 const DWORD     g_dwNumInputTypes   = sizeof(g_ppguidInputTypes) / sizeof(g_ppguidInputTypes[0]);
 
@@ -1073,19 +1077,6 @@ HRESULT CVpuMft::DecodeInputFrame(
                 if (VpuFailed(retCode))
                 {
                     TraceString(CHMFTTracing::TRACE_ERROR, L"%S(): Out of memory allocating frame buffers", __FUNCTION__);
-                    hr = E_UNEXPECTED;
-                    break;
-                }
-
-                // calling VPU_DecRegisterFrameBuffer immediately after VPU_DecDecodeBuf returns INIT_OK results
-                // in MEMERROR result, must call into VPU_DecDecodeBuf() again to set raster buffer mgr and set
-                // vpu code into BUFFER_NEEDED state.  
-                VpuBufferNode temp = { 0 };
-                retCode = VPU_DecDecodeBuf(m_vpuHandle, &temp, &bufRetCode);
-                if (VpuFailed(retCode))
-                {
-                    TraceString(CHMFTTracing::TRACE_ERROR, L"%S(): 2nd VPU_DecDecodeBuf() failed %d",
-                        __FUNCTION__, retCode);
                     hr = E_UNEXPECTED;
                     break;
                 }

@@ -587,8 +587,10 @@ void compare_output(const char* temp, const char* reference)
         printf("failed to open reference file\n");
         goto FAIL;
     }
-    fseek(file_tmp, 0, SEEK_END);
-    fseek(file_ref, 0, SEEK_END);
+    if (fseek(file_tmp, 0, SEEK_END) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (fseek(file_ref, 0, SEEK_END) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     int tmp_size = ftell(file_tmp);
     int ref_size = ftell(file_ref);
     int min_size = tmp_size;
@@ -598,8 +600,10 @@ void compare_output(const char* temp, const char* reference)
         printf("file sizes do not match: temp: %d reference: %d bytes\n", tmp_size, ref_size);
         printf("comparing first %d bytes\n", min_size);
     }
-    fseek(file_tmp, 0, SEEK_SET);
-    fseek(file_ref, 0, SEEK_SET);
+    if (fseek(file_tmp, 0, SEEK_SET) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (fseek(file_ref, 0, SEEK_SET) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     
     buff_tmp = (char*)malloc(CMP_BUFF_SIZE);
     buff_ref = (char*)malloc(CMP_BUFF_SIZE);

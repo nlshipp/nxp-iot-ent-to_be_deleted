@@ -41,11 +41,11 @@
   <PropertyGroup>
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <ApiValidator_Enable>false</ApiValidator_Enable>
-    <IncludePath>$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\dwl;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\windows\inc;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\common;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\hevc;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\h264high\legacy;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\h264high;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\h264high;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\config;$(ProjectDir)\..\imx-vpu-hantro\..\imx-vpuwrap\hantro_dec;$(ProjectDir)\..\imxvpukm;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\dwl;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\windows\inc;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\common;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\hevc;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\h264high\legacy;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\h264high;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\h264high;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\mpeg2;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\mpeg2;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\mpeg4;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\linux\mpeg4;$(ProjectDir)\..\imx-vpu-hantro\decoder_sw\software\source\config;$(ProjectDir)\..\imx-vpu-hantro\..\imx-vpuwrap\hantro_dec;$(ProjectDir)\..\imxvpukm;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);SET_OUTPUT_CROP_RECT;USE_EXTERNAL_BUFFER;VSI_API;OMX_ENCODER_VIDEO_DOMAIN;WIN32;DEC_MODULE_PATH="/dev/mxc_hantro";DEC_X170_OUTPUT_FORMAT=0;DEC_X170_TIMEOUT_LENGTH=-1;SKIP_OPENB_FRAME;ENABLE_DPB_RECOVER;USE_WORDACCESS;_DISABLE_PIC_FREEZE;DEC_X170_USING_IRQ=0;USE_64BIT_ENV;USE_OUTPUT_RELEASE;USE_EXTERNAL_BUFFER;GET_FREE_BUFFER_NON_BLOCK;GET_OUTPUT_BUFFER_NON_BLOCK;FIFO_DATATYPE=void*;FFWD_WORKAROUND;IS_G1_DECODER;ENABLE_CODEC_VP8;VP8_HWTIMEOUT_WORKAROUND</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);SET_OUTPUT_CROP_RECT;USE_EXTERNAL_BUFFER;VSI_API;OMX_ENCODER_VIDEO_DOMAIN;WIN32;DEC_MODULE_PATH="/dev/mxc_hantro";DEC_X170_OUTPUT_FORMAT=0;DEC_X170_TIMEOUT_LENGTH=-1;SKIP_OPENB_FRAME;ENABLE_DPB_RECOVER;USE_WORDACCESS;_DISABLE_PIC_FREEZE;DEC_X170_USING_IRQ=0;USE_64BIT_ENV;USE_OUTPUT_RELEASE;GET_FREE_BUFFER_NON_BLOCK;GET_OUTPUT_BUFFER_NON_BLOCK;FIFO_DATATYPE=void*;FFWD_WORKAROUND;IS_G1_DECODER;ENABLE_CODEC_VP8;VP8_HWTIMEOUT_WORKAROUND;_MP4_RLC_BUFFER_SIZE=384</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">%(PreprocessorDefinitions);_DWL_DEBUG;_SW_DEBUG_PRINT;_ERROR_PRINT;_DEBUG_PRINT;VP8DEC_TRACE;DEBUG;_ASSERT_USED;_RANGE_CHECK;_DEBUG</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">%(PreprocessorDefinitions);NDEBUG</PreprocessorDefinitions>
       <TreatWarningAsError>false</TreatWarningAsError>
@@ -58,6 +58,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\common\bqueue.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\h264high\h264decapi.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\h264high\h264hwd_asic.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\h264high\h264hwd_intra_prediction.c" />
@@ -96,6 +97,24 @@
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\common\input_queue.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\common\fifo.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\common\stream_corrupt.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2decapi.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2decapi_internal.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_headers.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_strm.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_utils.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4decapi.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4decapi_internal.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_custom.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_error_conceal.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_headers.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_motiontexture.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_rvlc.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_shortvideo.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_strmdec.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_utils.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_videopacket.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_vlc.c" />
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_vop.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\vp8\vp8decapi.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\vp8\vp8decmcapi.c" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\vp8\vp8hwd_asic.c" />
@@ -111,6 +130,7 @@
   <ItemGroup>
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\8170enum_g1.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\8170table_g1.h" />
+    <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\bqueue.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\regdrv_g1.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\sw_debug.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\config\deccfg.h" />

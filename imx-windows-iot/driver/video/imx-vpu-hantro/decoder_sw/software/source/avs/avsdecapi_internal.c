@@ -191,10 +191,12 @@ AvsDecRet AvsAllocateBuffers(DecContainer * dec_cont) {
         InputQueueAddBuffer(dec_cont->pp_buffer_queue, &pp_buffer);
       }
     }
+#if 0
     /* initialize first picture buffer (work_out is 1 for the first picture)
      * grey, may be used as reference in certain error cases */
     (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf[1].data.virtual_address,
                      128, 384 * dec_cont->StrmStorage.total_mbs_in_frame);
+#endif
 #else
     if (dec_cont->pp_enabled) {
       for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
@@ -211,10 +213,12 @@ AvsDecRet AvsAllocateBuffers(DecContainer * dec_cont) {
           return (AVSDEC_MEMFAIL);
         }
       }
+#if 0
       /* initialize first picture buffer (work_out is 1 for the first picture)
        * grey, may be used as reference in certain error cases */
       (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf[1].data.virtual_address,
                        128, 384 * dec_cont->StrmStorage.total_mbs_in_frame);
+#endif
     }
 #endif
   }
@@ -463,7 +467,7 @@ void AvsFreeBuffers(DecContainer * dec_cont) {
   /* Reference images */
 #ifndef USE_EXTERNAL_BUFFER
   for(i = 0; i < dec_cont->StrmStorage.num_buffers; i++) {
-    if (dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address != NULL) {
+    if (dec_cont->StrmStorage.p_pic_buf[i].data.bus_address != 0) {
       DWLFreeRefFrm(dec_cont->dwl, &dec_cont->StrmStorage.p_pic_buf[i].data);
       dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address = NULL;
       dec_cont->StrmStorage.p_pic_buf[i].data.bus_address = 0;
@@ -471,7 +475,7 @@ void AvsFreeBuffers(DecContainer * dec_cont) {
   }
   if (dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-      if(dec_cont->StrmStorage.pp_buffer[i].virtual_address != NULL) {
+      if(dec_cont->StrmStorage.pp_buffer[i].bus_address != 0) {
         DWLFreeLinear(dec_cont->dwl,
                       &dec_cont->StrmStorage.pp_buffer[i]);
         dec_cont->StrmStorage.pp_buffer[i].virtual_address = NULL;
@@ -487,7 +491,7 @@ void AvsFreeBuffers(DecContainer * dec_cont) {
 #else
   if (dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-      if(dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address != NULL) {
+      if(dec_cont->StrmStorage.p_pic_buf[i].data.bus_address != 0) {
         DWLFreeRefFrm(dec_cont->dwl,
                       &dec_cont->StrmStorage.p_pic_buf[i].data);
         dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address = NULL;

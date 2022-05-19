@@ -1,8 +1,8 @@
 /*
  *  Copyright (c) 2010-2014, Freescale Semiconductor Inc.,
- *  All Rights Reserved.
+ *  Copyright 2019-2020 NXP
  *
- *  The following programs are the sole property of Freescale Semiconductor Inc.,
+ *  The following programs are the sole property of NXP,
  *  and contain its proprietary and confidential information.
  *
  */
@@ -10,6 +10,7 @@
 /*
  *	test_dec_arm_elinux.c
  *	vpu unit test application
+ *
  *	History :
  *	Date	(y.m.d)		Author			Version			Description
  *	2010-09-14		eagle zhou		0.1				Created
@@ -30,7 +31,7 @@
 
 #define NAME_SIZE 256
 
-#define DEFAULT_FILL_DATA_UNIT	(16*1024)
+#define DEFAULT_FILL_DATA_UNIT	(3*1024*1024)
 #define DEFAULT_DELAY_BUFSIZE		(-1)
 
 #define CASE_FIRST(x)   if (strncmp(argv[0], x, strlen(x)) == 0)
@@ -41,7 +42,9 @@ typedef struct
 {
 	char 	infile[NAME_SIZE];	// -i
 	char 	outfile[NAME_SIZE];	// -o
+	char    codecdatafile[NAME_SIZE];  // -a
 
+	int     isavcc;
 	int     saveYUV;		// -o
 	int     loop;			//-l
 	int     maxnum;		// -n
@@ -70,6 +73,7 @@ IOParams;
 static void usage(char*program)
 {
 	APP_DEBUG_PRINTF("\nUsage: %s [options] -i bitstream_file -f format \n", program);
+	APP_DEBUG_PRINTF("\nUsage: %s [options] -i avcc_file -a codec_data -f format \n", program);
 	APP_DEBUG_PRINTF("options:\n"
 		   "	-o <file_name>	:Save decoded output in YUV 4:2:0 format\n"
 		   "			[default: no save]\n"
@@ -84,7 +88,7 @@ static void usage(char*program)
 		   "			skip B:		2 \n"
 		   "			skip ALL:	3 \n"
 		   "			I search:	4 \n"
-		   "	-f <codec>	:set codec format with <codec>.\n"
+		   "	-f <codec>	:set codec format with <codec>. For 8mm/8mq, only support H264 and HEVC\n"
 		   "			Mpeg2:	1 \n"
 		   "			Mpeg4:	2 \n"
 		   "			DIVX3:	3 \n"
@@ -99,6 +103,7 @@ static void usage(char*program)
 		   "			AVS:	12 \n"
 		   "			VP8:	13 \n"
 		   "			MVC:	14 \n"
+		   "			HEVC:	15 \n"
 		   "	-test S,N	:(internal test): user set size of unit data (S) and numbers of unit data(N)\n"
 		   "	-c <delay_size>	:delay buffer size(bytes) for stream mode\n"
 		   "			[default: using internal default size]\n"
@@ -256,7 +261,17 @@ static void GetUserInput(IOParams *pIO, int argc, char *argv[])
 					strcpy((char *)pIO->infile, argv[0]);
 					bitFileDone = 1;
 				}
-			}			
+			}
+			CASE("-a")
+			{
+				argc--;
+				argv++;
+				if (argv[0] != NULL)
+				{
+					strcpy((char *)pIO->codecdatafile, argv[0]);
+					pIO->isavcc = 1;
+				}
+			}
 			CASE("-map")
 			{
 				argc--;
@@ -302,6 +317,7 @@ int main(int argc, char **argv)
 	DecContxt decContxt;
 	FILE* fout=NULL;
 	FILE* fin=NULL;
+	FILE* fcodecdata=NULL;
 	int loop_cnt=0;
 	
 	// Defaults: 0
@@ -349,12 +365,24 @@ REPEAT:
 		}
 	}
 
-	APP_DEBUG_PRINTF("input bitstream : %s \r\n",ioParams.infile);
+	if(ioParams.isavcc)
+	{
+		fcodecdata = fopen(ioParams.codecdatafile, "rb");
+		if(fcodecdata==NULL)
+		{
+			APP_DEBUG_PRINTF("can not open codecdata file %s.\n", ioParams.codecdatafile);
+			return -1;
+		}
+	}
+
+	APP_DEBUG_PRINTF("input bitstream(%d) avccstream(%d) : %s \r\n",!ioParams.isavcc,ioParams.isavcc,ioParams.infile);
 	APP_DEBUG_PRINTF("max frame_number : %d, display: %d \r\n",ioParams.maxnum, ioParams.display);
 
 	//decode
 	decContxt.fin=fin;
 	decContxt.fout=fout;
+	decContxt.fcodecdata=fcodecdata;
+	decContxt.isavcc=ioParams.isavcc;
 	decContxt.nMaxNum=ioParams.maxnum;
 	decContxt.nDisplay=ioParams.display;
 	decContxt.nFbNo=ioParams.fbno;	

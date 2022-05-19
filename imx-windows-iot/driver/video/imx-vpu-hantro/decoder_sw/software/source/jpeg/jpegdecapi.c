@@ -314,21 +314,26 @@ void JpegDecRelease(JpegDecInst dec_inst) {
   }
   /* if not user allocated memories */
   if(!PTR_JPGC->info.user_alloc_mem) {
-    if(PTR_JPGC->asic_buff.out_luma_buffer.virtual_address != NULL) {
+    if(PTR_JPGC->asic_buff.out_luma_buffer.bus_address != 0) {
       DWLFreeRefFrm(dwl, &(PTR_JPGC->asic_buff.out_luma_buffer));
       PTR_JPGC->asic_buff.out_luma_buffer.virtual_address = NULL;
+      PTR_JPGC->asic_buff.out_luma_buffer.bus_address = 0;
     }
-    if(PTR_JPGC->asic_buff.out_chroma_buffer.virtual_address != NULL) {
+    if(PTR_JPGC->asic_buff.out_chroma_buffer.bus_address != 0) {
       DWLFreeRefFrm(dwl, &(PTR_JPGC->asic_buff.out_chroma_buffer));
       PTR_JPGC->asic_buff.out_chroma_buffer.virtual_address = NULL;
+      PTR_JPGC->asic_buff.out_chroma_buffer.bus_address = 0;
     }
-    if(PTR_JPGC->asic_buff.out_chroma_buffer2.virtual_address != NULL) {
+    if(PTR_JPGC->asic_buff.out_chroma_buffer2.bus_address != 0) {
       DWLFreeRefFrm(dwl, &(PTR_JPGC->asic_buff.out_chroma_buffer2));
       PTR_JPGC->asic_buff.out_chroma_buffer2.virtual_address = NULL;
+      PTR_JPGC->asic_buff.out_chroma_buffer2.bus_address = 0;
     }
   } else {
     PTR_JPGC->asic_buff.out_luma_buffer.virtual_address = NULL;
+    PTR_JPGC->asic_buff.out_luma_buffer.bus_address = 0;
     PTR_JPGC->asic_buff.out_chroma_buffer.virtual_address = NULL;
+    PTR_JPGC->asic_buff.out_chroma_buffer.bus_address = 0;
   }
 
   if(dec_inst) {
@@ -1642,12 +1647,8 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
   }
 
   /* check user allocated null */
-  if((p_dec_in->picture_buffer_y.virtual_address == NULL &&
-      p_dec_in->picture_buffer_y.bus_address != 0) ||
-      (p_dec_in->picture_buffer_y.virtual_address != NULL &&
+  if((p_dec_in->picture_buffer_y.virtual_address != NULL &&
        p_dec_in->picture_buffer_y.bus_address == 0) ||
-      (p_dec_in->picture_buffer_cb_cr.virtual_address == NULL &&
-       p_dec_in->picture_buffer_cb_cr.bus_address != 0) ||
       (p_dec_in->picture_buffer_cb_cr.virtual_address != NULL &&
        p_dec_in->picture_buffer_cb_cr.bus_address == 0)) {
     JPEGDEC_API_TRC("JpegDecDecode# ERROR: NULL parameter");
@@ -1879,7 +1880,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
     if(PTR_JPGC->pp_instance == NULL) {
       p_dec_out->output_picture_y.virtual_address =
         PTR_JPGC->info.out_luma.virtual_address;
-      ASSERT(p_dec_out->output_picture_y.virtual_address);
+      //ASSERT(p_dec_out->output_picture_y.virtual_address);
 
       /* output set */
       p_dec_out->output_picture_y.bus_address =
@@ -1890,7 +1891,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
       if(PTR_JPGC->image.size_chroma) {
         p_dec_out->output_picture_cb_cr.virtual_address =
           PTR_JPGC->info.out_chroma.virtual_address;
-        ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
+        //ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
 
         p_dec_out->output_picture_cb_cr.bus_address =
           PTR_JPGC->info.out_chroma.bus_address;
@@ -1989,6 +1990,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
         if(PTR_JPGC->stream.bit_pos_in_byte) {
           /* delete stuffing bits */
           current_byte = (8 - PTR_JPGC->stream.bit_pos_in_byte);
+          (void)(current_byte);
           if(JpegDecFlushBits
               (&(PTR_JPGC->stream),
                8 - PTR_JPGC->stream.bit_pos_in_byte) == STRM_ERROR) {
@@ -2389,7 +2391,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
           if(PTR_JPGC->pp_instance == NULL) {
             p_dec_out->output_picture_y.virtual_address =
               PTR_JPGC->info.out_luma.virtual_address;
-            ASSERT(p_dec_out->output_picture_y.virtual_address);
+            //ASSERT(p_dec_out->output_picture_y.virtual_address);
 
             /* output set */
             p_dec_out->output_picture_y.bus_address =
@@ -2400,7 +2402,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
             if(PTR_JPGC->image.size_chroma) {
               p_dec_out->output_picture_cb_cr.virtual_address =
                 PTR_JPGC->info.out_chroma.virtual_address;
-              ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
+              //ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
 
               p_dec_out->output_picture_cb_cr.bus_address =
                 PTR_JPGC->info.out_chroma.bus_address;
@@ -2445,7 +2447,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
             if(PTR_JPGC->pp_instance == NULL) {
               p_dec_out->output_picture_y.virtual_address =
                 PTR_JPGC->info.out_luma.virtual_address;
-              ASSERT(p_dec_out->output_picture_y.virtual_address);
+              //ASSERT(p_dec_out->output_picture_y.virtual_address);
 
               /* output set */
               p_dec_out->output_picture_y.bus_address =
@@ -2456,8 +2458,8 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
               if(PTR_JPGC->image.size_chroma) {
                 p_dec_out->output_picture_cb_cr.virtual_address =
                   PTR_JPGC->info.out_chroma.virtual_address;
-                ASSERT(p_dec_out->output_picture_cb_cr.
-                       virtual_address);
+                //ASSERT(p_dec_out->output_picture_cb_cr.
+                //       virtual_address);
 
                 p_dec_out->output_picture_cb_cr.bus_address =
                   PTR_JPGC->info.out_chroma.bus_address;
@@ -2606,7 +2608,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
                   !PTR_JPGC->info.no_slice_irq_for_user) {
                 p_dec_out->output_picture_y.virtual_address =
                   PTR_JPGC->info.out_luma.virtual_address;
-                ASSERT(p_dec_out->output_picture_y.virtual_address);
+                //ASSERT(p_dec_out->output_picture_y.virtual_address);
 
                 /* output set */
                 p_dec_out->output_picture_y.bus_address =
@@ -2617,8 +2619,8 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
                 if(PTR_JPGC->image.size_chroma) {
                   p_dec_out->output_picture_cb_cr.virtual_address =
                     PTR_JPGC->info.out_chroma.virtual_address;
-                  ASSERT(p_dec_out->output_picture_cb_cr.
-                         virtual_address);
+                  //ASSERT(p_dec_out->output_picture_cb_cr.
+                  //       virtual_address);
 
                   p_dec_out->output_picture_cb_cr.bus_address =
                     PTR_JPGC->info.out_chroma.bus_address;
@@ -2746,7 +2748,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
             !PTR_JPGC->info.no_slice_irq_for_user) {
           p_dec_out->output_picture_y.virtual_address =
             PTR_JPGC->info.out_luma.virtual_address;
-          ASSERT(p_dec_out->output_picture_y.virtual_address);
+          //ASSERT(p_dec_out->output_picture_y.virtual_address);
 
           /* output set */
           p_dec_out->output_picture_y.bus_address =
@@ -2757,7 +2759,7 @@ JpegDecRet JpegDecDecode(JpegDecInst dec_inst, JpegDecInput * p_dec_in,
           if(PTR_JPGC->image.size_chroma) {
             p_dec_out->output_picture_cb_cr.virtual_address =
               PTR_JPGC->info.out_chroma.virtual_address;
-            ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
+            //ASSERT(p_dec_out->output_picture_cb_cr.virtual_address);
 
             p_dec_out->output_picture_cb_cr.bus_address =
               PTR_JPGC->info.out_chroma.bus_address;

@@ -102,9 +102,6 @@ u32 rv_StrmDecode(DecContainer * dec_container) {
         return DEC_PIC_HDR_RDY_ERROR;
 
       break;
-
-    default:
-      break;
     }
 
   } while(0);

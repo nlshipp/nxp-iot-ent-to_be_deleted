@@ -62,6 +62,7 @@ typedef struct {
                              * than available. */
   u32  remove_emul_prev_bytes;
   u32  slice_piclayer_emulation_bits;   /*fix slice picture layer length error when emulation  */
+  u32  raw_frame_data;     /* 1: current input is a frame data without frame-start-code*/
 } strmData_t;
 
 /*------------------------------------------------------------------------------

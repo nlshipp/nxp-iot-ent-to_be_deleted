@@ -48,8 +48,6 @@
 #include "ewl_x280_common.h"
 #include "encswhwregisters.h"
 
-#include "linux/hx280enc.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,32 +105,37 @@ i32 EWLWaitHwRdy(const void *inst, u32 *slicesReady)
     {
         /* Get the number of completed slices from ASIC registers. */
         if (slicesReady)
-            *slicesReady = (enc->pRegBase[21] >> 16) & 0xFF;
+            *slicesReady = (EWLReadReg(enc, 21 * 4) >> 16) & 0xFF;
 
-        #ifdef PCIE_FPGA_VERIFICATION
+#ifdef PCIE_FPGA_VERIFICATION
         /* Only for verification purpose, to test input line buffer in hw-handshake mode or sw-irq is disabled. */
         if (pollInputLineBufTestFunc) pollInputLineBufTestFunc();
        #endif
 
-        irq_stats = enc->pRegBase[1];
+        irq_stats = EWLReadReg(enc, 1 * 4);
 
         PTRACE("EWLWaitHw: IRQ stat = %08x\n", irq_stats);
 
         /* ignore the irq status of input line buffer in hw handshake mode */
-        if ((irq_stats == ASIC_STATUS_LINE_BUFFER_DONE) && (enc->pRegBase[BASE_HEncInstantInput/4] & (1<<29)))
+        if ((irq_stats == ASIC_STATUS_LINE_BUFFER_DONE) && (EWLReadReg(enc, BASE_HEncInstantInput) & (1<<29)))
             continue;
 
         if((irq_stats & ASIC_STATUS_ALL))
         {
-            /* clear IRQ and slice ready status */
-            u32 clr_stats = irq_stats & ASIC_STATUS_ALL;
-            irq_stats &= (~(ASIC_STATUS_SLICE_READY|ASIC_IRQ_LINE));
-
+            u32 i;
+            u32 irq_status, clr_stats;
+            for(i = 0; i < enc->regSize; i += 4) 
+            {
+              enc->regMirror[i/4] = EWLReadReg(enc, i);
+            }
+            
+            /* clear the status bits */
+            irq_status = enc->regMirror[1];
             if (clrByWrite1)
-              clr_stats = ASIC_STATUS_SLICE_READY | ASIC_IRQ_LINE; //(clr_stats & ASIC_STATUS_SLICE_READY) | ASIC_IRQ_LINE;
+                clr_stats = irq_status;
             else
-              clr_stats = irq_stats;
-
+                clr_stats = irq_status & (~0xf7d);
+                
             EWLWriteReg(inst, 0x04, clr_stats);
 
             ret = EWL_OK;
@@ -150,16 +153,20 @@ i32 EWLWaitHwRdy(const void *inst, u32 *slicesReady)
 
         if (loop)
         {
-            if(nanosleep(&t, NULL) != 0)
+            if(nanosleep(&t, NULL) != 0) 
+            {
                 PTRACE("EWLWaitHw: Sleep interrupted!\n");
+            }
         }
     }
     while(loop--);
 
     asic_status = irq_stats; /* update the buffered asic status */
 
-    if (slicesReady)
+    if (slicesReady) 
+    {
         PTRACE("EWLWaitHw: slicesReady = %d\n", *slicesReady);
+    }
     PTRACE("EWLWaitHw: asic_status = %x\n", asic_status);
     PTRACE("EWLWaitHw: OK!\n");
 

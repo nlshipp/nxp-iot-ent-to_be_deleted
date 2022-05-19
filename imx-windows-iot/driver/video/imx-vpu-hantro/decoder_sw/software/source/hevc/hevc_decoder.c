@@ -97,7 +97,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
   struct SeqParamSet seq_param_set;
   struct PicParamSet pic_param_set;
   struct VideoParamSet video_param_set = {0};
-  struct StrmData strm;
+  struct StrmData strm = {0};
   const u8 *strm_buf = dec_cont->hw_buffer;
   u32 buf_len = dec_cont->hw_buffer_length;
 #ifdef GET_FREE_BUFFER_NON_BLOCK
@@ -183,9 +183,15 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
     goto NEXT_NAL;
   }
 
+  /* Discard non-base view nal unit */
+  if (nal_unit.nuh_layer_id > 0) {
+    ret = HEVC_RDY;
+    goto NEXT_NAL;
+  }
+
   /* FIXME: Sometimes SPS/PPS NAL following the filler data NAL,
      The stream is consumed incorrectly if discard the whole buffer here */
-#if 1
+
 #ifndef HEVC_INPUT_MULTI_FRM
   /* Discard filler data */
   if(nal_unit.nal_unit_type == 38) {
@@ -193,7 +199,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
     return HEVC_RDY;
   }
 #endif
-#endif
+
 
   if (!storage->checked_aub) {
     tmp = HevcCheckAccessUnitBoundary(&strm, &nal_unit, storage,
@@ -222,11 +228,13 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
     if (tmp != HANTRO_OK) {
       ERROR_PRINT("SEQ_PARAM_SET decoding");
       ret = HEVC_ERROR;
+      (void)(ret);
     } else {
       tmp = HevcStoreSeqParamSet(storage, &seq_param_set);
       if (tmp != HANTRO_OK) {
         ERROR_PRINT("SEQ_PARAM_SET allocation");
         ret = HEVC_ERROR;
+        (void)(ret);
       }
     }
     ret = HEVC_RDY;
@@ -245,6 +253,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
         ret = HEVC_ERROR;
       }
     }
+    (void)(ret);
     ret = HEVC_RDY;
     goto NEXT_NAL;
 
@@ -261,6 +270,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
         ret = HEVC_ERROR;
       }
     }
+    (void)(ret);
     ret = HEVC_RDY;
     goto NEXT_NAL;
 
@@ -274,6 +284,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
       ERROR_PRINT("SEI decoding");
       ret = HEVC_ERROR;
     }
+    (void)(ret);
     ret = HEVC_RDY;
     goto NEXT_NAL;
 
@@ -351,7 +362,8 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
           }
 
           if ((tmp != HANTRO_OK) || (no_output_of_prior_pics_flag != 0) ||
-              (nal_unit.nal_unit_type == NAL_CODED_SLICE_CRA) ||
+              (nal_unit.nal_unit_type == NAL_CODED_SLICE_CRA &&
+              storage->no_rasl_output) ||
               (storage->dpb->no_reordering) || (old_sps == NULL) /*||
                        (old_sps->pic_width != new_sps->pic_width) ||
                        (old_sps->pic_height != new_sps->pic_height) ||
@@ -367,7 +379,7 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
 #ifdef USE_EXTERNAL_BUFFER
           if (nal_unit.nal_unit_type == NAL_CODED_SLICE_CRA &&
               storage->no_rasl_output) {
-            HevcDpbMarkOlderUnused(storage->dpb, 0x7FFFFFFF, 0);
+            dec_cont->discard_dpb_num += HevcDpbMarkOlderUnused(storage->dpb, 0x7FFFFFFF, 0);
           }
 #endif
           return (HEVC_HDRS_RDY);
@@ -400,29 +412,34 @@ u32 HevcDecode(struct HevcDecContainer *dec_cont, const u8 *byte_strm, u32 strm_
       /* check if picture shall be skipped (non-decodable picture after
        * random access etc) */
       if (SkipPicture(storage, &nal_unit)) {
-        ret = HEVC_RDY;
+        ret = HEVC_NONREF_PIC_SKIPPED;
         goto NEXT_NAL;
         /*FIXME: below code may cause side-effect */
         //storage->prev_bytes_consumed = *read_bytes = strm_len;
         //return HEVC_RDY;
       }
+    u32 discard_dpb_num = 0;
 
       if(DEC_PARAM_ERROR == HevcSetRefPics(storage->dpb, storage->slice_header,
                                            storage->poc->pic_order_cnt, storage->active_sps,
                                            IS_IDR_NAL_UNIT(&nal_unit),
                                            nal_unit.nal_unit_type == NAL_CODED_SLICE_CRA &&
                                            storage->no_rasl_output, storage->sei_param.bufperiod_present_flag &&
-                                           storage->sei_param.pictiming_present_flag)) {
+                                           storage->sei_param.pictiming_present_flag,
+                                           &discard_dpb_num)) {
         ret = HEVC_RDY;
 #ifndef HEVC_INPUT_MULTI_FRM
         strm.strm_curr_pos = strm.strm_buff_start + strm.strm_data_size;
         storage->prev_bytes_consumed = strm.strm_data_size;
         *read_bytes = strm_len;
         return ret;
+#else
+      goto NEXT_NAL;
 #endif
-        goto NEXT_NAL;
+
       }
 
+      dec_cont->discard_dpb_num += discard_dpb_num;
       if (nal_unit.nal_unit_type == NAL_CODED_SLICE_CRA &&
           storage->no_rasl_output)
         storage->no_rasl_output = 0;

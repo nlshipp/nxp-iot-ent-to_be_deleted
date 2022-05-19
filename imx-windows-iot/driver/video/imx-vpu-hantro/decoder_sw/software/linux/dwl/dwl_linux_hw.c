@@ -37,7 +37,11 @@
 #include "basetype.h"
 #include "dwl_linux.h"
 #include "dwl.h"
+#ifdef USE_VSI_ENV
+#include "hantrodec.h"
+#else
 #include <linux/hantrodec.h>
+#endif
 #include "memalloc.h"
 
 #include <assert.h>
@@ -68,7 +72,12 @@ const char *dec_dev = DEC_MODULE_PATH;
 /* the memalloc device driver nod */
 const char *mem_dev = MEMALLOC_MODULE_PATH;
 
-/* counters for Core usage statistics */
+#ifdef ENABLE_SEC_DMABUF_HEAP
+/* the secure memalloc device driver nod */
+const char *mem_sec_dev = MEMALLOC_SECURE_MODULE_PATH;
+#endif
+
+/* counters for core usage statistics */
 u32 core_usage_counts[MAX_ASIC_CORES] = {0};
 
 /* a mutex protecting the wrapper init */
@@ -85,16 +94,16 @@ extern u32 dwl_shadow_regs[MAX_ASIC_CORES][264];
     Argument        : void * param - not in use, application passes NULL
 ------------------------------------------------------------------------------*/
 const void *DWLInit(struct DWLInitParam *param) {
-  struct HX170DWL *dec_dwl;
+  struct HANTRODWL *dec_dwl;
   
   int core_id;
   
   DWL_DEBUG("%s","INITIALIZE\n");
 
-  dec_dwl = (struct HX170DWL *)calloc(1, sizeof(struct HX170DWL));
+  dec_dwl = (struct HANTRODWL *)calloc(1, sizeof(struct HANTRODWL));
 
   if (dec_dwl == NULL) {
-    DWL_DEBUG("%s","failed to alloc struct HX170DWL struct\n");
+    DWL_DEBUG("%s","failed to alloc struct HANTRODWL struct\n");
     return NULL;
   }
 
@@ -109,6 +118,7 @@ const void *DWLInit(struct DWLInitParam *param) {
   dec_dwl->fd = -1;
   dec_dwl->fd_mem = -1;
   dec_dwl->fd_memalloc = -1;
+  dec_dwl->fd_mem_sec = -1;
 
   /* open the device */
   dec_dwl->fd = open(dec_dev, O_RDWR);
@@ -121,19 +131,26 @@ const void *DWLInit(struct DWLInitParam *param) {
   if (dec_dwl->client_type != DWL_CLIENT_TYPE_PP) {
     /* open memalloc for linear memory allocation */
     dec_dwl->fd_memalloc = open(mem_dev, O_RDWR | O_SYNC);
-
     if (dec_dwl->fd_memalloc == -1) {
       DWL_DEBUG("failed to open: %s\n", mem_dev);
       goto err;
     }
+#ifdef ENABLE_SEC_DMABUF_HEAP
+    dec_dwl->fd_mem_sec = open(mem_sec_dev, O_RDWR | O_SYNC);
+    if (dec_dwl->fd_mem_sec == -1) {
+      DWL_DEBUG("failed to open: %s\n", mem_sec_dev);
+      goto err;
+    }
+#endif
   }
+#ifdef USE_VSI_ENV
+  dec_dwl->fd_mem = open("/dev/mem", O_RDWR | O_SYNC);
 
-  //dec_dwl->fd_mem = open("/dev/mem", O_RDWR | O_SYNC);
-
-  //if (dec_dwl->fd_mem == -1) {
-  //  DWL_DEBUG("failed to open: %s\n", "/dev/mem");
-  //  goto err;
-  //}
+  if (dec_dwl->fd_mem == -1) {
+    DWL_DEBUG("failed to open: %s\n", "/dev/mem");
+    goto err;
+  }
+#endif
 
   switch (dec_dwl->client_type) {
   case DWL_CLIENT_TYPE_H264_DEC:
@@ -212,7 +229,7 @@ err:
     Argument        : const void * instance - instance to be released
 ------------------------------------------------------------------------------*/
 i32 DWLRelease(const void *instance) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
   unsigned int i = 0;
 
   DWL_DEBUG("%s","RELEASE\n");
@@ -230,7 +247,9 @@ i32 DWLRelease(const void *instance) {
   /* linear memory allocator */
   if (dec_dwl->fd_memalloc != -1) close(dec_dwl->fd_memalloc);
 
-  /* print Core usage stats */
+  if (dec_dwl->fd_mem_sec != -1) close(dec_dwl->fd_mem_sec);
+
+  /* print core usage stats */
   if (dec_dwl->client_type != DWL_CLIENT_TYPE_PP) {
     u32 total_usage = 0;
     u32 cores = dec_dwl->num_cores;
@@ -267,11 +286,11 @@ i32 DWLRelease(const void *instance) {
     Description     :
     Return type     : i32
     Argument        : const void *instance
-    Argument        : i32 *core_id - ID of the reserved HW Core
+    Argument        : i32 *core_id - ID of the reserved HW core
 ------------------------------------------------------------------------------*/
 i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
   
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   assert(dec_dwl != NULL);
   assert(dec_dwl->client_type != DWL_CLIENT_TYPE_PP);
@@ -288,7 +307,7 @@ i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
 
   core_usage_counts[*core_id]++;
 
-  DWL_DEBUG("Reserved DEC Core %d\n", *core_id);
+  DWL_DEBUG("Reserved DEC core %d\n", *core_id);
 
   return DWL_OK;
 }
@@ -298,10 +317,10 @@ i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
     Description     :
     Return type     : i32
     Argument        : const void *instance
-    Argument        : i32 *core_id - ID of the reserved HW Core
+    Argument        : i32 *core_id - ID of the reserved HW core
 ------------------------------------------------------------------------------*/
 i32 DWLReserveHw(const void *instance, i32 *core_id) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   assert(dec_dwl != NULL);
 
@@ -320,7 +339,7 @@ i32 DWLReserveHw(const void *instance, i32 *core_id) {
 
   core_usage_counts[*core_id]++;
 
-  DWL_DEBUG("Reserved %s Core %d\n", "DEC", *core_id);
+  DWL_DEBUG("Reserved %s core %d\n", "DEC", *core_id);
 
   return DWL_OK;
 }
@@ -332,7 +351,7 @@ i32 DWLReserveHw(const void *instance, i32 *core_id) {
     Argument        : const void *instance
 ------------------------------------------------------------------------------*/
 void DWLReleaseHw(const void *instance, i32 core_id) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   assert((u32)core_id < dec_dwl->num_cores);
   assert(dec_dwl != NULL);
@@ -342,14 +361,14 @@ void DWLReleaseHw(const void *instance, i32 core_id) {
     return;
   }
 
-  DWL_DEBUG(" %s Core %d\n", "DEC", core_id);
+  DWL_DEBUG(" %s core %d\n", "DEC", core_id);
 
   ioctl(dec_dwl->fd, HANTRODEC_IOCT_DEC_RELEASE, core_id);
 }
 
 void DWLSetIRQCallback(const void *instance, i32 core_id,
                        DWLIRQCallbackFn *callback_fn, void *arg) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   dec_dwl->sync_params->callback[core_id] = callback_fn;
   dec_dwl->sync_params->callback_arg[core_id] = arg;

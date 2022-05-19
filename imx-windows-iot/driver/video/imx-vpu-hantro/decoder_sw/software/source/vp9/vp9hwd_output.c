@@ -45,6 +45,7 @@
 #include "vp9hwd_asic.h"
 #include "vp9hwd_container.h"
 #include "vp9hwd_output.h"
+#include "stdio.h"
 
 #define EOS_MARKER   (-1)
 #define ABORT_MARKER (-2)
@@ -55,9 +56,9 @@
 static u32 CycleCount(struct Vp9DecContainer *dec_cont);
 
 #ifndef USE_EXTERNAL_BUFFER
-static i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address);
+static i32 FindIndex(struct Vp9DecContainer *dec_cont, addr_t address);
 #else
-static i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address, u32 buffer_type);
+static i32 FindIndex(struct Vp9DecContainer *dec_cont, addr_t address, u32 buffer_type);
 #endif
 
 static i32 NextOutput(struct Vp9DecContainer *dec_cont);
@@ -77,7 +78,7 @@ u32 CycleCount(struct Vp9DecContainer *dec_cont) {
 }
 
 #ifndef USE_EXTERNAL_BUFFER
-i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address) {
+i32 FindIndex(struct Vp9DecContainer *dec_cont, addr_t address) {
   i32 i;
   struct DWLLinearMem *pictures;
 
@@ -87,15 +88,15 @@ i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address) {
     pictures = dec_cont->asic_buff->pictures;
 
   for (i = 0; i < (i32)dec_cont->num_buffers; i++)
-    if ((*(pictures + i)).virtual_address == address) break;
+    if ((*(pictures + i)).bus_address == address) break;
   ASSERT((u32)i < dec_cont->num_buffers);
   return i;
 }
 #else
-i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address, u32 buffer_type) {
+i32 FindIndex(struct Vp9DecContainer *dec_cont, addr_t address, u32 buffer_type) {
   i32 i;
-  struct DWLLinearMem *pictures;
-  i32 num_buffers;
+  struct DWLLinearMem *pictures = dec_cont->asic_buff->pictures;
+  i32 num_buffers = dec_cont->num_buffers;
 
   if (buffer_type == REFERENCE_BUFFER) {
     pictures = dec_cont->asic_buff->pictures;
@@ -106,8 +107,8 @@ i32 FindIndex(struct Vp9DecContainer *dec_cont, const u32 *address, u32 buffer_t
   }
 
   for (i = 0; i < (i32)num_buffers; i++)
-    if ((*(pictures + i)).virtual_address == address) break;
-  ASSERT(i < num_buffers);
+    if ((*(pictures + i)).bus_address == address) break;
+  //ASSERT((u32)i < num_buffers);
   return i;
 }
 #endif
@@ -197,12 +198,12 @@ enum DecRet Vp9DecPictureConsumed(Vp9DecInst dec_inst,
 
   /* Remove the reference to the buffer. */
   Vp9BufferQueueRemoveRef(dec_cont->bq,
-                          FindIndex(dec_cont, pic.output_luma_base));
+                          FindIndex(dec_cont, pic.output_luma_bus_address));
 
   pthread_mutex_lock(&dec_cont->sync_out);
   // Release buffer for use as an output (i.e. "show existing frame"). A buffer can
   // be in the output queue once at a time.
-  dec_cont->asic_buff->display_index[FindIndex(dec_cont, pic.output_luma_base)] = 0;
+  dec_cont->asic_buff->display_index[FindIndex(dec_cont, pic.output_luma_bus_address)] = 0;
 
   pthread_cond_signal(&dec_cont->sync_out_cv);
   pthread_mutex_unlock(&dec_cont->sync_out);
@@ -236,11 +237,12 @@ enum DecRet Vp9DecPictureConsumed(Vp9DecInst dec_inst,
   if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
       IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
     if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER))
-      buffer = FindIndex(dec_cont, pic.output_luma_base, RASTERSCAN_OUT_BUFFER);
+      buffer = FindIndex(dec_cont, pic.output_luma_bus_address, RASTERSCAN_OUT_BUFFER);
     else
-      buffer = FindIndex(dec_cont, pic.output_luma_base, DOWNSCALE_OUT_BUFFER);
+      buffer = FindIndex(dec_cont, pic.output_luma_bus_address, DOWNSCALE_OUT_BUFFER);
 
-    Vp9BufferQueueRemoveRef(dec_cont->pp_bq, buffer);
+    if (buffer >= dec_cont->num_pp_buffers)
+      return DEC_PARAM_ERROR;
 
     pthread_mutex_lock(&dec_cont->sync_out);
     // Release buffer for use as an output (i.e. "show existing frame"). A buffer can
@@ -249,15 +251,16 @@ enum DecRet Vp9DecPictureConsumed(Vp9DecInst dec_inst,
 
     pthread_cond_signal(&dec_cont->sync_out_cv);
     pthread_mutex_unlock(&dec_cont->sync_out);
+
+    Vp9BufferQueueRemoveRef(dec_cont->pp_bq, buffer);
   }
 
   /* FIXME: here only external buffer will be consumed, since only external buffer
    * bases addresses will be set when Vp9DecPictureConsumed() is called. */
   if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
-    u32 buffer = FindIndex(dec_cont, pic.output_luma_base, REFERENCE_BUFFER);
-
-    /* Remove the reference to the buffer. */
-    Vp9BufferQueueRemoveRef(dec_cont->bq, buffer);
+    u32 buffer = FindIndex(dec_cont, pic.output_luma_bus_address, REFERENCE_BUFFER);
+    if (buffer >= dec_cont->num_buffers)
+      return DEC_PARAM_ERROR;
 
     pthread_mutex_lock(&dec_cont->sync_out);
     // Release buffer for use as an output (i.e. "show existing frame"). A buffer can
@@ -266,6 +269,8 @@ enum DecRet Vp9DecPictureConsumed(Vp9DecInst dec_inst,
 
     pthread_cond_signal(&dec_cont->sync_out_cv);
     pthread_mutex_unlock(&dec_cont->sync_out);
+    /* Remove the reference to the buffer. */
+    Vp9BufferQueueRemoveRef(dec_cont->bq, buffer);
   }
 
   return DEC_OK;
@@ -297,18 +302,9 @@ enum DecRet Vp9DecNextPicture(Vp9DecInst dec_inst,
   }
   if (i == NO_OUTPUT_MARKER)
     return DEC_OK;
-#ifndef USE_EXTERNAL_BUFFER
-  ASSERT(i >= 0 && (u32)i < dec_cont->num_buffers);
-#else
-  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
-    ASSERT(i >= 0 && (u32)i < dec_cont->num_buffers);
-  }
 
-  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
-      IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
-    ASSERT(i >= 0 && (u32)i < dec_cont->num_pp_buffers);
-  }
-#endif
+
+  ASSERT(i >= 0 && (u32)i < VP9DEC_MAX_PIC_BUFFERS);
 
   *output = dec_cont->asic_buff->picture_info[i];
 #if 0
@@ -325,7 +321,7 @@ enum DecRet Vp9DecNextPicture(Vp9DecInst dec_inst,
 #if 0
   if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER) &&
       dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
-    u32 buffer = FindIndex(dec_cont, output->output_luma_base, REFERENCE_BUFFER);
+    u32 buffer = FindIndex(dec_cont, output->output_luma_bus_address, REFERENCE_BUFFER);
 
     /* Remove the reference to the buffer. */
     Vp9BufferQueueRemoveRef(dec_cont->bq, buffer);
@@ -402,16 +398,78 @@ void Vp9PicToOutput(struct Vp9DecContainer *dec_cont) {
       IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER))
     info.index = dec_cont->asic_buff->pp_buffer_map[info.index];
 #endif
+  u32 org_index = info.index;
 
-#ifdef USE_PICTURE_DISCARD
-  if (dec_cont->asic_buff->first_show[ref_index] == 0)
-#endif
-  {
-    pthread_mutex_lock(&dec_cont->sync_out);
-    while (dec_cont->asic_buff->display_index[info.index])
-      pthread_cond_wait(&dec_cont->sync_out_cv, &dec_cont->sync_out);
-    pthread_mutex_unlock(&dec_cont->sync_out);
+  pthread_mutex_lock(&dec_cont->sync_out);
+  if (dec_cont->asic_buff->display_index[info.index]) {
+    /* Memcpy show existing frame to another buffer here */
+    ASSERT(dec_cont->asic_buff->show_existing_buffer_i >= 0);
+    ASSERT(dec_cont->asic_buff->first_show[info.index]);
+    info.index = dec_cont->asic_buff->show_existing_buffer_i;
+
+    if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+      info.pic.output_luma_base =
+        dec_cont->asic_buff->pictures[info.index].virtual_address;
+      info.pic.output_luma_bus_address =
+        dec_cont->asic_buff->pictures[info.index].bus_address;
+      info.pic.output_chroma_base =
+        dec_cont->asic_buff->pictures[info.index].virtual_address +
+        dec_cont->asic_buff->pictures_c_offset[ref_index] / 4;
+      info.pic.output_chroma_bus_address =
+        dec_cont->asic_buff->pictures[info.index].bus_address +
+        dec_cont->asic_buff->pictures_c_offset[ref_index];
+
+      if (dec_cont->use_video_compressor) {
+        /* Compression table info. */
+        info.pic.output_rfc_luma_base =
+          dec_cont->asic_buff->pictures[info.index].virtual_address +
+          dec_cont->asic_buff->cbs_y_tbl_offset[ref_index] / 4;
+        info.pic.output_rfc_luma_bus_address =
+          dec_cont->asic_buff->pictures[info.index].bus_address +
+          dec_cont->asic_buff->cbs_y_tbl_offset[ref_index];
+        info.pic.output_rfc_chroma_base =
+          dec_cont->asic_buff->pictures[info.index].virtual_address +
+          dec_cont->asic_buff->cbs_c_tbl_offset[ref_index] / 4;
+        info.pic.output_rfc_chroma_bus_address =
+          dec_cont->asic_buff->pictures[info.index].bus_address +
+          dec_cont->asic_buff->cbs_c_tbl_offset[ref_index];
+      }
+
+      DWLmemcpy(dec_cont->asic_buff->pictures[info.index].virtual_address,
+             dec_cont->asic_buff->pictures[org_index].virtual_address,
+             dec_cont->asic_buff->pictures[org_index].logical_size);
+
+      Vp9BufferQueueRemoveRef(dec_cont->bq, org_index);
+    } else {
+      info.pic.output_luma_base =
+        dec_cont->asic_buff->pp_pictures[info.index].virtual_address;
+      info.pic.output_luma_bus_address =
+        dec_cont->asic_buff->pp_pictures[info.index].bus_address;
+      info.pic.output_chroma_base =
+        dec_cont->asic_buff->pp_pictures[info.index].virtual_address +
+        dec_cont->asic_buff->pp_c_offset[ref_index] / 4;
+      info.pic.output_chroma_bus_address =
+        dec_cont->asic_buff->pp_pictures[info.index].bus_address +
+        dec_cont->asic_buff->pp_c_offset[ref_index];
+
+      DWLmemcpy(dec_cont->asic_buff->pp_pictures[info.index].virtual_address,
+             dec_cont->asic_buff->pp_pictures[org_index].virtual_address,
+             dec_cont->asic_buff->pp_pictures[org_index].logical_size);
+
+      Vp9BufferQueueRemoveRef(dec_cont->pp_bq, org_index);
+    }
+  } else {
+    if (dec_cont->asic_buff->show_existing_buffer_i != VP9_UNDEFINED_BUFFER) {
+      if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
+        Vp9BufferQueueRemoveRef(dec_cont->bq,
+            dec_cont->asic_buff->show_existing_buffer_i);
+      else
+        Vp9BufferQueueRemoveRef(dec_cont->pp_bq,
+            dec_cont->asic_buff->show_existing_buffer_i);
+    }
   }
+  dec_cont->asic_buff->show_existing_buffer_i = VP9_UNDEFINED_BUFFER;
+  pthread_mutex_unlock(&dec_cont->sync_out);
 
   info.pic.cycles_per_mb = CycleCount(dec_cont);
 #ifdef USE_VP9_EC
@@ -419,44 +477,16 @@ void Vp9PicToOutput(struct Vp9DecContainer *dec_cont) {
 #endif
   dec_cont->asic_buff->picture_info[info.index] = info.pic;
   if (info.show_frame) {
-//#ifndef USE_EXTERNAL_BUFFER
-#ifdef USE_PICTURE_DISCARD
-    if (dec_cont->asic_buff->first_show[ref_index] == 0)
-#endif
-    {
-      dec_cont->asic_buff->display_index[info.index] = dec_cont->display_number++;
-      tmp = (FifoObject)(addr_t)info.index;
-      FifoPush(dec_cont->fifo_out, tmp, FIFO_EXCEPTION_DISABLE);
-      dec_cont->asic_buff->first_show[ref_index] = 1;
-    }
-#ifdef USE_PICTURE_DISCARD
-    else {
-      /* Remove the reference to the buffer. */
-
-      if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
-          IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER))
-        Vp9BufferQueueRemoveRef(dec_cont->pp_bq, info.index);
-
-      if (dec_cont->output_format == DEC_OUT_FRM_TILED_4X4)
-        Vp9BufferQueueRemoveRef(dec_cont->bq, ref_index);
-
-      //dec_cont->asic_buff->display_index[info.index] = 0;
-    }
-#endif
+    dec_cont->asic_buff->display_index[info.index] = dec_cont->display_number++;
+    tmp = (FifoObject)(addr_t)info.index;
+    FifoPush(dec_cont->fifo_out, tmp, FIFO_EXCEPTION_DISABLE);
+    dec_cont->asic_buff->first_show[info.index] = 1;
 
 #ifdef USE_EXTERNAL_BUFFER
-    if (/*dec_cont->output_format != DEC_OUT_FRM_TILED_4X4*/!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+    if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
       Vp9BufferQueueRemoveRef(dec_cont->bq, ref_index);
 
-#if 0
-      pthread_mutex_lock(&dec_cont->sync_out);
-      // Release buffer for use as an output (i.e. "show existing frame"). A buffer can
-      // be in the output queue once at a time.
-      //dec_cont->asic_buff->display_index[info.index] = 0;
 
-      pthread_cond_signal(&dec_cont->sync_out_cv);
-      pthread_mutex_unlock(&dec_cont->sync_out);
-#endif
     }
 #endif
   }
@@ -761,11 +791,14 @@ i32 VP9SyncAndOutput(struct Vp9DecContainer *dec_cont) {
     /* Store prev out info */
 #ifdef USE_VP9_EC
     if (!error_concealment)
+    {
 #else
     if (!error_concealment || dec_cont->intra_only || dec_cont->pic_number==1)
-#endif
+
     {
       if (error_concealment) Vp9ConstantConcealment(dec_cont, 128);
+#endif
+
       asic_buff->prev_out_buffer_i = asic_buff->out_buffer_i;
 
       Vp9PicToOutput(dec_cont);
@@ -856,7 +889,10 @@ void Vp9EmptyBufferQueue(struct Vp9DecContainer *dec_cont) {
 
 void Vp9ResetDecState(struct Vp9DecContainer *dec_cont) {
   /* Clear internal parameters in Vp9DecContainer */
-  dec_cont->dec_stat = VP9DEC_DECODING;
+  if (dec_cont->dec_stat == VP9DEC_NEW_HEADERS)
+    dec_cont->dec_stat = VP9DEC_INITIALIZED;
+  if (dec_cont->dec_stat != VP9DEC_INITIALIZED)
+    dec_cont->dec_stat = VP9DEC_DECODING;
   //dec_cont->dec_stat = VP9DEC_INITIALIZED;
   dec_cont->add_buffer = 0;
   dec_cont->out_count = 0;
@@ -886,8 +922,10 @@ void Vp9ResetDecState(struct Vp9DecContainer *dec_cont) {
   DWLmemset(dec_cont->pic_callback_arg, 0, sizeof(struct PicCallbackArg));
   if (dec_cont->fifo_out) FifoRelease(dec_cont->fifo_out);
   if (dec_cont->fifo_display) FifoRelease(dec_cont->fifo_display);
-  FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out);
-  FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_display);
+  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK)
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_display) != FIFO_OK)
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->bq && IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
      dec_cont->num_buffers = dec_cont->num_buffers_reserved;
@@ -906,21 +944,75 @@ void Vp9ResetDecState(struct Vp9DecContainer *dec_cont) {
     }
   }
 
-  dec_cont->asic_buff->out_buffer_i = EMPTY_MARKER;
-  dec_cont->asic_buff->out_pp_buffer_i = EMPTY_MARKER;
+  dec_cont->asic_buff->out_buffer_i = VP9_UNDEFINED_BUFFER;
+  dec_cont->asic_buff->out_pp_buffer_i = VP9_UNDEFINED_BUFFER;
+  dec_cont->asic_buff->show_existing_buffer_i = VP9_UNDEFINED_BUFFER;
   dec_cont->no_decoding_buffer = 0;
 }
 
+enum DecRet Vp9DecRemoveBuffer(Vp9DecInst dec_inst)
+{
+  struct Vp9DecContainer *dec_cont = (struct Vp9DecContainer *)dec_inst;
+  struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+
+  for (u32  i = 0; i < dec_cont->num_buffers; i++) {
+    Vp9BufferQueueEmptyRef(dec_cont->bq, i);
+    asic_buff->display_index[i] = 0;
+  }
+
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
+      IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
+    for (u32 i = 0; i < dec_cont->num_pp_buffers; i++) {
+      Vp9BufferQueueEmptyRef(dec_cont->pp_bq, i);
+      asic_buff->display_index[i] = 0;
+    }
+  }
+
+  Vp9ResetDecState(dec_cont);
+
+  dec_cont->buffer_index = 0;
+  dec_cont->buf_num = dec_cont->min_buffer_num;
+  dec_cont->buffer_num_added = 0;
+  dec_cont->next_buf_size = 0;
+  DWLmemset(asic_buff->first_show, 0, VP9DEC_MAX_PIC_BUFFERS * sizeof(i32));
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
+      IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
+    asic_buff->out_pp_buffer_i = VP9_UNDEFINED_BUFFER;
+    DWLmemset(asic_buff->pp_buffer_map, 0, VP9DEC_MAX_PIC_BUFFERS * sizeof(i32));
+    DWLmemset(asic_buff->pp_pictures, 0, VP9DEC_MAX_PIC_BUFFERS * sizeof(struct DWLLinearMem));
+  }
+
+  if (dec_cont->bq && IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+     dec_cont->num_buffers = dec_cont->num_buffers_reserved;
+     Vp9BufferQueueRelease(dec_cont->bq, 0);
+     dec_cont->bq = Vp9BufferQueueInitialize(dec_cont->num_buffers);
+  }
+
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
+      IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
+    dec_cont->num_pp_buffers = 0;
+    if (dec_cont->pp_bq) {
+      vp9BufferQueueReset2(dec_cont->pp_bq);
+    }
+  }
+
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return DEC_OK;
+}
+
 enum DecRet Vp9DecAbort(Vp9DecInst dec_inst) {
+  if (dec_inst == NULL) {
+    return DEC_PARAM_ERROR;
+  }
+
   struct Vp9DecContainer *dec_cont = (struct Vp9DecContainer *)dec_inst;
   enum FifoRet ret;
   FifoObject tmp;
   BufferQueue queue;
   FifoInst fifo = dec_cont->fifo_display;
 
-  if (dec_inst == NULL) {
-    return DEC_PARAM_ERROR;
-  }
+
 
   pthread_mutex_lock(&dec_cont->protect_mutex);
 

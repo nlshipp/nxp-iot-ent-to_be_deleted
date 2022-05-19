@@ -250,6 +250,7 @@ u32 Vp9DecodeFrameTag(const u8 *strm, u32 data_len,
     } else {
       if (dec->vp_version == 1) {
         dec->subsampling_x = dec->subsampling_y = 0;
+        (void)(tmp);
         tmp = SwGetBits(&rb, 1);
         STREAM_TRACE("Alpha plane", tmp);
       } else {
@@ -302,6 +303,7 @@ u32 Vp9DecodeFrameTag(const u8 *strm, u32 data_len,
           if (dec->vp_version == 1) {
             dec->subsampling_x = SwGetBits(&rb, 1);
             dec->subsampling_y = SwGetBits(&rb, 1);
+            (void)(tmp);
             tmp = SwGetBits(&rb, 1);
             STREAM_TRACE("Subsampling X", dec->subsampling_x);
             STREAM_TRACE("Subsampling Y", dec->subsampling_y);
@@ -312,6 +314,7 @@ u32 Vp9DecodeFrameTag(const u8 *strm, u32 data_len,
         } else {
           if (dec->vp_version == 1) {
             dec->subsampling_x = dec->subsampling_y = 0;
+            (void)(tmp);
             tmp = SwGetBits(&rb, 1);
             STREAM_TRACE("Alpha plane", tmp);
           } else {
@@ -425,6 +428,7 @@ u32 Vp9DecodeFrameTag(const u8 *strm, u32 data_len,
   /* Tile dimensions */
   GetTileNBits(dec, &dec->log2_tile_columns, &delta_log2_tiles);
   while (delta_log2_tiles--) {
+    (void)(tmp);
     tmp = SwGetBits(&rb, 1);
     if (tmp == END_OF_STREAM) return HANTRO_NOK;
     if (tmp) {

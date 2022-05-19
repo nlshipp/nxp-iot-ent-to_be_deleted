@@ -47,7 +47,7 @@ const void* NullsinkOpen(const char* fname) {
   return malloc(sizeof(struct NullSink));
 }
 
-void NullsinkWrite(const void* inst, struct DecPicture pic) {}
+void NullsinkWrite(const void* inst, const struct DecPicture* pic) {}
 
 void NullsinkClose(const void* inst) {
   free((void*)inst);

@@ -49,7 +49,7 @@ INCLUDE = -I../../source/inc -I../../source/jpeg -I../../source/dwl \
 	  -I../../source/config -I../../source/common -I../common/swhw
 
 DECLIBDIR = -L../../linux/jpeg -L../../linux/dwl -L../common/swhw \
-	    -L../../../lib -L../common/utils
+	    -L../../../system/models/g1hw -L../common/utils
 DECLIB = libx170j.a
 DWLLIB = libdwlx170.a
 TBLIB = libtbcommon.a
@@ -192,7 +192,7 @@ pclinux_eval: test
 
 export SYSTEM_VERIFICATION_TEST
 
-test:  $(OBJS) 
+test: $(OBJS) 
 	$(CC) $(LDFLAGS) $(CFLAGS) $(OBJS) $(LIBS) -o $(TESTDEC) 
 
 lib:

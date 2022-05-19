@@ -67,12 +67,22 @@ HwCoreArray InitializeCoreArray() {
   u32 i;
   struct HwCoreArrayInstance* array =
     malloc(sizeof(struct HwCoreArrayInstance));
+  if (array == NULL)
+    return NULL;
   array->num_of_cores = GetCoreCount();
   sem_init(&array->core_lock, 0, array->num_of_cores);
 
   sem_init(&array->core_rdy, 0, 0);
 
   array->cores = calloc(array->num_of_cores, sizeof(struct HwCoreContainer));
+  if (array->cores == NULL) 
+  {
+    sem_destroy(&array->core_lock);
+    sem_destroy(&array->core_rdy);
+    free(array);
+    return NULL;
+  }
+
   assert(array->cores);
   for (i = 0; i < array->num_of_cores; i++) {
     array->cores[i].core = HwCoreInit();
@@ -113,10 +123,10 @@ Core BorrowHwCore(HwCoreArray inst) {
   return array->cores[i].core;
 }
 
-void ReturnHwCore(HwCoreArray inst, Core Core) {
+void ReturnHwCore(HwCoreArray inst, Core core) {
   struct HwCoreArrayInstance* array = (struct HwCoreArrayInstance*)inst;
 
-  HwCoreUnlock(Core);
+  HwCoreUnlock(core);
 
   sem_post(&array->core_lock);
 }

@@ -377,13 +377,16 @@ u32 mpeg2_strm_dec_decode_picture_header(DecContainer * dec_container) {
 
   tmp = dec_container->Hdrs.vbv_delay =
           mpeg2_strm_dec_get_bits(dec_container, 16);
+  (void) (tmp);
 
   if(dec_container->Hdrs.picture_coding_type == PFRAME ||
       dec_container->Hdrs.picture_coding_type == BFRAME) {
     tmp = dec_container->Hdrs.f_code[0][0] =
             mpeg2_strm_dec_get_bits(dec_container, 1);
+    (void) (tmp);
     tmp = dec_container->Hdrs.f_code[0][1] =
             mpeg2_strm_dec_get_bits(dec_container, 3);
+    (void) (tmp);
     if(dec_container->Hdrs.mpeg2_stream == MPEG1 &&
         dec_container->Hdrs.f_code[0][1] == 0) {
       return (HANTRO_NOK);
@@ -393,8 +396,10 @@ u32 mpeg2_strm_dec_decode_picture_header(DecContainer * dec_container) {
   if(dec_container->Hdrs.picture_coding_type == BFRAME) {
     tmp = dec_container->Hdrs.f_code[1][0] =
             mpeg2_strm_dec_get_bits(dec_container, 1);
+    (void) (tmp);
     tmp = dec_container->Hdrs.f_code[1][1] =
             mpeg2_strm_dec_get_bits(dec_container, 3);
+    (void) (tmp);
     if(dec_container->Hdrs.mpeg2_stream == MPEG1 &&
         dec_container->Hdrs.f_code[1][1] == 0)
       return (HANTRO_NOK);
@@ -708,24 +713,31 @@ u32 mpeg2_strm_dec_decode_seq_display_ext_header(DecContainer * dec_container) {
 
   tmp = dec_container->Hdrs.video_format =
           mpeg2_strm_dec_get_bits(dec_container, 3);
+  (void)(tmp);
   tmp = dec_container->Hdrs.color_description =
           mpeg2_strm_dec_get_bits(dec_container, 1);
 
   if(dec_container->Hdrs.color_description) {
+    (void)(tmp);
     tmp = dec_container->Hdrs.color_primaries =
             mpeg2_strm_dec_get_bits(dec_container, 8);
+    (void)(tmp);
     tmp = dec_container->Hdrs.transfer_characteristics =
             mpeg2_strm_dec_get_bits(dec_container, 8);
+    (void)(tmp);
     tmp = dec_container->Hdrs.matrix_coefficients =
             mpeg2_strm_dec_get_bits(dec_container, 8);
   }
 
+  (void)(tmp);
   tmp = dec_container->Hdrs.display_horizontal_size =
           mpeg2_strm_dec_get_bits(dec_container, 14);
 
   /* marker bit ==> flush */
+  (void)(tmp);
   tmp = mpeg2_strm_dec_flush_bits(dec_container, 1);
 
+  (void)(tmp);
   tmp = dec_container->Hdrs.display_vertical_size =
           mpeg2_strm_dec_get_bits(dec_container, 14);
   if(tmp == END_OF_STREAM)
@@ -765,11 +777,13 @@ u32 mpeg2_strm_dec_decode_qmatrix_ext_header(DecContainer * dec_container) {
   if(p_hdr->load_intra_matrix == 1) {
     /* load intra matrix */
     for(i = 0; i < 64; i++) {
+      (void)(tmp);
       tmp = p_hdr->q_table_intra[scan_order[ZIGZAG][i]] =
               mpeg2_strm_dec_get_bits(dec_container, 8);
     }
   }
 
+  (void)(tmp);
   tmp = p_hdr->load_non_intra_matrix = mpeg2_strm_dec_get_bits(dec_container, 1);
   if(tmp == END_OF_STREAM)
     return (END_OF_STREAM);

@@ -52,7 +52,7 @@ DEBUG = y
 
 # Add your debugging flag (or not) to CFLAGS
 ifeq ($(DEBUG),y)
-  DEBFLAGS = -g -DDEBUG -D_ASSERT_USED -D_RANGE_CHECK -D_ERROR_PRINT
+  DEBFLAGS = -g -DDEBUG -D_ASSERT_USED -D_RANGE_CHECK
 else
   DEBFLAGS = -O3 -DNDEBUG
 endif
@@ -93,7 +93,7 @@ INCLUDE = -I. -I$(COMMON_SOURCE_DIR)/inc -I$(COMMON_SOURCE_DIR)/dwl \
 
 # compiler switches
 CFLAGS += -Wall -Wextra -std=c99 -pedantic -fPIC
-CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE)
+CFLAGS += $(ARCH) -D_GNU_SOURCE $(DEBFLAGS) $(INCLUDE) $(M32)
 
 ifeq ($(ASIC_TRACE_SUPPORT), y)
 	CFLAGS+=-DASIC_TRACE_SUPPORT

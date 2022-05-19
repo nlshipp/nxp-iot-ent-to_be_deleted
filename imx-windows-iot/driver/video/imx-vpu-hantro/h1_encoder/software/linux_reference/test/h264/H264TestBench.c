@@ -222,6 +222,10 @@ static option_s option[] = {
     {"noiseLow", '0', 1},
     {"noiseLevel", '0', 1},
 
+    {"vuiColordescription", '0', 1},
+    {"vuiVideoFormat", '0', 1},  /* videoformat, 0--component, 1--PAL, 2--NTSC, 3--SECAM, 4--MAC, 5--UNDEF */
+    {"vuiVideosignalPresent", '0', 1}, /* video signal type Present in vui, 0--NOT present, 1--present */
+
     {"input", 'i', 1},              /* "input" must be after "inputFormat" */
     {0, 0, 0}                       /* End of options */
 };
@@ -508,7 +512,8 @@ i32 Encode(i32 argc, char **argv, H264EncInst encoder, commandLine_s * cml)
         if(fmv == NULL)
         {
             fprintf(H264ERR_OUTPUT, "Failed to create mv.txt output file.\n");
-            return -1;
+            encodeFail = -1;
+            goto exit;
         }
     }
 
@@ -518,7 +523,8 @@ i32 Encode(i32 argc, char **argv, H264EncInst encoder, commandLine_s * cml)
         if(fscaled == NULL)
         {
             fprintf(H264ERR_OUTPUT, "Failed to create scaled.yuv output file.\n");
-            return -1;
+            encodeFail = -1;
+            goto exit;
         }
     }
 
@@ -542,7 +548,8 @@ i32 Encode(i32 argc, char **argv, H264EncInst encoder, commandLine_s * cml)
         if (pRoiMap == NULL)
         {
             fprintf(H264ERR_OUTPUT, "Fail to open config file %s\n", cml->roiMapIndexFile);
-            return -1;
+            encodeFail = -1;
+            goto exit;
         }
     }
 
@@ -567,7 +574,8 @@ i32 Encode(i32 argc, char **argv, H264EncInst encoder, commandLine_s * cml)
         {
            fprintf(H264ERR_OUTPUT, "Fail to Init Input Line Buffer: virt_addr=%08x, bus_addr=%08x\n",
                    (u32)(inputMbLineBuf.buf), (u32)(inputMbLineBuf.busAddress));
-           return -1;
+           encodeFail = -1;
+           goto exit;
         }
     }
 
@@ -783,6 +791,8 @@ i32 Encode(i32 argc, char **argv, H264EncInst encoder, commandLine_s * cml)
         printf("Average PSNR %d.%02d, average ssim  %.4f \n",
             (psnrSum/psnrCnt)/100, (psnrSum/psnrCnt)%100,ssimSum/psnrCnt);
     }
+
+exit:
 
     if (pRoiMap != NULL)
         free(pRoiMap);
@@ -1399,6 +1409,11 @@ int OpenEncoder(commandLine_s * cml, H264EncInst * pEnc)
         CloseEncoder(encoder);
         return (int)ret;
     }
+
+    H264EncSetVuiColorDescription(encoder, cml->vuiVideoSignalTypePresentFlag, cml->vuiVideoFormat, 
+                              cml->vuiColorDescripPresentFlag, cml->vuiColorPrimaries, 
+                              cml->vuiTransferCharacteristics, cml->vuiMatrixCoefficients);
+
     return 0;
 }
 
@@ -1533,6 +1548,13 @@ int Parameter(i32 argc, char **argv, commandLine_s * cml)
     cml->noiseReductionEnable = 0;
     cml->noiseLow = 5;
     cml->noiseLevel = 10;
+
+    cml->vuiColorDescripPresentFlag    = 0;
+    cml->vuiColorPrimaries             = 9;
+    cml->vuiTransferCharacteristics    = 0;
+    cml->vuiMatrixCoefficients         = 9;
+    cml->vuiVideoFormat                = 5;
+    cml->vuiVideoSignalTypePresentFlag = 0;
 
     argument.optCnt = 1;
     while((ret = EncGetOption(argc, argv, option, &argument)) != -1)
@@ -1900,6 +1922,29 @@ int Parameter(i32 argc, char **argv, commandLine_s * cml)
               cml->noiseLow = atoi(optArg);
             if (strcmp(argument.longOpt, "noiseLevel") == 0)
               cml->noiseLevel = atoi(optArg);
+
+            if (strcmp(argument.longOpt, "vuiColordescription") == 0)
+            {
+              cml->vuiColorDescripPresentFlag = ENCHW_YES;
+        
+              /* Argument must be "xx:yy:zz".*/
+              if ((i = ParseDelim(optArg, ':')) == -1) break;
+              cml->vuiColorPrimaries = atoi(optArg);
+        
+              optArg += i + 1;
+              if ((i = ParseDelim(optArg, ':')) == -1) break;
+              cml->vuiTransferCharacteristics = atoi(optArg);
+        
+              optArg += i + 1;
+              cml->vuiMatrixCoefficients = atoi(optArg);
+            }
+        
+            if (strcmp(argument.longOpt, "vuiVideoFormat") == 0)
+              cml->vuiVideoFormat = atoi(optArg);
+        
+            if (strcmp(argument.longOpt, "vuiVideosignalPresent") == 0)
+              cml->vuiVideoSignalTypePresentFlag = atoi(optArg);
+
             break;
 
         default:
@@ -2133,6 +2178,8 @@ u8* ReadRoiMap(H264EncInst encoder, char *filename, i32 width, i32 height)
                 if (qpdelta < 0||qpdelta > 3)
                 {
                     printf("ROI index out of range.\n");
+                    fclose(fIn);
+                    free(ptr);
                     return NULL;
                 }
                 *(data++) = (char)qpdelta;
@@ -2451,6 +2498,26 @@ void Help(void)
             "                                   2 = enable NR with fixed noise parameters. \n"
             "        --noiseLow                 minimum noise value[5]. \n"
             "        --noiseLevel               noise estimation for start frames[10].\n");
+
+    fprintf(stdout,
+            "\nColor parameters in VUI:\n" 
+            "        --vuiColordescription=primary:transfer:matrix    Color description in the vui.\n"
+            "                       primary : 0..9 Index of chromaticity coordinates in Table E.3 in HEVC spec [9]\n"
+            "                       transfer: 0..2 The reference opto-electronic transfer characteristic\n"
+            "                                  function of the source picture in Table E.4 in HEVC spec [0]\n"
+            "                                  0 = ITU-R BT.2020, 1 = SMPTE ST 2084, 2 = ARIB STD-B67\n"
+            "                       matrix  : 0..9 Index of matrix coefficients used in deriving luma and chroma signals \n"
+            "                                from the green, blue, and red or Y, Z, and X primaries in Table E.5 in HEVC spec [9]\n"
+            "        --vuiVideoFormat           0..5 video_format in the vui.[5]\n"
+            "                        0--component\n"
+            "                        1--PAL\n"
+            "                        2--NTSC\n"
+            "                        3--SECAM\n"
+            "                        4--MAC\n"
+            "                        5--UNDEF\n"
+            "        --vuiVideosignalPresent    0..1 video signal type Present in the vui.[0]\n"
+            "                        0-- video signal type NOT Present in the vui\n"
+            "                        1-- video signal type Present in the vui\n");
 
     fprintf(stdout,
             "\nTesting parameters that are not supported for end-user:\n"

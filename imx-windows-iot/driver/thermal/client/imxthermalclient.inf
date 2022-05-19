@@ -1,11 +1,6 @@
 ; Copyright (c) Microsoft Corporation. All rights reserved.
-; Copyright 2020 NXP
+; Copyright 2022 NXP
 ; Licensed under the MIT License.
-
-;*****************************************
-; Class section
-;*****************************************
-
 
 [Version]
 Signature="$WINDOWS NT$"
@@ -28,7 +23,7 @@ imxthermalclient.sys  = 1,,
 ;********************************************
 
 [Manufacturer]
-%StdMfg%=Standard,NT$ARCH$
+%ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
 %imxthermalclient.DeviceDesc% = imxthermalclient_Device, ACPI\NXP0115
@@ -54,16 +49,17 @@ AddService = imxthermalclient,%SPSVCINST_ASSOCSERVICE%,imxthermalclient_Service_
 ; -------------- imxthermalclient driver install sections
 
 [imxthermalclient_Service_Inst]
-DisplayName    = %imxthermalclient.SVCDESC%
+DisplayName    = %imxthermalclient.SvcDesc%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %13%\imxthermalclient.sys
 
 [Strings]
+ProviderName                 = "NXP"
+ManufacturerName             = "NXP Semiconductors"
+imxthermalclient.DeviceDesc  = "i.MX Thermal Client Device"
+imxthermalclient.SvcDesc     = "i.MX Thermal Client Device Service"
+
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ProviderName = "NXP"
-StdMfg = "(Standard system devices)"
 DiskId1 = "Thermal Client Installation Disk #1"
-imxthermalclient.DeviceDesc = "Thermal Client Device"
-imxthermalclient.SVCDESC = "Thermal Client Driver"

@@ -243,6 +243,8 @@ RvDecRet RvDecPeek(RvDecInst dec_inst, RvDecPicture * picture);
 #ifdef USE_EXTERNAL_BUFFER
 RvDecRet RvDecGetBufferInfo(RvDecInst dec_inst, RvDecBufferInfo *mem_info);
 
+RvDecRet RvDecRemoveBuffer(RvDecInst dec_inst);
+
 RvDecRet RvDecAddBuffer(RvDecInst dec_inst, struct DWLLinearMem *info);
 #endif
 #ifdef USE_OUTPUT_RELEASE

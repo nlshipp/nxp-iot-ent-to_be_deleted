@@ -177,6 +177,7 @@ u32 HevcDecodeSliceHeader(struct StrmData* stream,
       u32 len;
 
       if (seq_param_set->num_long_term_ref_pics) {
+        (void)(tmp);
         tmp = HevcDecodeExpGolombUnsigned(stream, &value);
         if (tmp != HANTRO_OK) return (tmp);
         if (value > MAX_NUM_LT_REF_PICS_SPS) {
@@ -185,6 +186,7 @@ u32 HevcDecodeSliceHeader(struct StrmData* stream,
         }
         slice_header->num_long_term_sps = value;
       }
+      (void)(tmp);
       tmp = HevcDecodeExpGolombUnsigned(stream, &value);
       if (tmp != HANTRO_OK) return (tmp);
       if (value > MAX_NUM_LT_REF_PICS_SPS) {
@@ -241,11 +243,13 @@ u32 HevcDecodeSliceHeader(struct StrmData* stream,
     stream->emul_byte_count += tmp_count;
 
     if (seq_param_set->temporal_mvp_enable) {
+      (void)(tmp);
       tmp = SwGetBits(stream, 1);
       if (tmp == END_OF_STREAM) return(HANTRO_NOK);
     }
 
     if (seq_param_set->sample_adaptive_offset_enable) {
+      (void)(tmp);
       tmp = SwGetBits(stream, 1);
       if (tmp == END_OF_STREAM) return(HANTRO_NOK);
       tmp = SwGetBits(stream, 1);
@@ -253,6 +257,7 @@ u32 HevcDecodeSliceHeader(struct StrmData* stream,
     }
     if (IS_P_SLICE(slice_header->slice_type) ||
         IS_B_SLICE(slice_header->slice_type)) {
+      (void)(tmp);
       tmp = SwGetBits(stream, 1);
       if (tmp == END_OF_STREAM) return(HANTRO_NOK);
       if (tmp) {

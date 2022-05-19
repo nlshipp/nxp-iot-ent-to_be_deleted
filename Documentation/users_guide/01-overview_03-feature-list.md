@@ -4,30 +4,30 @@ Feature List per Board {#feature-list}
 Table: Overview of the currently supported features for every board.
 
 
-| Feature      |   MCIMX8M-EVK     |
-|:-------------|:-----------------:|
-| BSP name     | NXPEVK_IMX8M_4GB  |
-| SD Card boot |         Y         |
-| eMMC boot    |         Y         |
-| Audio        |         Y         |
-| GPIO         |         Y         |
-| I2C          |         Y         |
-| Ethernet     |         Y         |
-| PWM          |         Y         |
-| SD Card      |         Y         |
-| eMMC         |         Y         |
-| SPI (master) |        N/A        |
-| Display      |         Y         |
-| UART         |         Y*        |
-| USB (host)   |         Y         |
-| PCIe         |         Y         |
-| TrEE         |         Y         |
-| M4           |        N**        |
-| Processor PM |         Y         |
-| Device PM    |        N**        |
-| LP standby   |        N**        |
-| Display PM   |         Y         |
-| DMA          |         Y         |
+| Feature      |   MCIMX8M-EVK     |    8MMINILPD4-EVK     |
+|:-------------|:-----------------:|:--------------------: |
+| BSP name     | NXPEVK_IMX8M_4GB  | NXPEVK_iMX8M_Mini_2GB |
+| SD Card boot |         Y         |            Y          |
+| eMMC boot    |         Y         |            Y          |
+| Audio        |         Y         |            Y          |
+| GPIO         |         Y         |            Y          |
+| I2C          |         Y         |            Y          |
+| Ethernet     |         Y         |            Y          |
+| PWM          |         Y         |            Y          |
+| SD Card      |         Y         |            Y          |
+| eMMC         |         Y         |            Y          |
+| SPI (master) |        N/A        |           N/A         |
+| Display      |         Y         |            Y          |
+| UART         |         Y*        |            Y*         |
+| USB (host)   |         Y         |            Y          |
+| PCIe         |         Y         |            Y          |
+| TrEE         |         Y         |            Y          |
+| Processor PM |         Y         |            Y          |
+| Device PM    |        N**        |           N**         |
+| LP standby   |        N**        |           N**         |
+| Display PM   |         Y         |            Y          |
+| DMA          |         Y         |            Y          |
+| VPU          |         Y         |            Y          |
 
 | Legend | Meaning                                                                       |
 |:-------|:------------------------------------------------------------------------------|

@@ -235,7 +235,7 @@ void h264bsdInitRefPicList(dpbStorage_t * dpb);
 void *h264bsdAllocateDpbImage(dpbStorage_t * dpb);
 
 i32 h264bsdGetRefPicData(const dpbStorage_t * dpb, u32 index);
-u8 *h264bsdGetRefPicDataVlcMode(const dpbStorage_t * dpb, u32 index,
+struct DWLLinearMem  h264bsdGetRefPicDataVlcMode(const dpbStorage_t * dpb, u32 index,
                                 u32 field_mode);
 
 u32 h264bsdReorderRefPicList(dpbStorage_t * dpb,

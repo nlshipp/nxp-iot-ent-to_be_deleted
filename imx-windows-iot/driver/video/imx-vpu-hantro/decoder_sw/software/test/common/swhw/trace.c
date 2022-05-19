@@ -58,7 +58,7 @@ u32 OpenAsicTraceFiles(void) {
 
   char trace_string[80];
   FILE *trace_cfg;
-  u32 i;
+  u32 i, j;
   u32 top = 0, all = 0;
 
   /* traces already opened */
@@ -69,7 +69,7 @@ u32 OpenAsicTraceFiles(void) {
     return (0);
   }
 
-  while (fscanf(trace_cfg, "%s\n", trace_string) != EOF) {
+  while (fscanf(trace_cfg, "%79s\n", trace_string) != EOF) {
     if (!strcmp(trace_string, "toplevel")) top = 1;
 
     if (!strcmp(trace_string, "all")) all = 1;
@@ -131,10 +131,20 @@ u32 OpenAsicTraceFiles(void) {
     if (all || (top && trace_files[i].top_level)) {
       trace_files[i].fid =
         fopen(trace_files[i].name, trace_files[i].bin ? "wb" : "w");
-      if (trace_files[i].fid == NULL) return 1;
+      if (trace_files[i].fid == NULL) {
+        for (j = 0; j < i; j++) {
+          if (strlen(trace_files[j].name) == 0) break;
+          if (trace_files[j].fid) {
+            fclose(trace_files[j].fid);
+            trace_files[j].fid = NULL;
+          }
+        }
+        fclose(trace_cfg);
+        return 0;
+      }
     }
   }
-
+  fclose(trace_cfg);
   return (1);
 }
 

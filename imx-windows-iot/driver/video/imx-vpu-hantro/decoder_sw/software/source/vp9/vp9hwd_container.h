@@ -182,6 +182,9 @@ struct DecAsicBuffers {
   i32 out_buffer_i;
   i32 prev_out_buffer_i;
 
+  /* Buffer index which is used to store existing frame */
+  i32 show_existing_buffer_i;
+
 #ifdef USE_EXTERNAL_BUFFER
   /* Indexes for picture buffers in raster[]/dscale[] array */
   i32 out_pp_buffer_i;
@@ -221,9 +224,11 @@ struct Vp9DecContainer {
 
   BufferQueue bq;
 #ifdef USE_EXTERNAL_BUFFER
+  u32 use_adaptive_buffers;
   u32 num_pp_buffers;
   BufferQueue pp_bq;  /* raster/dscale buffer queue for free raster output buffer. */
   u32 min_buffer_num; /* Minimum external buffer needed. */
+  u32 ext_buffer_size;    /* size of external buffers allocated already */
 #endif
 
   u32 intra_only;
@@ -291,6 +296,7 @@ struct Vp9DecContainer {
   u32 min_dec_pic_height;
 
   u32 secure_mode;
+  u32 cts_test;
 };
 
 #endif /* #ifdef VP9HWD_CONTAINER_H */

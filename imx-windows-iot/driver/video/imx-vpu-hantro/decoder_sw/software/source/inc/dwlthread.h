@@ -38,25 +38,26 @@
 #ifndef __DWL_THREAD_H__
 #define __DWL_THREAD_H__
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+
 
 /* This header file is the POSIX pthread.h and semaphore.h entry point
  * for the entire decoder. If pthread cannot be used the decoder can be
  * directed to use a replacing implementation via this interface. */
 
 /* Undefine _HAVE_PTHREAD_H to replace POSIX pthread.h and semaphore.h */
-#define _HAVE_PTHREAD_H
+// #define _HAVE_PTHREAD_H
 
 #ifdef _HAVE_PTHREAD_H
 #include <pthread.h>
 #include <semaphore.h>
 #else
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /* The following error check can be removed when inplementation available. */
-#error "Threading and semaphore interface not implemented."
+//#error "Threading and semaphore interface not implemented."
 
 #define  DWL_PLACEHOLDER_VALUE 0
 typedef void * DWL_PLACEHOLDER_TYPE;
@@ -99,6 +100,9 @@ int pthread_join(pthread_t thread, void **retval);
 int pthread_attr_init(pthread_attr_t *attr);
 int pthread_attr_destroy(pthread_attr_t *attr);
 int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _POSIX_THREADS */
 #endif /* __DWL_THREAD_H__ */

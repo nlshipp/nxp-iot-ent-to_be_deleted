@@ -85,8 +85,9 @@ static enum ParseResult ParseBlock(FILE *fid, char *block, u32 *line,
   enum ParseMode prev_mode = CFG_MODE_IDLE;
   enum ParseResult sub_block_res;
   enum TBCfgCallbackResult cb_result;
-  char blk[1024];
-  char val[1024];
+  char blk[1024] = {0};
+  char val[1024] = {0};
+  int c;
   char escape;
   i32 blk_len = 0;
   i32 val_len = 0;
@@ -95,7 +96,11 @@ static enum ParseResult ParseBlock(FILE *fid, char *block, u32 *line,
   ASSERT(callback);
 
   while (!feof(fid)) {
-    char ch = fgetc(fid); /* read char from file */
+    char ch;
+    if ((c = fgetc(fid)) != EOF) /* read char from file */
+      ch = (char)c;
+    else
+      break;
     /* Check for comments, if we are not parsing for a key value.
        If 1st comment start mark encountered, check that next
        mark is OK also. Otherwise roll back. */
@@ -105,7 +110,8 @@ static enum ParseResult ParseBlock(FILE *fid, char *block, u32 *line,
         mode = CFG_MODE_EAT_COMMENT; /* comment eating mode */
         continue;
       } else
-        fseek(fid, -1, SEEK_CUR); /* rollback */
+        if (fseek(fid, -1, SEEK_CUR) != 0) /* rollback */
+          fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     }
 
     switch (mode) {
@@ -191,17 +197,24 @@ static enum ParseResult ParseBlock(FILE *fid, char *block, u32 *line,
       if (val_len == 0 && isspace(ch)) {
         continue;
       } else if (ch == '\\') {/* escape char */
-        escape = fgetc(fid);
-        switch (escape) {
-        case '\\': /* back-slash */
-          val[val_len++] = '\\';
-          break;
-        case '\n': /* line continuation */
-          (*line)++;
-          break;
-        default:
-          fseek(fid, -1, SEEK_CUR); /* rollback */
-          break;
+        c = fgetc(fid);
+        if (c != EOF) {
+          escape = c;
+          switch (escape) {
+          case '\\': /* back-slash */
+            val[val_len++] = '\\';
+            break;
+          case '\n': /* line continuation */
+            (*line)++;
+            break;
+          default:
+            if (fseek(fid, -1, SEEK_CUR) != 0) /* rollback */
+              fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+            break;
+          }
+        } else {
+          if (fseek(fid, -1, SEEK_CUR) != 0) /* rollback */
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         }
       } else if (ch == '\n') {
         fprintf(stderr, "Unexpected line break, line %d\n", *line);
@@ -236,7 +249,8 @@ static enum ParseResult ParseBlock(FILE *fid, char *block, u32 *line,
         if (fgetc(fid) == '/')
           mode = prev_mode;
         else /* Comment doesn't end, rollback */
-          fseek(fid, -1, SEEK_CUR);
+          if (fseek(fid, -1, SEEK_CUR) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
       }
       break;
     }

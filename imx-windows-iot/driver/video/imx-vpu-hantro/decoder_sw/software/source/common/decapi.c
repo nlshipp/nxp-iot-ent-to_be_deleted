@@ -94,15 +94,15 @@ struct Command {
 
 struct DecoderWrapper {
   void* inst;
-  enum DecRet (*init)(const void** inst, struct DecConfig config,
+  enum DecRet (*init)(const void** inst, struct DecConfig* config,
                       const void *dwl);
   enum DecRet (*GetInfo)(void* inst, struct DecSequenceInfo* info);
   enum DecRet (*Decode)(void* inst, struct DWLLinearMem input, struct DecOutput* output,
-                        u8* stream, u32 strm_len, struct DWL dwl, u32 pic_id);
+                        u8* stream, u32 strm_len, struct DWL* dwl, u32 pic_id);
   enum DecRet (*NextPicture)(void* inst, struct DecPicture* pic,
-                             struct DWL dwl);
-  enum DecRet (*PictureConsumed)(void* inst, struct DecPicture pic,
-                                 struct DWL dwl);
+                             struct DWL* dwl);
+  enum DecRet (*PictureConsumed)(void* inst, struct DecPicture* pic,
+                                 struct DWL* dwl);
   enum DecRet (*EndOfStream)(void* inst);
   void (*Release)(void* inst);
 #ifdef USE_EXTERNAL_BUFFER
@@ -158,15 +158,15 @@ static void SetState(DecoderInstance* inst, enum DecodingState state);
 
 /* Hevc codec wrappers. */
 #ifdef ENABLE_HEVC_SUPPORT
-static enum DecRet HevcInit(const void** inst, struct DecConfig config,
+static enum DecRet HevcInit(const void** inst, struct DecConfig* config,
                             const void *dwl);
 static enum DecRet HevcGetInfo(void* inst, struct DecSequenceInfo* info);
 static enum DecRet HevcDecode(void* inst, struct DWLLinearMem input, struct DecOutput* output,
-                              u8* stream, u32 strm_len, struct DWL dwl, u32 pic_id);
+                              u8* stream, u32 strm_len, struct DWL* dwl, u32 pic_id);
 static enum DecRet HevcNextPicture(void* inst, struct DecPicture* pic,
-                                   struct DWL dwl);
-static enum DecRet HevcPictureConsumed(void* inst, struct DecPicture pic,
-                                       struct DWL dwl);
+                                   struct DWL* dwl);
+static enum DecRet HevcPictureConsumed(void* inst, struct DecPicture* pic,
+                                       struct DWL* dwl);
 static enum DecRet HevcEndOfStream(void* inst);
 #ifdef USE_EXTERNAL_BUFFER
 static enum DecRet HevcGetBufferInfo(void *inst, struct DecBufferInfo *buf_info);
@@ -180,15 +180,15 @@ static void HevcStreamDecoded(void* inst);
 
 #ifdef ENABLE_VP9_SUPPORT
 /* VP9 codec wrappers. */
-static enum DecRet Vp9Init(const void** inst, struct DecConfig config,
+static enum DecRet Vp9Init(const void** inst, struct DecConfig* config,
                            const void *dwl);
 static enum DecRet Vp9GetInfo(void* inst, struct DecSequenceInfo* info);
 static enum DecRet Vp9Decode(void* inst, struct DWLLinearMem input, struct DecOutput* output,
-                             u8* stream, u32 strm_len, struct DWL dwl, u32 pic_id);
+                             u8* stream, u32 strm_len, struct DWL* dwl, u32 pic_id);
 static enum DecRet Vp9NextPicture(void* inst, struct DecPicture* pic,
-                                  struct DWL dwl);
-static enum DecRet Vp9PictureConsumed(void* inst, struct DecPicture pic,
-                                      struct DWL dwl);
+                                  struct DWL* dwl);
+static enum DecRet Vp9PictureConsumed(void* inst, struct DecPicture* pic,
+                                      struct DWL* dwl);
 static enum DecRet Vp9EndOfStream(void* inst);
 #ifdef USE_EXTERNAL_BUFFER
 static enum DecRet Vp9GetBufferInfo(void *inst, struct DecBufferInfo *buf_info);
@@ -212,7 +212,7 @@ struct DecSwHwBuild DecGetBuild(void) {
 }
 
 enum DecRet DecInit(enum DecCodec codec, DecInst* decoder,
-                    struct DecConfig config, struct DecClientHandle client) {
+                    struct DecConfig* config, struct DecClientHandle client) {
   if (decoder == NULL || client.Initialized == NULL ||
       client.HeadersDecoded == NULL || client.BufferDecoded == NULL ||
       client.PictureReady == NULL || client.EndOfStream == NULL ||
@@ -220,10 +220,10 @@ enum DecRet DecInit(enum DecCodec codec, DecInst* decoder,
     return DEC_PARAM_ERROR;
   }
 
-  DecoderInstance* inst = config.dwl.calloc(1, sizeof(DecoderInstance));
+  DecoderInstance* inst = config->dwl.calloc(1, sizeof(DecoderInstance));
   if (inst == NULL) return DEC_MEMFAIL;
-  inst->dwl = config.dwl;
-  inst->dwl_inst = config.dwl_inst;
+  inst->dwl = config->dwl;
+  inst->dwl_inst = config->dwl_inst;
   if (FifoInit(MAX_FIFO_CAPACITY, &inst->input_queue) != FIFO_OK) {
     inst->dwl.free(inst);
     return DEC_MEMFAIL;
@@ -278,8 +278,10 @@ enum DecRet DecInit(enum DecCodec codec, DecInst* decoder,
   SetState(inst, DECODER_WAITING_HEADERS);
   *decoder = inst;
   struct Command* command = inst->dwl.calloc(1, sizeof(struct Command));
+  if (command == NULL)
+    return DEC_MEMFAIL;
   command->id = COMMAND_INIT;
-  command->params.config = config;
+  command->params.config = *config;
   FifoPush(inst->input_queue, command, FIFO_EXCEPTION_DISABLE);
   return DEC_OK;
 }
@@ -297,6 +299,8 @@ enum DecRet DecDecode(DecInst dec_inst, struct DecInput* input) {
   case DECODER_DECODING:
   case DECODER_SHUTTING_DOWN: {
     struct Command* command = inst->dwl.calloc(1, sizeof(struct Command));
+    if (command == NULL)
+      return DEC_MEMFAIL;
     command->id = COMMAND_DECODE;
     inst->dwl.memcpy(&command->params.input, input, sizeof(struct DecInput));
     FifoPush(inst->input_queue, command, FIFO_EXCEPTION_DISABLE);
@@ -361,7 +365,7 @@ enum DecRet DecUseExtraFrmBuffers(DecInst dec_inst, u32 n) {
   return ret;
 }
 
-enum DecRet DecPictureConsumed(DecInst dec_inst, struct DecPicture picture) {
+enum DecRet DecPictureConsumed(DecInst dec_inst, struct DecPicture* picture) {
   if (dec_inst == NULL) {
     return DEC_PARAM_ERROR;
   }
@@ -371,7 +375,7 @@ enum DecRet DecPictureConsumed(DecInst dec_inst, struct DecPicture picture) {
   case DECODER_WAITING_RESOURCES:
   case DECODER_DECODING:
   case DECODER_SHUTTING_DOWN:
-    inst->dec.PictureConsumed(inst->dec.inst, picture, inst->dwl);
+    inst->dec.PictureConsumed(inst->dec.inst, picture, &(inst->dwl));
     return DEC_OK;
   default:
     return DEC_NOT_INITIALIZED;
@@ -391,6 +395,8 @@ enum DecRet DecEndOfStream(DecInst dec_inst) {
   case DECODER_DECODING:
   case DECODER_SHUTTING_DOWN:
     command = inst->dwl.calloc(1, sizeof(struct Command));
+    if (command == NULL)
+      return DEC_MEMFAIL;
     inst->dwl.memset(command, 0, sizeof(struct Command));
     command->id = COMMAND_END_OF_STREAM;
     FifoPush(inst->input_queue, command, FIFO_EXCEPTION_DISABLE);
@@ -407,6 +413,8 @@ void DecRelease(DecInst dec_inst) {
   /* Abort the current command (it may be long-lasting task). */
   SetState(inst, DECODER_SHUTTING_DOWN);
   struct Command* command = inst->dwl.calloc(1, sizeof(struct Command));
+  if (command == NULL)
+      return;
   inst->dwl.memset(command, 0, sizeof(struct Command));
   command->id = COMMAND_RELEASE;
   FifoPush(inst->input_queue, command, FIFO_EXCEPTION_DISABLE);
@@ -484,7 +492,7 @@ static void* DecodeLoop(void* arg) {
 static void Initialize(DecoderInstance* inst) {
   enum DecRet rv =
     inst->dec.init((const void**)&inst->dec.inst,
-                   inst->current_command->params.config, inst->dwl_inst);
+                   &(inst->current_command->params.config), inst->dwl_inst);
   if (rv == DEC_OK)
     inst->client.Initialized(inst->client.client);
   else
@@ -523,7 +531,7 @@ static void Decode(DecoderInstance* inst) {
     stream = inst->buffer_status.strm_curr_pos;
     strm_len = inst->buffer_status.data_left;
     rv = inst->dec.Decode(inst->dec.inst, buffer, &inst->buffer_status, stream,
-                          strm_len, inst->dwl, inst->num_of_decoded_pics + 1);
+                          strm_len, &(inst->dwl), inst->num_of_decoded_pics + 1);
     if (GetState(inst) == DECODER_SHUTTING_DOWN) {
       break;
     }
@@ -616,10 +624,10 @@ static void* OutputLoop(void* arg) {
       break;
     case DECODER_WAITING_HEADERS:
     case DECODER_DECODING:
-      while ((rv = inst->dec.NextPicture(inst->dec.inst, &pic, inst->dwl)) ==
+      while ((rv = inst->dec.NextPicture(inst->dec.inst, &pic, &(inst->dwl))) ==
              DEC_PIC_RDY) {
         inst->picture_in_display = 1;
-        inst->client.PictureReady(inst->client.client, pic);
+        inst->client.PictureReady(inst->client.client, &pic);
         inst->picture_in_display = 0;
       }
       if (rv == DEC_END_OF_STREAM) {
@@ -655,36 +663,37 @@ static void SetState(DecoderInstance* inst, enum DecodingState state) {
     "DECODER_DECODING",        "DECODER_SHUTTING_DOWN"
   };
   inst->dwl.pthread_mutex_lock(&inst->cs_mutex);
-  inst->dwl.printf("Decoder state change: %s => %s\n", states[inst->state],
-                   states[state]);
+  if (states[inst->state] != states[state])
+    inst->dwl.printf("Decoder state change: %s => %s\n", states[inst->state],
+                     states[state]);
   inst->state = state;
   inst->dwl.pthread_mutex_unlock(&inst->cs_mutex);
 }
 
 #ifdef ENABLE_HEVC_SUPPORT
-static enum DecRet HevcInit(const void** inst, struct DecConfig config,
+static enum DecRet HevcInit(const void** inst, struct DecConfig* config,
                             const void *dwl) {
-  struct HevcDecConfig dec_cfg;
+  struct HevcDecConfig dec_cfg = { 0 };
   enum DecRet ret;
-  dec_cfg.no_output_reordering = config.disable_picture_reordering;
-  dec_cfg.use_video_freeze_concealment = config.concealment_mode;
-  dec_cfg.use_video_compressor = config.use_video_compressor;
-  dec_cfg.use_fetch_one_pic = config.use_fetch_one_pic;
-  dec_cfg.use_ringbuffer = config.use_ringbuffer;
-  dec_cfg.output_format = config.output_format;
+  dec_cfg.no_output_reordering = config->disable_picture_reordering;
+  dec_cfg.use_video_freeze_concealment = config->concealment_mode;
+  dec_cfg.use_video_compressor = config->use_video_compressor;
+  dec_cfg.use_fetch_one_pic = config->use_fetch_one_pic;
+  dec_cfg.use_ringbuffer = config->use_ringbuffer;
+  dec_cfg.output_format = config->output_format;
 #ifdef USE_EXTERNAL_BUFFER
   dec_cfg.guard_size = 0;
   dec_cfg.use_adaptive_buffers = 0;
 #endif
-  if (config.use_8bits_output)
+  if (config->use_8bits_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_CUT_8BIT;
-  else if (config.use_p010_output)
+  else if (config->use_p010_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_P010;
-  else if (config.use_bige_output)
+  else if (config->use_bige_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_CUSTOMER1;
   else
     dec_cfg.pixel_format = DEC_OUT_PIXEL_DEFAULT;
-  dec_cfg.dscale_cfg = config.dscale_cfg;
+  dec_cfg.dscale_cfg = config->dscale_cfg;
 
   START_SW_PERFORMANCE;
   ret=HevcDecInit(inst, dwl, &dec_cfg);
@@ -717,12 +726,12 @@ static enum DecRet HevcGetInfo(void* inst, struct DecSequenceInfo* info) {
 }
 
 static enum DecRet HevcDecode(void* inst, struct DWLLinearMem input, struct DecOutput* output,
-                              u8* stream, u32 strm_len, struct DWL dwl, u32 pic_id) {
+                              u8* stream, u32 strm_len, struct DWL* dwl, u32 pic_id) {
   enum DecRet rv;
   struct HevcDecInput hevc_input;
   struct HevcDecOutput hevc_output;
-  dwl.memset(&hevc_input, 0, sizeof(hevc_input));
-  dwl.memset(&hevc_output, 0, sizeof(hevc_output));
+  dwl->memset(&hevc_input, 0, sizeof(hevc_input));
+  dwl->memset(&hevc_output, 0, sizeof(hevc_output));
   hevc_input.stream = (u8*)stream;
   hevc_input.stream_bus_address = input.bus_address + ((addr_t)stream - (addr_t)input.virtual_address);
   hevc_input.data_len = strm_len;
@@ -742,11 +751,11 @@ static enum DecRet HevcDecode(void* inst, struct DWLLinearMem input, struct DecO
 }
 
 static enum DecRet HevcNextPicture(void* inst, struct DecPicture* pic,
-                                   struct DWL dwl) {
+                                   struct DWL* dwl) {
   enum DecRet rv;
   struct HevcDecPicture hpic;
   rv = HevcDecNextPicture(inst, &hpic);
-  dwl.memset(pic, 0, sizeof(struct DecPicture));
+  dwl->memset(pic, 0, sizeof(struct DecPicture));
   pic->luma.virtual_address = (u32*)hpic.output_picture;
   pic->luma.bus_address = hpic.output_picture_bus_address;
 #if 0
@@ -796,14 +805,14 @@ static enum DecRet HevcNextPicture(void* inst, struct DecPicture* pic,
   return rv;
 }
 
-static enum DecRet HevcPictureConsumed(void* inst, struct DecPicture pic,
-                                       struct DWL dwl) {
+static enum DecRet HevcPictureConsumed(void* inst, struct DecPicture* pic,
+                                       struct DWL* dwl) {
   struct HevcDecPicture hpic;
-  dwl.memset(&hpic, 0, sizeof(struct HevcDecPicture));
+  dwl->memset(&hpic, 0, sizeof(struct HevcDecPicture));
   /* TODO update chroma luma/chroma base */
-  hpic.output_picture = pic.luma.virtual_address;
-  hpic.output_picture_bus_address = pic.luma.bus_address;
-  hpic.is_idr_picture = pic.picture_info.pic_coding_type == DEC_PIC_TYPE_I;
+  hpic.output_picture = pic->luma.virtual_address;
+  hpic.output_picture_bus_address = pic->luma.bus_address;
+  hpic.is_idr_picture = pic->picture_info.pic_coding_type == DEC_PIC_TYPE_I;
   return HevcDecPictureConsumed(inst, &hpic);
 }
 
@@ -846,28 +855,33 @@ static void HevcStreamDecoded(void* dec_inst) {
 #endif /* ENABLE_HEVC_SUPPORT */
 
 #ifdef ENABLE_VP9_SUPPORT
-static enum DecRet Vp9Init(const void** inst, struct DecConfig config,
+static enum DecRet Vp9Init(const void** inst, struct DecConfig* config,
                            const void *dwl) {
-  enum DecPictureFormat format = config.output_format;
+  enum DecPictureFormat format = config->output_format;
   enum DecRet ret;
   struct Vp9DecConfig dec_cfg;
-  dec_cfg.use_video_freeze_concealment = config.concealment_mode;
+  dec_cfg.use_video_freeze_concealment = config->concealment_mode;
   dec_cfg.num_frame_buffers = 9;
   dec_cfg.dpb_flags = 4;
-  dec_cfg.use_video_compressor = config.use_video_compressor;
-  dec_cfg.use_fetch_one_pic = config.use_fetch_one_pic;
-  dec_cfg.use_ringbuffer = config.use_ringbuffer;
+  dec_cfg.use_video_compressor = config->use_video_compressor;
+  dec_cfg.use_fetch_one_pic = config->use_fetch_one_pic;
+  dec_cfg.use_ringbuffer = config->use_ringbuffer;
   dec_cfg.output_format = format;
-  if (config.use_8bits_output)
+  dec_cfg.use_cts_test = 0;
+  dec_cfg.use_secure_mode = 0;
+#ifdef USE_EXTERNAL_BUFFER
+  dec_cfg.use_adaptive_buffers = 0;
+#endif
+  if (config->use_8bits_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_CUT_8BIT;
-  else if (config.use_p010_output)
+  else if (config->use_p010_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_P010;
-  else if (config.use_bige_output)
+  else if (config->use_bige_output)
     dec_cfg.pixel_format = DEC_OUT_PIXEL_CUSTOMER1;
   else
     dec_cfg.pixel_format = DEC_OUT_PIXEL_DEFAULT;
 
-  dec_cfg.dscale_cfg = config.dscale_cfg;
+  dec_cfg.dscale_cfg = config->dscale_cfg;
   
   START_SW_PERFORMANCE;
   ret=Vp9DecInit(inst, dwl, &dec_cfg);
@@ -952,12 +966,12 @@ static void ParseSuperframeIndex(const u8* data, size_t data_sz,
 }
 
 static enum DecRet Vp9Decode(void* inst, struct DWLLinearMem input, struct DecOutput* output,
-                             u8* stream, u32 strm_len, struct DWL dwl, u32 pic_id) {
-  enum DecRet rv;
+                             u8* stream, u32 strm_len, struct DWL* dwl, u32 pic_id) {
+  enum DecRet rv = DEC_OK;
   struct Vp9DecInput vp9_input;
   struct Vp9DecOutput vp9_output;
-  dwl.memset(&vp9_input, 0, sizeof(vp9_input));
-  dwl.memset(&vp9_output, 0, sizeof(vp9_output));
+  dwl->memset(&vp9_input, 0, sizeof(vp9_input));
+  dwl->memset(&vp9_output, 0, sizeof(vp9_output));
   vp9_input.stream = (u8*)stream;
   vp9_input.stream_bus_address = input.bus_address + ((addr_t)stream - (addr_t)input.virtual_address);
   vp9_input.data_len = strm_len;
@@ -1037,7 +1051,7 @@ static enum DecRet Vp9Decode(void* inst, struct DWLLinearMem input, struct DecOu
         usleep(10);
     } while (rv == DEC_NO_DECODING_BUFFER);
     /* Headers decoded or error occurred */
-    if (rv == DEC_HDRS_RDY || rv != DEC_PIC_DECODED) break;
+    if (rv == DEC_HDRS_RDY || (rv != DEC_PIC_DECODED && rv != DEC_PIC_CONSUMED)) break;
     else if (frames_this_pts) frame_count++;
 
     data_start += data_sz;
@@ -1092,11 +1106,11 @@ static enum DecRet Vp9Decode(void* inst, struct DWLLinearMem input, struct DecOu
 }
 
 static enum DecRet Vp9NextPicture(void* inst, struct DecPicture* pic,
-                                  struct DWL dwl) {
+                                  struct DWL* dwl) {
   enum DecRet rv;
   struct Vp9DecPicture vpic = {0};
   rv = Vp9DecNextPicture(inst, &vpic);
-  dwl.memset(pic, 0, sizeof(struct DecPicture));
+  dwl->memset(pic, 0, sizeof(struct DecPicture));
   pic->luma.virtual_address = (u32*)vpic.output_luma_base;
   pic->luma.bus_address = vpic.output_luma_bus_address;
   pic->luma.size = vpic.pic_stride * vpic.frame_height;
@@ -1122,7 +1136,7 @@ static enum DecRet Vp9NextPicture(void* inst, struct DecPicture* pic,
   pic->sequence_info.matrix_coefficients = 0;
   pic->sequence_info.is_mono_chrome = 0;
   pic->sequence_info.is_interlaced = 0;
-  pic->sequence_info.num_of_ref_frames = pic->sequence_info.num_of_ref_frames;
+  //pic->sequence_info.num_of_ref_frames = pic->sequence_info.num_of_ref_frames;
   pic->picture_info.format = vpic.output_format;
   pic->picture_info.pixel_format = vpic.pixel_format;
   pic->picture_info.pic_id = vpic.pic_id;
@@ -1134,14 +1148,14 @@ static enum DecRet Vp9NextPicture(void* inst, struct DecPicture* pic,
   return rv;
 }
 
-static enum DecRet Vp9PictureConsumed(void* inst, struct DecPicture pic,
-                                      struct DWL dwl) {
+static enum DecRet Vp9PictureConsumed(void* inst, struct DecPicture* pic,
+                                      struct DWL* dwl) {
   struct Vp9DecPicture vpic;
-  dwl.memset(&vpic, 0, sizeof(struct Vp9DecPicture));
+  dwl->memset(&vpic, 0, sizeof(struct Vp9DecPicture));
   /* TODO chroma base needed? */
-  vpic.output_luma_base = pic.luma.virtual_address;
-  vpic.output_luma_bus_address = pic.luma.bus_address;
-  vpic.is_intra_frame = pic.picture_info.pic_coding_type == DEC_PIC_TYPE_I;
+  vpic.output_luma_base = pic->luma.virtual_address;
+  vpic.output_luma_bus_address = pic->luma.bus_address;
+  vpic.is_intra_frame = pic->picture_info.pic_coding_type == DEC_PIC_TYPE_I;
   return Vp9DecPictureConsumed(inst, &vpic);
 }
 

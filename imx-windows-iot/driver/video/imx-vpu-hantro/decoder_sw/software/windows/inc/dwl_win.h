@@ -4,6 +4,7 @@
 --       Copyright (c) 2015-2017, VeriSilicon Inc. All rights reserved        --
 --         Copyright (c) 2011-2014, Google Inc. All rights reserved.          --
 --         Copyright (c) 2019, Microsoft Inc. All rights reserved.            --
+--            Copyright (c) 2022, NXP Inc. All rights reserved.               --
 --                                                                            --
 -- This software is confidential and proprietary and may be used only as      --
 --   expressly authorized by VeriSilicon in a written licensing agreement.    --
@@ -121,6 +122,7 @@ struct HX170DWL {
 	IDeviceIoControl * fd;          /* decoder device file */
 	int fd_mem;      /* /dev/mem for mapping */
 	IDeviceIoControl * fd_memalloc; /* linear memory allocator */
+ 	int fd_mem_sec;  /* linear memory allocator of secure dma-buf */
 	u32 num_cores;
 	u32 reg_size;         /* IO mem size */
 	addr_t free_lin_mem;     /* Start address of free linear memory */
@@ -130,6 +132,7 @@ struct HX170DWL {
 	struct ActivityTrace activity;
 	u32 b_ppreserved;
 	u32 asic_id;
+	u32 use_secure_mode;
 };
 
 extern i32 DWLWaitDecHwReady(const void *instance, i32 core_id, u32 timeout);

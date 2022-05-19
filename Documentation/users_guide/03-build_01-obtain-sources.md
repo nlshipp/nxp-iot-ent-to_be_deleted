@@ -22,37 +22,45 @@ To prepare sources for building BSP follow these steps:
 > Note Only steps 1-3 are required for building Windows drivers from source. All steps are required for building firmware from source.
 
  1) Download the NXP i.MX BSP provided as `W<os_version>-imx-windows-bsp-<build_date>.zip` archive from www.NXP.com.
+
  2) Create an empty directory, further referred as `<BSP_DIR>`, and extract the downloaded archive there.
-    This will create .git repository containing the BSP release. Shell command `unzip W<os_version>-imx-windows-bsp-<build_date>.zip -d win10-iot-bsp` command can be used to extract the package.
- 3) Populate the directory by running `Init.bat` or `Init.sh` as applicable to the platform.
-    Both scripts will checkout sources from the repository by `git reset --hard`. The `Init.sh` shall also checkout submodules that are required to build i.MX boot firmware by `git submodule update --init --recursive`. 
-    During prerelease testing the `Init.sh` executed inside Ubuntu environment run into "server certificate verification failed. CAfile: /etc/ssl/certs/ca-certificates.crt CRLfile: none" error. 
+    Path to this directory should be short as possible containing only letters and underscores, braces and other special characters could cause build errors.
+
+    Shell command `unzip W<os_version>-imx-windows-bsp-<build_date>.zip -d win10-iot-bsp` command can be used to extract the package.
+    Command will create `win10-iot-bsp` directory containing `.git` repository with the BSP release.
+
+ 3) Populate the directory by running `Init.bat`, to build drivers on Windows host, `Init.sh`, to build firmware on Linux host.
+    Both scripts will checkout sources from the repository by `git reset --hard`. The `Init.sh` shall also checkout submodules that are required to build i.MX boot firmware by `git submodule update --init --recursive`.
+    During prerelease testing the `Init.sh` executed inside Ubuntu environment run into "server certificate verification failed. CAfile: /etc/ssl/certs/ca-certificates.crt CRLfile: none" error.
     Problem could be solved by installing `apt-transport-https` `ca-certificates` and certificate update.
-    
+
     ```bash
-    sudo apt update ; sudo apt-get install apt-transport-https ca-certificates -y ; sudo update-ca-certificates 
+    sudo apt update ; sudo apt-get install apt-transport-https ca-certificates -y ; sudo update-ca-certificates
     ```
  4) At this point it is possible to build the Windows drivers. Further steps are required only to build i.MX boot firmware (ATF, U-boot and UEFI) from sources.
+
  5) Download and extract the [Code Signing Tools (CST)](https://www.nxp.com/webapp/sps/download/license.jsp?colCode=IMX_CST_TOOL) from NXP's website.
     You will need to create an account on NXP's website to access this tool.
     Extract the tool inside bsp repository, and rename the newly created folder to cst to get `<BSP_DIR>/cst` folder:
-    
+
     ```bash
     tar xf cst-3.1.0.tgz
     mv release cst
     rm cst-3.1.0.tgz
     ```
+
  6) Download and extract the [iMX firmware](https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-imx-8.3.bin) from NXP's website and place it to firmware-imx.
     Extract the tool inside bsp repository, and rename the newly created folder to `firmware-imx` to get `<BSP_DIR>/firmware-imx/firmware/ddr/` in directory tree:
-    
+
     ```bash
     chmod +x firmware-imx-8.3.bin
     ./firmware-imx-8.3.bin
     mv firmware-imx-8.3 firmware-imx
     rm firmware-imx-8.3.bin
     ```
+
  7) At this point your directory structure should contain the following folders.
-    
+
     ```
     - <BSP_DIR>
        |- cst (manually downloaded)

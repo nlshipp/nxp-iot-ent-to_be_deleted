@@ -93,6 +93,8 @@ u8* SwTurnAround(const u8 * strm, const u8* buf, u8* tmp_buf, u32 buf_size, u32 
 
     /*turn around point*/
     for(i = 0; i < (i32)(bytes + left_byte); i++) {
+      if (i + 2 >= 32)
+        return NULL;
       tmp_buf[i + 2] = DWLPrivateAreaReadByte(buf + i);
     }
 

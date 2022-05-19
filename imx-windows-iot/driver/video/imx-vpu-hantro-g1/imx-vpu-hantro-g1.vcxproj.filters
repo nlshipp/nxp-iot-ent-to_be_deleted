@@ -146,6 +146,63 @@
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\vp8\vp8hwd_probs.c">
       <Filter>Decoder-vp8</Filter>
     </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2decapi.c">
+      <Filter>Decoder-mpeg2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2decapi_internal.c">
+      <Filter>Decoder-mpeg2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_headers.c">
+      <Filter>Decoder-mpeg2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_strm.c">
+      <Filter>Decoder-mpeg2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg2\mpeg2hwd_utils.c">
+      <Filter>Decoder-mpeg2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4decapi.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4decapi_internal.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_custom.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_error_conceal.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_headers.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_motiontexture.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_rvlc.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_shortvideo.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_strmdec.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_utils.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_videopacket.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_vlc.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\mpeg4\mp4dechwd_vop.c">
+      <Filter>Decoder-mpeg4</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\source\common\bqueue.c">
+      <Filter>Decoder-common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\sw_debug.h">
@@ -166,6 +223,9 @@
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\config\ppcfg.h">
       <Filter>Decoder-common</Filter>
     </ClInclude>
+    <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\common\bqueue.h">
+      <Filter>Decoder-common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Decoder-h264">
@@ -179,6 +239,12 @@
     </Filter>
     <Filter Include="Decoder-vp8">
       <UniqueIdentifier>{507ca9be-831d-49ef-a177-87efc8820785}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Decoder-mpeg2">
+      <UniqueIdentifier>{4528f2e8-c033-4613-95e7-a8db9334f368}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Decoder-mpeg4">
+      <UniqueIdentifier>{426fc5c6-bf91-4df5-880b-108bd9bcbb18}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

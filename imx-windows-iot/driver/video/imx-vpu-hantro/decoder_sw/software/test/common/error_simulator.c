@@ -54,6 +54,8 @@ ErrorSimulator ErrorSimulatorInject(Demuxer* demuxer,
   /* Our error simulator injects it's own function in place of the bitstream
      read function. */
   struct ErrorSim* sim = calloc(1, sizeof(struct ErrorSim));
+  if (sim == NULL)
+    return NULL;
   sim->concrete_demuxer = *demuxer;
   demuxer->GetVideoFormat = ErrorSimulatorIdentifyFormat;
   demuxer->HeadersDecoded = ErrorSimulatorHeadersDecoded;

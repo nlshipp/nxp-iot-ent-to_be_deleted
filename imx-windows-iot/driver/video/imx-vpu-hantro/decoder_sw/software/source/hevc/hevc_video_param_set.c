@@ -77,7 +77,7 @@ u32 HevcDecodeVideoParamSet(struct StrmData *stream,
   tmp = SwGetBits(stream, 3);
   if (tmp == END_OF_STREAM)
     return(HANTRO_NOK);
-  if (tmp < 0 || tmp > 6) {
+  if (tmp > 6) {
     ERROR_PRINT("video_parameter_set_id");
     return (HANTRO_NOK);
   }
@@ -128,7 +128,7 @@ u32 HevcDecodeVideoParamSet(struct StrmData *stream,
 
   tmp = HevcDecodeExpGolombUnsigned(stream, &value);
   if (tmp != HANTRO_OK) return (tmp);
-  if (value < 0 || value > 1023) {
+  if (value > 1023) {
     ERROR_PRINT("video_parameter_set_id");
     return (HANTRO_NOK);
   }

@@ -1563,6 +1563,26 @@ OMX_ERRORTYPE encoder_set_parameter(OMX_IN OMX_HANDLETYPE hComponent,
                 DBGT_PDEBUG("API: pEnc->encConfig.prependSPSPPSToIDRFrames %d", pEnc->encConfig.prependSPSPPSToIDRFrames);
             }
             break;
+
+        case (OMX_INDEXTYPE)OMX_google_android_index_colorDescriptionInVUI:
+            {
+                struct ColorDescriptionInVuiParams *param = (struct ColorDescriptionInVuiParams *) pParam;
+                pEnc->encConfig.colorDescription = param->colorDescription;
+                pEnc->encConfig.primaries = param->primaries;
+                pEnc->encConfig.transfer = param->transfer;
+                pEnc->encConfig.matrixCoeffs = param->matrixCoeffs;
+                pEnc->encConfig.fullRange = param->fullRange;
+                pEnc->encConfig.videoFormat = param->videoFormat;
+                pEnc->encConfig.videoSignalTypePresent = param->videoSignalTypePresent;
+                DBGT_PDEBUG("API: pEnc->encConfig.colorDescription %d", pEnc->encConfig.colorDescription);
+                DBGT_PDEBUG("API: pEnc->encConfig.primaries %d", pEnc->encConfig.primaries);
+                DBGT_PDEBUG("API: pEnc->encConfig.transfer %d", pEnc->encConfig.transfer);
+                DBGT_PDEBUG("API: pEnc->encConfig.matrixCoeffs %d", pEnc->encConfig.matrixCoeffs);
+                DBGT_PDEBUG("API: pEnc->encConfig.fullRange %d", pEnc->encConfig.fullRange);
+                DBGT_PDEBUG("API: pEnc->encConfig.videoFormat %d", pEnc->encConfig.videoFormat);
+                DBGT_PDEBUG("API: pEnc->encConfig.videoSignalTypePresent %d", pEnc->encConfig.videoSignalTypePresent);
+            }
+            break;
 #endif
         default:
             DBGT_CRITICAL("API: unsupported settings index");
@@ -4445,6 +4465,14 @@ OMX_ERRORTYPE transition_to_idle_from_loaded(OMX_ENCODER* pEnc)
             }
             config.bSeiMessages = OMX_FALSE;
 
+            config.colorDescription = pEnc->encConfig.colorDescription;
+            config.primaries = pEnc->encConfig.primaries;
+            config.transfer = pEnc->encConfig.transfer;
+            config.matrixCoeffs = pEnc->encConfig.matrixCoeffs;
+            config.fullRange = pEnc->encConfig.fullRange;
+            config.videoFormat = pEnc->encConfig.videoFormat;
+            config.videoSignalTypePresent = pEnc->encConfig.videoSignalTypePresent;
+
             pEnc->codec = HantroHwEncOmx_encoder_create_h264(&config);
         }
         break;
@@ -4967,6 +4995,14 @@ OMX_ERRORTYPE transition_to_idle_from_loaded(OMX_ENCODER* pEnc)
         config.roi1DeltaQP = pEnc->encConfig.roi1DeltaQP;
         memcpy(&config.roi2Area, &pEnc->encConfig.roi2Area, pEnc->encConfig.roi2Area.nSize);
         config.roi2DeltaQP = pEnc->encConfig.roi2DeltaQP;
+
+        config.colorDescription = pEnc->encConfig.colorDescription;
+        config.primaries = pEnc->encConfig.primaries;
+        config.transfer = pEnc->encConfig.transfer;
+        config.matrixCoeffs = pEnc->encConfig.matrixCoeffs;
+        config.fullRange = pEnc->encConfig.fullRange;
+        config.videoFormat = pEnc->encConfig.videoFormat;
+        config.videoSignalTypePresent = pEnc->encConfig.videoSignalTypePresent;
 
         pEnc->codec = HantroHwEncOmx_encoder_create_hevc(&config);
     }

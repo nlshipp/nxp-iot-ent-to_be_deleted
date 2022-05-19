@@ -295,6 +295,7 @@ static CODEC_STATE encoder_encode_h264(ENCODER_PROTOTYPE* arg, FRAME* frame,
         ret = H264EncSetRateCtrl(this->instance, &rate_ctrl);
     }
 
+	(void) ret;
     DBGT_PDEBUG("rate_ctrl.qpHdr %d", rate_ctrl.qpHdr);
     DBGT_PDEBUG("rate_ctrl.bitPerSecond %d", rate_ctrl.bitPerSecond);
 
@@ -729,7 +730,7 @@ ENCODER_PROTOTYPE* HantroHwEncOmx_encoder_create_h264(const H264_CONFIG* params)
             coding_ctrl.seiMessages = params->bSeiMessages;
 
             //videoFullRange
-            coding_ctrl.videoFullRange = params->nVideoFullRange;
+            coding_ctrl.videoFullRange = params->fullRange;
 
             DBGT_PDEBUG("coding_ctrl.sliceSize %d", coding_ctrl.sliceSize);
             DBGT_PDEBUG("coding_ctrl.seiMessages %d", coding_ctrl.seiMessages);
@@ -1052,7 +1053,22 @@ ENCODER_PROTOTYPE* HantroHwEncOmx_encoder_create_h264(const H264_CONFIG* params)
         DBGT_EPILOG("");
         return NULL;
     }
+    else
+    {
+        ret = H264EncSetVuiColorDescription(this->instance, params->videoSignalTypePresent, params->videoFormat,
+                                      params->colorDescription, params->primaries, params->transfer, params->matrixCoeffs);
+    }
+
+    if (ret != H264ENC_OK)
+    {
+        DBGT_CRITICAL("H264EncSetVuiColorDescription failed! (%d)", ret);
+        OSAL_Free(this);
+        DBGT_EPILOG("");
+        return NULL;
+    }
+
     DBGT_EPILOG("");
+
     return (ENCODER_PROTOTYPE*) this;
 }
 

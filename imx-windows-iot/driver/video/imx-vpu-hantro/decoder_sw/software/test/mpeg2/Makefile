@@ -60,12 +60,15 @@ INCLUDE = -I../../source/inc -I../../source/mpeg2/ -I../../source/config \
           -I../common/utils
 
 DECLIBDIR = -L../../linux/dwl -L../../linux/mpeg2 -L../common/swhw \
-            -L../../../lib -L../common/utils
+            -L../../../system/models/g1hw -L../common/utils
 DECLIB =  libdecx170m2.a
 DWLLIB = libdwlx170.a
 TBLIB = libtbcommon.a
 MODLIB = lib8170hw.a
 TARGET_ENV=
+
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_MD5SUM), y)
         MD5SUM = -DMD5SUM
@@ -241,7 +244,7 @@ pclinux_eval: test
 
 export SYSTEM_VERIFICATION_TEST
 
-test:  $(OBJS)
+test: $(OBJS)
 	$(CC) $(LDFLAGS) $(CFLAGS) $(OBJS) $(LIBS) -o $(TESTDEC)
 
 lib:

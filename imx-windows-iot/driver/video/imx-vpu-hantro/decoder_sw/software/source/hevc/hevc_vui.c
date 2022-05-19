@@ -144,7 +144,7 @@ u32 HevcDecodeHrdParameters(struct StrmData *stream, u32 max_sub_layers,
     if (!hdr_parameters->low_delay_hrd_flag[i]) {
       tmp = HevcDecodeExpGolombUnsigned(stream, &value);
       if (tmp == END_OF_STREAM) return (END_OF_STREAM);
-      if (value < 0 || value > 32)
+      if (value > 32)
         return (HANTRO_NOK);
       else
         hdr_parameters->cpb_cnt[i] = value;

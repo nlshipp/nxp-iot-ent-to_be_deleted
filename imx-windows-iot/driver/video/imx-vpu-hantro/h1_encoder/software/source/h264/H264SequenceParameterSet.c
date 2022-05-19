@@ -405,21 +405,27 @@ static void WriteVui(stream_s * strm, vui_t * vui, i32 numRefFrames)
     H264NalBits(strm, 0, 1);
     COMMENT("overscan_info_present_flag");
 
-    if(vui->videoFullRange != 0)
+    H264NalBits(strm, vui->vuiVideoSignalTypePresentFlag, 1);
+    COMMENT("video_signal_type_present_flag");
+    if(vui->vuiVideoSignalTypePresentFlag != 0)
     {
-        H264NalBits(strm, 1, 1);
-        COMMENT("video_signal_type_present_flag");
-        H264NalBits(strm, 5, 3);
+        H264NalBits(strm, vui->vuiVideoFormat, 3);
         COMMENT("unspecified video_format");
-        H264NalBits(strm, 1, 1);
+        H264NalBits(strm, vui->videoFullRange, 1);
         COMMENT("video_full_range_flag");
-        H264NalBits(strm, 0, 1);
+        H264NalBits(strm, vui->vuiColorDescripPresentFlag, 1);
         COMMENT("colour_description_present_flag");
-    }
-    else
-    {
-        H264NalBits(strm, 0, 1);
-        COMMENT("video_signal_type_present_flag");
+        if (vui->vuiColorDescripPresentFlag == ENCHW_YES)
+        {
+            H264NalBits(strm, vui->vuiColorPrimaries, 8);
+            COMMENT("Color Primaries");
+          
+            H264NalBits(strm, vui->vuiTransferCharacteristics, 8);
+            COMMENT("Transfer Characteristics");
+          
+            H264NalBits(strm, vui->vuiMatrixCoefficients, 8);
+            COMMENT("Matrix Coefficients");
+        }
     }
 
     H264NalBits(strm, 0, 1);

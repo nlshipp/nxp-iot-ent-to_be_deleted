@@ -321,10 +321,11 @@ i32 VP8HwdBufferQueueGetBuffer(BufferQueue queue) {
     while(q->buf_used[i] && !q->abort)
       pthread_cond_wait(&q->buf_release_cv, &q->buf_release_mutex);
     pthread_mutex_unlock(&q->buf_release_mutex);
-#endif
+
 
     if(q->abort)
       return ((i32)0xFFFFFFFF);
+#endif
   }
 #else
   FifoPop(q->empty_fifo, &j, FIFO_EXCEPTION_DISABLE);

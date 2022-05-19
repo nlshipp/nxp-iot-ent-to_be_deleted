@@ -132,7 +132,26 @@ OnPrepareHardware(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     MmBuildMdlForNonPagedPool(deviceContextPtr->MdlRegisters);
-       
+
+    deviceContextPtr->memCounter = 0;
+
+    deviceContextPtr->preallocated_mem = (VpuAlloc**)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(VpuAlloc*) * REUSABLE_MEM_BLOCKS_MAX, VPU_KM_ALLOC_TAG_WDF);
+    if (deviceContextPtr->preallocated_mem == NULL) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+        NTSTATUS Status = STATUS_SUCCESS;
+        deviceContextPtr->preallocated_mem[i] = NULL;
+        Status = PrepareVpuBuffer(&deviceContextPtr->preallocated_mem[i], VPU_BITS_BUF_SIZE + VPU_MEM_ALIGN, STREAM_BUFF_CACHE_TYPE);
+        if (Status != STATUS_SUCCESS) {
+            return Status;
+        }
+        if (i > 0) {
+            deviceContextPtr->preallocated_mem[i - 1]->next = deviceContextPtr->preallocated_mem[i];
+        }
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -163,6 +182,13 @@ OnReleaseHardware(
         deviceContextPtr->RegistersLen = 0;
         deviceContextPtr->RegistersPtr = NULL;
     }
+
+    for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+        if (deviceContextPtr->preallocated_mem[0] != NULL) {
+            FreeVpuBuffer(deviceContextPtr->preallocated_mem[i]);
+        }
+    }
+    ExFreePoolWithTag(deviceContextPtr->preallocated_mem, VPU_KM_ALLOC_TAG_WDF);
 
     return STATUS_SUCCESS;
 }

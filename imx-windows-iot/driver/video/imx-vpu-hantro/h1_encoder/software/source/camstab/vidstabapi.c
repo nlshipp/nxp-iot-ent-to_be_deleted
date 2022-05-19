@@ -102,7 +102,7 @@ VideoStbBuild VideoStbGetBuild(void)
 
 /*------------------------------------------------------------------------------
     Function name   : VideoStbInit
-    Description     : Initilaizes a stabilization ínstance
+    Description     : Initilaizes a stabilization instance
     Return type     : VideoStbRet 
     Argument        : VideoStbInst * instAddr
     Argument        : const VideoStbParam * param
@@ -271,7 +271,8 @@ VideoStbRet VideoStbStabilize(VideoStbInst vidStab,
 
     VSSetCropping(pVideoStb, referenceFrameLum, stabilizeFrameLum);
 
-    VSSetupAsicAll(pVideoStb);
+    if (VSTrySetupAsicAll(pVideoStb) != 0)
+        return VIDEOSTB_ERROR;
 
     ret = VSWaitAsicReady(pVideoStb);
 

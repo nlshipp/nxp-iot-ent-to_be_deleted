@@ -164,6 +164,7 @@ enum DecRet HevcDecInit(HevcDecInst *dec_inst, const void *dwl, struct HevcDecCo
 
   /* TODO: ? */
   dwl_init.client_type = DWL_CLIENT_TYPE_HEVC_DEC;
+  DWLSetSecureMode(dwl, dec_cfg->use_secure_mode);
 
   dec_cont =
     (struct HevcDecContainer *)DWLmalloc(sizeof(struct HevcDecContainer));
@@ -315,6 +316,44 @@ enum DecRet HevcDecInit(HevcDecInst *dec_inst, const void *dwl, struct HevcDecCo
   return (DEC_OK);
 }
 
+/* This function get exactly bit-depth from sps info. This
+ * function should not be called before HevcDecDecode function has
+ * indicated that headers are ready. */
+enum DecRet HevcDecGetSpsBitDepth(HevcDecInst dec_inst, u32 *bit_depth) {
+  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
+  struct Storage *storage;
+
+  if (dec_inst == NULL) {
+    return (DEC_PARAM_ERROR);
+  }
+
+  /* Check for valid decoder instance */
+  if (dec_cont->checksum != dec_cont) {
+    return (DEC_NOT_INITIALIZED);
+  }
+
+  storage = &dec_cont->storage;
+
+  if (storage->active_sps == NULL || storage->active_pps == NULL) {
+    return (DEC_HDRS_NOT_RDY);
+  }
+
+  *bit_depth = ((HevcLumaBitDepth(storage) != 8) || (HevcChromaBitDepth(storage) != 8)) ? 10 : 8;
+  return (DEC_OK);
+}
+
+u32 HevcDecDiscardDpbNums(HevcDecInst dec_inst)
+{
+  u32 discard_dpb_num = 0;
+  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
+
+  discard_dpb_num = dec_cont->discard_dpb_num;
+  /* we could reset discard_dpb_num after daemon/APP read it */
+  dec_cont->discard_dpb_num = 0;
+
+  return discard_dpb_num;
+}
+
 /* This function provides read access to decoder information. This
  * function should not be called before HevcDecDecode function has
  * indicated that headers are ready. */
@@ -345,7 +384,7 @@ enum DecRet HevcDecGetInfo(HevcDecInst dec_inst, struct HevcDecInfo *dec_info) {
   dec_info->matrix_coefficients = HevcMatrixCoefficients(storage);
   dec_info->colour_primaries = HevcColourPrimaries(storage);
   dec_info->transfer_characteristics = HevcTransferCharacteristics(storage);
-
+  dec_info->interlaced_sequence = 0;
 
   dec_info->mono_chrome = HevcIsMonoChrome(storage);
   if (dec_cont->output_format == DEC_OUT_FRM_RASTER_SCAN)
@@ -487,7 +526,7 @@ enum DecRet HevcDecDecode(HevcDecInst dec_inst,
                           struct HevcDecOutput *output) {
   struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
   u32 strm_len;
-  u32 input_data_len = input->data_len; // used to generate error stream
+  u32 input_data_len; // used to generate error stream
   const u8 *tmp_stream;
   enum DecRet return_value = DEC_STRM_PROCESSED;
 
@@ -496,6 +535,9 @@ enum DecRet HevcDecDecode(HevcDecInst dec_inst,
     return (DEC_PARAM_ERROR);
   }
 
+
+
+  input_data_len = input->data_len;
   /* Check for valid decoder instance */
   if (dec_cont->checksum != dec_cont) {
     return (DEC_NOT_INITIALIZED);
@@ -952,7 +994,7 @@ RESOURCE_NOT_READY:
       /* Handle possible common HW error situations */
       if (asic_status & DEC_HW_IRQ_BUS) {
         output->strm_curr_pos = (u8 *)input->stream;
-        output->strm_curr_bus_address = input->stream_bus_address;
+        output->strm_curr_bus_address = (u32)input->stream_bus_address;
         output->data_left = input_data_len;
         return DEC_HW_BUS_ERROR;
       }
@@ -1069,7 +1111,7 @@ RESOURCE_NOT_READY:
                 dec_cont->storage.dpb->current_out->pic_order_cnt_lsb = 0;
 #ifdef USE_EXTERNAL_BUFFER
                 if (dec_cont->storage.raster_buffer_mgr)
-                  RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->virtual_address);
+                  RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->bus_address);
 #endif
                 dec_cont->drop_curr_pic = 1;
               }
@@ -1137,6 +1179,8 @@ RESOURCE_NOT_READY:
       storage->prev_idr_pic_ready = IS_IDR_NAL_UNIT(storage->prev_nal_unit);
 #endif /* FFWD_WORKAROUND */
       {
+        if (storage->active_sps == NULL)
+          return DEC_PARAM_ERROR;
         u32 sublayer = storage->active_sps->max_sub_layers - 1;
         u32 max_latency =
           dec_cont->storage.active_sps->max_num_reorder_pics[sublayer] +
@@ -1240,7 +1284,7 @@ end:
       output->data_left = 0;
     else {
       output->strm_curr_pos = (u8 *)dec_cont->hw_stream_start;
-      output->strm_curr_bus_address = dec_cont->hw_stream_start_bus;
+      output->strm_curr_bus_address = (u32)dec_cont->hw_stream_start_bus;
       output->data_left = dec_cont->hw_length;
     }
   } else {
@@ -1252,7 +1296,7 @@ end:
       data_consumed = (u32)(tmp_stream + input->buff_len - input->stream);
 
     output->strm_curr_pos = (u8 *)tmp_stream;
-    output->strm_curr_bus_address = input->stream_bus_address + data_consumed;
+    output->strm_curr_bus_address = (u32)(input->stream_bus_address) + data_consumed;
     if(output->strm_curr_bus_address >= (input->buffer_bus_address + input->buff_len))
       output->strm_curr_bus_address -= input->buff_len;
 
@@ -1451,7 +1495,7 @@ void HevcInitPicFreezeOutput(struct HevcDecContainer *dec_cont,
       dec_cont->storage.dpb->current_out->status = UNUSED;
 #ifdef USE_EXTERNAL_BUFFER
       if (storage->raster_buffer_mgr)
-        RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->virtual_address);
+        RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->bus_address);
 #endif
       dec_cont->drop_curr_pic = 1;
     }
@@ -1603,12 +1647,14 @@ void HevcGetHdr10MetaData(const struct Storage *storage,
 /* Get last decoded picture if any available. No pictures are removed
  * from output nor DPB buffers. */
 enum DecRet HevcDecPeek(HevcDecInst dec_inst, struct HevcDecPicture *output) {
-  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
-  struct DpbPicture *current_out = dec_cont->storage.dpb->current_out;
+
 
   if (dec_inst == NULL || output == NULL) {
     return (DEC_PARAM_ERROR);
   }
+
+  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
+  struct DpbPicture *current_out = dec_cont->storage.dpb->current_out;
 
   /* Check for valid decoder instance */
   if (dec_cont->checksum != dec_cont) {
@@ -1704,7 +1750,7 @@ enum DecRet HevcDecNextPictureInternal(struct HevcDecContainer *dec_cont) {
   out_pic.output_rfc_luma_bus_address = dpb_out->data->bus_address + dec_cont->storage.dpb[0].cbs_tbl_offsety;
   out_pic.output_rfc_chroma_base = dpb_out->data->virtual_address + dec_cont->storage.dpb[0].cbs_tbl_offsetc;
   out_pic.output_rfc_chroma_bus_address = dpb_out->data->bus_address + dec_cont->storage.dpb[0].cbs_tbl_offsetc;
-  ASSERT(out_pic.output_picture);
+  //ASSERT(out_pic.output_picture);
   ASSERT(out_pic.output_picture_bus_address);
   out_pic.pic_id = dpb_out->pic_id;
   out_pic.decode_id = dpb_out->decode_id;
@@ -1883,8 +1929,7 @@ enum DecRet HevcDecPictureConsumed(HevcDecInst dec_inst,
     /* If it's external reference buffer, consumed it as usual.*/
     /* find the mem descriptor for this specific buffer */
     for (id = 0; id < dpb->tot_buffers; id++) {
-      if (pic.output_picture_bus_address == dpb->pic_buffers[id].bus_address &&
-          pic.output_picture == dpb->pic_buffers[id].virtual_address) {
+      if (pic.output_picture_bus_address == dpb->pic_buffers[id].bus_address) {
         break;
       }
     }
@@ -1898,7 +1943,7 @@ enum DecRet HevcDecPictureConsumed(HevcDecInst dec_inst,
   } else {
     /* For raster/dscale buffer, return to input buffer queue. */
     if (storage->raster_buffer_mgr) {
-      if (RbmReturnPpBuffer(storage->raster_buffer_mgr, picture->output_picture) == NULL)
+      if (RbmReturnPpBuffer(storage->raster_buffer_mgr, picture->output_picture_bus_address) == NULL)
         return DEC_PARAM_ERROR;
     }
   }
@@ -2000,7 +2045,7 @@ void HevcDropCurrentPicutre(struct HevcDecContainer *dec_cont) {
   dec_cont->storage.dpb->current_out->status = UNUSED;
 #ifdef USE_EXTERNAL_BUFFER
   if (storage->raster_buffer_mgr)
-    RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->virtual_address);
+    RbmReturnPpBuffer(storage->raster_buffer_mgr, dec_cont->storage.dpb->current_out->pp_data->bus_address);
 #endif
   if (dec_cont->storage.no_reordering) {
     dec_cont->storage.dpb->num_out--;
@@ -2015,6 +2060,110 @@ void HevcDropCurrentPicutre(struct HevcDecContainer *dec_cont) {
 #endif
 
 #ifdef USE_EXTERNAL_BUFFER
+static void hevcRemoveDpb(const void *dec_inst, struct DpbStorage *dpb) {
+  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
+  struct FrameBufferList *fb_list = dpb->fb_list;
+  i32 i, j;
+
+#define INVALID_MEM_IDX 0xFF
+
+  for (i = 0; i < MAX_DPB_SIZE; i++) {
+    dpb->buffer[i].pp_data = NULL;
+    if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+      dpb->buffer[i].mem_idx = INVALID_MEM_IDX;
+      dpb->buffer[i].data = NULL;
+    }
+  }
+  #define FB_OUTPUT 0x04U
+
+  for (i = 0; i < MAX_FRAME_BUFFER_NUMBER; i++) {
+    if (dpb->fb_list->fb_stat[i].b_used & FB_OUTPUT) {
+      for (j = 0; j < MAX_DPB_SIZE + 1; j++) {
+        if (dpb->buffer[j].mem_idx == i) {
+          /* For raster/dscale buffer, return to input buffer queue. */
+          if (dpb->storage->raster_buffer_mgr &&
+              dpb->buffer[j].pp_data != NULL) {
+            RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr,
+                              dpb->buffer[j].pp_data->bus_address);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  for (i = 0; i < MAX_FRAME_BUFFER_NUMBER; i++) {
+    if (fb_list->fb_stat[i].b_used & FB_OUTPUT) {
+      ClearOutput(fb_list, i);
+    }
+  }
+
+  if (dpb->storage && dpb->storage->raster_buffer_mgr) {
+      RbmReturnAllPpBuffer(dpb->storage->raster_buffer_mgr);
+      RbmResetPpBuffer2(dpb->storage->raster_buffer_mgr);
+    }
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+    for (i = 0; i < (i32)dpb->tot_buffers; i++) {
+#ifdef USE_NULL_POINTER_PROTECT
+      if (dpb->pic_buffers[i].bus_address)
+#endif
+      {
+        if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
+          ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+        }
+      }
+    }
+    dpb->fb_list->free_buffers = 0;
+  }
+
+  dpb->tot_buffers = dpb->dpb_size + 2 + dec_cont->storage.n_extra_frm_buffers;
+  if (dpb->tot_buffers > MAX_FRAME_BUFFER_NUMBER)
+    dpb->tot_buffers = MAX_FRAME_BUFFER_NUMBER;
+  (void)dec_cont;
+}
+
+enum DecRet HevcDecRemoveBuffer(HevcDecInst dec_inst) {
+  struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  struct DpbStorage *dpb = dec_cont->storage.dpb;
+  HevcEmptyDpb(dec_cont, dec_cont->storage.dpb);
+  HevcClearStorage(&(dec_cont->storage));
+  hevcRemoveDpb(dec_inst, dpb);
+
+  if(dec_cont->dec_state != HEVCDEC_WAITING_FOR_BUFFER)
+    dec_cont->dec_state = HEVCDEC_INITIALIZED;
+  dec_cont->start_code_detected = 0;
+  dec_cont->pic_number = 0;
+  dec_cont->packet_decoded = 0;
+
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
+    dec_cont->min_buffer_num = dec_cont->storage.dpb->dpb_size + 2;   /* We need at least (dpb_size+2) output buffers before starting decoding. */
+  else
+    dec_cont->min_buffer_num = dec_cont->storage.dpb->dpb_size + 1;
+  dec_cont->buffer_index = 0;
+  dec_cont->buf_num = dec_cont->min_buffer_num;
+  dec_cont->buffer_num_added = 0;
+
+  if (dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
+    int i;
+    pthread_mutex_lock(&dec_cont->fb_list.ref_count_mutex);
+    for (i = 0; i < MAX_FRAME_BUFFER_NUMBER; i++) {
+      dec_cont->fb_list.fb_stat[i].n_ref_count = 0;
+    }
+    pthread_mutex_unlock(&dec_cont->fb_list.ref_count_mutex);
+  }
+
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+
+  return DEC_OK;
+}
+
+
+
+
+
+
+
 enum DecRet HevcDecAddBuffer(HevcDecInst dec_inst,
                              struct DWLLinearMem *info) {
   struct HevcDecContainer *dec_cont = (struct HevcDecContainer *)dec_inst;
@@ -2023,7 +2172,7 @@ enum DecRet HevcDecAddBuffer(HevcDecInst dec_inst,
   struct Storage *storage = &dec_cont->storage;
 
   if (dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
+
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->logical_size < dec_cont->next_buf_size) {
     return DEC_PARAM_ERROR;
@@ -2074,11 +2223,13 @@ enum DecRet HevcDecAddBuffer(HevcDecInst dec_inst,
         dpb->pic_buff_id[i] = id;
       }
 
+#ifdef CLEAR_OUT_BUFFER
       {
         void *base =
           (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
         (void)DWLmemset(base, 0, info->logical_size - dpb->dir_mv_offset);
       }
+#endif
 
       dec_cont->buffer_index++;
       dec_cont->buf_num--;
@@ -2095,12 +2246,13 @@ enum DecRet HevcDecAddBuffer(HevcDecInst dec_inst,
       if (id == FB_NOT_VALID_ID) return MEMORY_ALLOCATION_ERROR;
       dpb->pic_buff_id[i] = id;
 
+#ifdef CLEAR_OUT_BUFFER
       {
         void *base =
           (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
         (void)DWLmemset(base, 0, info->logical_size - dpb->dir_mv_offset);
       }
-
+#endif
       dec_cont->buffer_index++;
       dec_cont->buf_num = 0;
       /* TODO: protect this variable, which may be changed in two threads. */
@@ -2146,7 +2298,7 @@ enum DecRet HevcDecAddBuffer(HevcDecInst dec_inst,
       if (storage->raster_buffer_mgr) {
         dec_cont->_buf_to_free = RbmNextReleaseBuffer(storage->raster_buffer_mgr);
 
-        if (dec_cont->_buf_to_free.virtual_address != 0) {
+        if (dec_cont->_buf_to_free.bus_address != 0) {
           dec_cont->buf_to_free = &dec_cont->_buf_to_free;
           dec_cont->next_buf_size = 0;
           dec_cont->buf_num = 1;
@@ -2316,7 +2468,7 @@ enum DecRet HevcDecGetBufferInfo(HevcDecInst dec_inst, struct HevcDecBufferInfo 
       if (storage->raster_buffer_mgr) {
         dec_cont->_buf_to_free = RbmNextReleaseBuffer(storage->raster_buffer_mgr);
 
-        if (dec_cont->_buf_to_free.virtual_address != 0) {
+        if (dec_cont->_buf_to_free.bus_address != 0) {
           dec_cont->buf_to_free = &dec_cont->_buf_to_free;
           dec_cont->next_buf_size = 0;
           dec_cont->rbm_release = 1;
@@ -2373,13 +2525,14 @@ enum DecRet HevcDecGetBufferInfo(HevcDecInst dec_inst, struct HevcDecBufferInfo 
 
     // TODO(min): here we assume that the buffer should be freed externally.
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
   mem_info->next_buf_size = dec_cont->next_buf_size;
   mem_info->buf_num = dec_cont->buf_num;
 
-  ASSERT((mem_info->buf_num && mem_info->next_buf_size) || (mem_info->buf_to_free.virtual_address != NULL));
+  ASSERT((mem_info->buf_num && mem_info->next_buf_size) || (mem_info->buf_to_free.bus_address != 0));
 #ifdef ASIC_TRACE_SUPPORT
   mem_info->is_frame_buffer = dec_cont->is_frame_buffer;
 #endif
@@ -2461,7 +2614,8 @@ enum DecRet HevcDecAbortAfter(HevcDecInst dec_inst) {
   HevcClearStorage(&(dec_cont->storage));
 
   /* Clear internal parameters in HevcDecContainer */
-  dec_cont->dec_state = HEVCDEC_INITIALIZED;
+  if(dec_cont->dec_state != HEVCDEC_WAITING_FOR_BUFFER)
+    dec_cont->dec_state = HEVCDEC_INITIALIZED;
   dec_cont->start_code_detected = 0;
   dec_cont->pic_number = 0;
   dec_cont->packet_decoded = 0;
@@ -2586,11 +2740,30 @@ enum DecRet HevcDecSetInfo(HevcDecInst dec_inst,
   dec_cont->use_ringbuffer = dec_cfg->use_ringbuffer;
   dec_cont->use_fetch_one_pic = dec_cfg->use_fetch_one_pic;
   dec_cont->storage.use_video_compressor = dec_cfg->use_video_compressor;
+#ifdef USE_EXTERNAL_BUFFER
+	  if(dec_cont->output_format != DEC_OUT_FRM_TILED_4X4 &&
+		  dec_cfg->output_format == DEC_OUT_FRM_TILED_4X4 &&
+		  dec_cont->reset_dpb_done == 1) {
+		  HevcFreeDpb(dec_cont, dec_cont->storage.dpb);
+		  dec_cont->reset_dpb_done = 0;
+		  dec_cont->storage.dpb[0].dpb_size = 0;
+		  dec_cont->storage.dpb[1].dpb_size = 0;
+		  dec_cont->storage.dpb[0].real_size = 0;
+		  dec_cont->storage.dpb[1].real_size = 0;
+		  dec_cont->min_buffer_num = 0;
+		  if (dec_cont->storage.raster_buffer_mgr) {
+			RbmRelease(dec_cont->storage.raster_buffer_mgr);
+			dec_cont->storage.raster_buffer_mgr = NULL;
+		  }
+		  ReleaseAsicBuffers(dec_cont, dec_cont->asic_buff);
+		  ReleaseAsicTileEdgeMems(dec_cont);
+		  ReleaseList(&dec_cont->fb_list);
+	  }
+#endif 
   dec_cont->output_format = dec_cfg->output_format;
   if (dec_cfg->output_format == DEC_OUT_FRM_RASTER_SCAN) {
     dec_cont->storage.raster_enabled = 1;
-  }
-  else {
+  } else {
     dec_cont->storage.raster_enabled = 0;
   }
   dec_cont->down_scale_enabled = 0;

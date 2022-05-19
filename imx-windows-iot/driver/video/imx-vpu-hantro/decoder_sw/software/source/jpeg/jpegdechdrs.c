@@ -487,7 +487,8 @@ JpegDecRet JpegDecDecodeHuffmanTables(JpegDecContainer * p_dec_data) {
     }
 
     p_dec_data->vlc.table->vals = (u32 *) DWLmalloc(sizeof(u32) * tmp);
-
+    if (p_dec_data->vlc.table->vals == NULL)
+      return JPEGDEC_MEMFAIL;
     /* set the table length */
     p_dec_data->vlc.table->table_length = tmp;
     /* read in the HUFFVALs */
@@ -527,7 +528,7 @@ JpegDecRet JpegDecDecodeHuffmanTables(JpegDecContainer * p_dec_data) {
 
 ------------------------------------------------------------------------------*/
 void JpegDecDefaultHuffmanTables(JpegDecContainer * p_dec_data) {
-  u32 i, k, len, tmp;
+  u32 i, k, len = 0, tmp;
   i32 j;
   u32 table = 0;
   u8 * stream_bits = 0;
@@ -577,6 +578,8 @@ void JpegDecDefaultHuffmanTables(JpegDecContainer * p_dec_data) {
 
     p_dec_data->vlc.table->vals = (u32 *) DWLmalloc(sizeof(u32) * tmp);
 
+    if (p_dec_data->vlc.table->vals == NULL)
+      return;
     /* set the table length */
     p_dec_data->vlc.table->table_length = tmp;
     /* read in the HUFFVALs */

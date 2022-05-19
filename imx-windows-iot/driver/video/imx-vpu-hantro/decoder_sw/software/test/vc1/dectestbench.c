@@ -85,8 +85,20 @@ Module defines
 
 #define VC1_MAX_STREAM_SIZE  DEC_X170_MAX_STREAM>>1
 
-/* Debug prints */
-#define DEBUG_PRINT(argv) printf argv
+#undef DEBUG_PRINT
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
 
 /*void decsw_performance(void)  __attribute__((noinline));*/
 void decsw_performance(void);
@@ -113,7 +125,7 @@ FILE *finput;
 
 i32 DecodeRCV(u8 *stream, u32 strm_len, VC1DecMetaData *meta_data);
 u32 DecodeFrameLayerData(u8 *stream);
-static void vc1DecPrintReturnValue(VC1DecRet ret);
+static void vc1DecPrintReturnValue(VC1DecRet ret, char *str);
 static u32 GetNextDuSize(const u8* stream, const u8* stream_start,
                          u32 strm_len, u32 *skipped_bytes);
 void printVc1PicCodingType(u32 *pic_type);
@@ -130,7 +142,7 @@ u32 use_index = 0;
 FILE *f_index = NULL;
 
 off64_t cur_index = 0;
-off64_t next_index = 0;
+addr_t next_index = 0;
 off64_t last_stream_pos = 0;
 u32 ds_ratio_x, ds_ratio_y;
 
@@ -203,6 +215,7 @@ static void *AddBufferThread(void *arg) {
     pthread_mutex_lock(&ext_buffer_contro);
     if(add_extra_flag && num_buffers < MAX_BUFFERS) {
       struct DWLLinearMem mem;
+      mem.mem_type = DWL_MEM_TYPE_DPB;
       i32 dwl_ret;
       if (pp_enabled)
         dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -228,10 +241,10 @@ static void *AddBufferThread(void *arg) {
 
 void ReleaseExtBuffers() {
   int i;
-  printf("Releasing %d external frame buffers\n", num_buffers);
+  PRINT(("Releasing %d external frame buffers\n", num_buffers));
   pthread_mutex_lock(&ext_buffer_contro);
   for(i=0; i<num_buffers; i++) {
-    printf("Freeing buffer %p\n", ext_buffers[i].virtual_address);
+    PRINT(("Freeing buffer %p\n", ext_buffers[i].virtual_address));
     if (pp_enabled)
       DWLFreeLinear(dwl_inst, &ext_buffers[i]);
     else
@@ -282,6 +295,7 @@ static void* buf_release_thread(void* arg) {
         pthread_mutex_lock(&ext_buffer_contro);
         if(add_extra_flag && num_buffers < MAX_BUFFERS) {
           struct DWLLinearMem mem;
+          mem.mem_type = DWL_MEM_TYPE_DPB;
           i32 dwl_ret;
           if (pp_enabled)
             dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -338,8 +352,7 @@ static void* vc1_output_thread(void* arg) {
     ret = VC1DecNextPicture(dec_inst, &dec_picture, 0);
     if(ret == VC1DEC_PIC_RDY) {
       if(!use_peek_output) {
-        DEBUG_PRINT(("VC1DecNextPicture returned: "));
-        vc1DecPrintReturnValue(ret);
+        vc1DecPrintReturnValue(ret, "VC1DecNextPicture returned: ");
 
         /* Increment display number for every displayed picture */
         pic_display_number++;
@@ -349,12 +362,13 @@ static void* vc1_output_thread(void* arg) {
                      dec_picture.coded_height, dec_picture.number_of_err_mbs,
                      dec_picture.key_picture ? "(KEYFRAME)" : ""));
 
-        if (dec_picture.interlaced && dec_picture.field_picture)
+        if (dec_picture.interlaced && dec_picture.field_picture) {
           DEBUG_PRINT(("Interlaced field %s, ", dec_picture.top_field ? "(Top)" : "(Bottom)"));
-        else if (dec_picture.interlaced && !dec_picture.field_picture)
+        } else if (dec_picture.interlaced && !dec_picture.field_picture) {
           DEBUG_PRINT(("Interlaced frame, "));
-        else
+        } else {
           DEBUG_PRINT(("Progressive, "));
+        }
 
         /* pic coding type */
         printVc1PicCodingType(dec_picture.pic_coding_type);
@@ -583,42 +597,43 @@ int main(int argc, char **argv) {
                   "HW Supports video decoding up to %d pixels,\n",
                   hw_config.max_dec_pic_width));
 
-    if(hw_config.pp_support)
+    if(hw_config.pp_support) {
       DEBUG_PRINT((
                     "Maximum Post-processor output size %d pixels\n\n",
                     hw_config.max_pp_out_pic_width));
-    else
+    } else {
       DEBUG_PRINT(("Post-Processor not supported\n\n"));
+    }
   }
 
 #ifndef PP_PIPELINE_ENABLED
   /* Check that enough command line arguments given, if not -> print usage
   * information out */
   if(argc < 2) {
-    DEBUG_PRINT(("Usage: %s [options] file.rcv\n", argv[0]));
-    DEBUG_PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
-    DEBUG_PRINT(("\t-Ooutfile write output to \"outfile\" (default out_wxxxhyyy.yuv)\n"));
-    DEBUG_PRINT(("\t-X Disable output file writing\n"));
-    DEBUG_PRINT(("\t-C display cropped image (default decoded image)\n"));
-    DEBUG_PRINT(("\t-Sfile.hex stream control trace file\n"));
-    DEBUG_PRINT(("\t-L enable support for long streams.\n"));
-    DEBUG_PRINT(("\t-P write planar output.\n"));
-    DEBUG_PRINT(("\t-Bn to use n frame buffers in decoder\n"));
-    DEBUG_PRINT(("\t-I save index file\n"));
-    DEBUG_PRINT(("\t-E use tiled reference frame format.\n"));
-    DEBUG_PRINT(("\t-G convert tiled output pictures to raster scan\n"));
-    DEBUG_PRINT(("\t-Y Write output as Interlaced Fields (instead of Frames).\n"));
-    DEBUG_PRINT(("\t-F Enable frame picture writing in multiresolutin output.\n"));
-    DEBUG_PRINT(("\t-Q Skip decoding non-reference pictures.\n"));
-    DEBUG_PRINT(("\t-Z output pictures using VC1DecPeek() function\n"));
-    DEBUG_PRINT(("\t--separate-fields-in-dpb DPB stores interlaced content"\
+    PRINT(("Usage: %s [options] file.rcv\n", argv[0]));
+    PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
+    PRINT(("\t-Ooutfile write output to \"outfile\" (default out_wxxxhyyy.yuv)\n"));
+    PRINT(("\t-X Disable output file writing\n"));
+    PRINT(("\t-C display cropped image (default decoded image)\n"));
+    PRINT(("\t-Sfile.hex stream control trace file\n"));
+    PRINT(("\t-L enable support for long streams.\n"));
+    PRINT(("\t-P write planar output.\n"));
+    PRINT(("\t-Bn to use n frame buffers in decoder\n"));
+    PRINT(("\t-I save index file\n"));
+    PRINT(("\t-E use tiled reference frame format.\n"));
+    PRINT(("\t-G convert tiled output pictures to raster scan\n"));
+    PRINT(("\t-Y Write output as Interlaced Fields (instead of Frames).\n"));
+    PRINT(("\t-F Enable frame picture writing in multiresolutin output.\n"));
+    PRINT(("\t-Q Skip decoding non-reference pictures.\n"));
+    PRINT(("\t-Z output pictures using VC1DecPeek() function\n"));
+    PRINT(("\t--separate-fields-in-dpb DPB stores interlaced content"\
                  " as fields (default: frames)\n"));
-    DEBUG_PRINT(("\t--output-frame-dpb Convert output to frame mode even if"\
+    PRINT(("\t--output-frame-dpb Convert output to frame mode even if"\
                  " field DPB mode used\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    DEBUG_PRINT(("\t-A add extra external buffer randomly\n"));
+    PRINT(("\t-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    DEBUG_PRINT(("\t-a allocate extra external buffer in output thread\n"));
+    PRINT(("\t-a allocate extra external buffer in output thread\n"));
 #endif
 #endif
     return 0;
@@ -633,7 +648,13 @@ int main(int argc, char **argv) {
     if(strncmp(argv[i], "-N", 2) == 0) {
       max_num_pics = (u32) atoi(argv[i] + 2);
     } else if(strncmp(argv[i], "-O", 2) == 0) {
-      strcpy(out_file_name, argv[i] + 2);
+      /* -1 to accomodate for the null tern=minator */
+      if (sizeof(out_file_name) - 1 < strlen(argv[i] + 2)) {
+        PRINT(("The output file name size overflows buffer size(256)!\n"));
+        return 1;
+      }  else {
+        strcpy(out_file_name, argv[i] + 2);
+      }
     } else if(strcmp(argv[i], "-X") == 0) {
       disable_output_writing = 1;
     } else if(strcmp(argv[i], "-C") == 0) {
@@ -688,11 +709,11 @@ int main(int argc, char **argv) {
         ds_ratio_x = argv[i][2] - '0';
         ds_ratio_y = argv[i][4] - '0';
       } else {
-        printf("Illegal parameter: %s\n", argv[i]);
+        PRINT(("Illegal parameter: %s\n", argv[i]));
         return 1;
       }
     } else {
-      DEBUG_PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
+      PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
       return 1;
     }
 
@@ -702,7 +723,7 @@ int main(int argc, char **argv) {
   * fails -> exit */
   finput = fopen(argv[argc - 1], "rb");
   if(finput == NULL) {
-    DEBUG_PRINT(("UNABLE TO OPEN INPUT FILE: %s\n", argv[argc - 1]));
+    PRINT(("UNABLE TO OPEN INPUT FILE: %s\n", argv[argc - 1]));
     return -1;
   }
 #else
@@ -723,26 +744,24 @@ int main(int argc, char **argv) {
   /* Check that enough command line arguments given, if not -> print usage
    * information out */
   if(argc < 3) {
-    DEBUG_PRINT(("Usage: %s [-Nn] [-X] [-L] file.rcv pp.cfg\n", argv[0]));
-    DEBUG_PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
-    DEBUG_PRINT(("\t-X disable output file writing\n"));
-    DEBUG_PRINT(("\t-Bn to use n frame buffers in decoder\n"));
-    DEBUG_PRINT(("\t-L enable support for long streams.\n"));
-    DEBUG_PRINT(("\t-I save index file\n"));
-    DEBUG_PRINT(("\t-E use tiled reference frame format.\n"));
-    DEBUG_PRINT(("\t-Q Skip decoding non-reference pictures.\n"));
-    DEBUG_PRINT(("\t--separate-fields-in-dpb DPB stores interlaced content"\
+    PRINT(("Usage: %s [-Nn] [-X] [-L] file.rcv pp.cfg\n", argv[0]));
+    PRINT(("\t-Nn forces decoding to stop after n pictures\n"));
+    PRINT(("\t-X disable output file writing\n"));
+    PRINT(("\t-Bn to use n frame buffers in decoder\n"));
+    PRINT(("\t-L enable support for long streams.\n"));
+    PRINT(("\t-I save index file\n"));
+    PRINT(("\t-E use tiled reference frame format.\n"));
+    PRINT(("\t-Q Skip decoding non-reference pictures.\n"));
+    PRINT(("\t--separate-fields-in-dpb DPB stores interlaced content"\
                  " as fields (default: frames)\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    DEBUG_PRINT(("\t-A add extra external buffer randomly\n"));
+    PRINT(("\t-A add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    DEBUG_PRINT(("\t-a allocate extra external buffer in output thread\n"));
+    PRINT(("\t-a allocate extra external buffer in output thread\n"));
 #endif
 #endif
     return 0;
   }
-
-  remove("pp_out.yuv");
 
   /* read command line arguments */
   for(i = 1; i < (u32) (argc - 2); i++) {
@@ -787,11 +806,11 @@ int main(int argc, char **argv) {
         ds_ratio_x = argv[i][2] - '0';
         ds_ratio_y = argv[i][4] - '0';
       } else {
-        printf("Illegal parameter: %s\n", argv[i]);
+        PRINT(("Illegal parameter: %s\n", argv[i]));
         return 1;
       }
     } else {
-      DEBUG_PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
+      PRINT(("UNKNOWN PARAMETER: %s\n", argv[i]));
       return -1;
     }
   }
@@ -799,20 +818,20 @@ int main(int argc, char **argv) {
   /* open data file */
   finput = fopen(argv[argc - 2], "rb");
   if(finput == NULL) {
-    DEBUG_PRINT(("UNABLE TO OPEN INPUT FILE: %s\n", argv[argc - 2]));
+    PRINT(("UNABLE TO OPEN INPUT FILE: %s\n", argv[argc - 2]));
     return -1;
   }
 #endif
 #ifdef ASIC_TRACE_SUPPORT
   tmp = openTraceFiles();
   if (!tmp) {
-    DEBUG_PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
+    PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
   }
 #endif
   if(save_index) {
     f_index = fopen("stream.cfg", "w");
     if(f_index == NULL) {
-      DEBUG_PRINT(("UNABLE TO OPEN INDEX FILE: \"stream.cfg\"\n"));
+      PRINT(("UNABLE TO OPEN INDEX FILE: \"stream.cfg\"\n"));
       return -1;
     }
   } else {
@@ -825,8 +844,8 @@ int main(int argc, char **argv) {
   TBSetDefaultCfg(&tb_cfg);
   f_tbcfg = fopen("tb.cfg", "r");
   if (f_tbcfg == NULL) {
-    DEBUG_PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
-    DEBUG_PRINT(("USING DEFAULT CONFIGURATION\n"));
+    PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
+    PRINT(("USING DEFAULT CONFIGURATION\n"));
   } else {
     fclose(f_tbcfg);
     if (TBParseConfig("tb.cfg", TBReadParam, &tb_cfg) == TB_FALSE)
@@ -888,7 +907,7 @@ int main(int argc, char **argv) {
 
   tmp_strm = (u8*) malloc(100);
   if (NULL == tmp_strm) {
-    DEBUG_PRINT(("MALLOC FAILED\n"));
+    PRINT(("MALLOC FAILED\n"));
     return -1;
   }
 
@@ -896,6 +915,7 @@ int main(int argc, char **argv) {
    * DecodeRCV checks that size is at
    * least RCV_METADATA_MAX_SIZE bytes) */
   ra = fread(tmp_strm, sizeof(u8), RCV_METADATA_MAX_SIZE, finput);
+  (void)(ra);
   rewind(finput);
 
   /* Advanced profile if startcode prefix found */
@@ -911,7 +931,7 @@ int main(int argc, char **argv) {
     * VC1DecUnpackMetaData function */
     tmp = DecodeRCV(tmp_strm, RCV_METADATA_MAX_SIZE, &meta_data);
     if (tmp != 0) {
-      DEBUG_PRINT(("DECODING RCV FAILED\n"));
+      PRINT(("DECODING RCV FAILED\n"));
       free(tmp_strm);
       return -1;
     }
@@ -928,7 +948,7 @@ int main(int argc, char **argv) {
     DEBUG_PRINT(("meta_data[3] %x\n", *(tmp_strm+11)));
     tmp = TBRandomizeBitSwapInStream(tmp_strm+8, 4, tb_cfg.tb_params.stream_bit_swap);
     if (tmp != 0) {
-      DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       free(tmp_strm);
       return -1;
     }
@@ -945,7 +965,7 @@ int main(int argc, char **argv) {
     END_SW_PERFORMANCE
     decsw_performance();
     if (tmp != VC1DEC_OK) {
-      DEBUG_PRINT(("UNPACKING META DATA FAILED\n"));
+      PRINT(("UNPACKING META DATA FAILED\n"));
       free(tmp_strm);
       return -1;
     }
@@ -972,7 +992,7 @@ int main(int argc, char **argv) {
     rnd_value = 1920 + 48;
     tmp = TBRandomizeU32(&rnd_value);
     if (tmp != 0) {
-      DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       free(tmp_strm);
       return -1;
     }
@@ -984,7 +1004,7 @@ int main(int argc, char **argv) {
     rnd_value = 1920 + 48;
     tmp = TBRandomizeU32(&rnd_value);
     if (tmp != 0) {
-      DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       free(tmp_strm);
       return -1;
     }
@@ -1026,7 +1046,7 @@ int main(int argc, char **argv) {
   decsw_performance();
 
   if (ret != VC1DEC_OK) {
-    DEBUG_PRINT(("DECODER INITIALIZATION FAILED\n"));
+    PRINT(("DECODER INITIALIZATION FAILED\n"));
     goto end;
   }
 
@@ -1072,7 +1092,8 @@ int main(int argc, char **argv) {
 
   if (!long_stream) {
     /* check size of the input file -> length of the stream in bytes */
-    fseek(finput, 0L, SEEK_END);
+    if (fseek(finput, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     strm_len = (u32) ftell(finput);
     rewind(finput);
 
@@ -1081,7 +1102,7 @@ int main(int argc, char **argv) {
       DEBUG_PRINT(("strm_len %d\n", strm_len));
       tmp = TBRandomizeU32(&strm_len);
       if (tmp != 0) {
-        DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+        PRINT(("RANDOM STREAM ERROR FAILED\n"));
         goto end;
       }
       DEBUG_PRINT(("Randomized strm_len %d\n", strm_len));
@@ -1092,19 +1113,20 @@ int main(int argc, char **argv) {
 
     if(DWLMallocLinear(((decContainer_t*)dec_inst)->dwl, strm_len, &stream_mem)
         != DWL_OK ) {
-      DEBUG_PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+      PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
       goto end;
     }
 
     byte_strm_start = (u8 *) stream_mem.virtual_address;
 
     if(byte_strm_start == NULL) {
-      DEBUG_PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+      PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
       goto end;
     }
 
     /* read input stream from file to buffer and close input file */
     ra = fread(byte_strm_start, sizeof(u8), strm_len, finput);
+    (void)(ra);
     fclose(finput);
 
     /* initialize VC1DecDecode() input structure */
@@ -1128,7 +1150,7 @@ int main(int argc, char **argv) {
     if(DWLMallocLinear(((decContainer_t *) dec_inst)->dwl,
                        VC1_MAX_STREAM_SIZE,
                        &stream_mem) != DWL_OK ) {
-      DEBUG_PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+      PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
       goto end;
     }
     byte_strm_start = (u8 *) stream_mem.virtual_address;
@@ -1138,17 +1160,24 @@ int main(int argc, char **argv) {
     if (!advanced) {
       /* Read meta data and frame layer data */
       ra = fread(tmp_strm, sizeof(u8), ( 4 + 4 * rcv_v2 ) *4 + 4 + 4 * rcv_v2 + rcv_metadata_size, finput);
+      (void)(ra);
       if (ferror(finput)) {
-        DEBUG_PRINT(("STREAM READ ERROR\n"));
+        PRINT(("STREAM READ ERROR\n"));
         goto end;
       }
       if (feof(finput)) {
-        DEBUG_PRINT(("END OF STREAM\n"));
+        PRINT(("END OF STREAM\n"));
         goto end;
       }
 
       dec_input.stream_size = DecodeFrameLayerData(tmp_strm + ( 4 + 4 * rcv_v2 ) *4 + rcv_metadata_size);
-      ra = fread( (u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput );
+      if (dec_input.stream_size > DEC_X170_MAX_STREAM) {
+        PRINT(("STREAM READ ERROR\n"));
+        goto end;
+      } else {
+        ra = fread( (u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput );
+        (void)(ra);
+      }
     } else {
       if(use_index) {
         dec_input.stream_size = fillBuffer((u8*)dec_input.stream);
@@ -1161,11 +1190,11 @@ int main(int argc, char **argv) {
     }
 
     if (ferror(finput)) {
-      DEBUG_PRINT(("STREAM READ ERROR\n"));
+      PRINT(("STREAM READ ERROR\n"));
       goto end;
     }
     if (feof(finput)) {
-      DEBUG_PRINT(("STREAM WILL END\n"));
+      PRINT(("STREAM WILL END\n"));
       /*goto end;*/
     }
   }
@@ -1212,8 +1241,9 @@ int main(int argc, char **argv) {
   /* main decoding loop */
   do {
     dec_input.pic_id = pic_id;
-    if (ret != VC1DEC_NO_DECODING_BUFFER)
-    DEBUG_PRINT(("Starting to decode picture ID %d\n", pic_id));
+    if (ret != VC1DEC_NO_DECODING_BUFFER) {
+      DEBUG_PRINT(("Starting to decode picture ID %d\n", pic_id));
+    }
 
     /*printf("dec_input.stream_size %d\n", dec_input.stream_size);*/
 
@@ -1221,7 +1251,7 @@ int main(int argc, char **argv) {
       i32 ret;
       ret = TBRandomizeU32(&dec_input.stream_size);
       if(ret != 0) {
-        DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+        PRINT(("RANDOM STREAM ERROR FAILED\n"));
         return 0;
       }
       DEBUG_PRINT(("Randomized stream size %d\n", dec_input.stream_size));
@@ -1236,12 +1266,12 @@ int main(int argc, char **argv) {
                                            dec_input.stream_size,
                                            tb_cfg.tb_params.stream_bit_swap);
           if (tmp != 0) {
-            DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
+            PRINT(("RANDOM STREAM ERROR FAILED\n"));
             goto end;
           }
 
           corrupted_bytes = dec_input.stream_size;
-          printf("corrupted_bytes %d\n", corrupted_bytes);
+          PRINT(("corrupted_bytes %d\n", corrupted_bytes));
         }
       }
     }
@@ -1256,8 +1286,8 @@ int main(int argc, char **argv) {
       END_SW_PERFORMANCE;
       /*DEBUG_PRINT(("dec_output.data_left %d\n", dec_output.data_left));*/
       decsw_performance();
-      DEBUG_PRINT(("VC1DecDecode returned: "));
-      vc1DecPrintReturnValue(ret);
+
+      vc1DecPrintReturnValue(ret, "VC1DecDecode returned: ");
 
 #if 1
       /* there is some data left */
@@ -1265,7 +1295,7 @@ int main(int argc, char **argv) {
       /* if advanced but long stream mode, stream is read again from file */
       /* if slice mode, test bench does not care of dec_output.data_left but also skips to next slice */
       if(dec_output.data_left && advanced && !long_stream && !slice_mode) {
-        printf("dec_output.data_left %d\n", dec_output.data_left);
+        DEBUG_PRINT(("dec_output.data_left %d\n", dec_output.data_left));
         corrupted_bytes -= (dec_input.stream_size - dec_output.data_left);
       } else {
         corrupted_bytes = 0;
@@ -1285,8 +1315,8 @@ int main(int argc, char **argv) {
       decsw_performance();
       VC1DecGetInfo(dec_inst, &info);
       decsw_performance();
-      DEBUG_PRINT(("RESOLUTION CHANGED\n"));
-      DEBUG_PRINT(("New resolution is %dx%d\n",
+      PRINT(("RESOLUTION CHANGED\n"));
+      PRINT(("New resolution is %dx%d\n",
                    info.coded_width, info.coded_height));
 
 #ifdef PP_PIPELINE_ENABLED
@@ -1312,7 +1342,7 @@ int main(int argc, char **argv) {
       if (pp_change_resolution( ((info.coded_width+7) & ~7),
                                 ((info.coded_height+7) & ~7),
                                 &tb_cfg) ) {
-        DEBUG_PRINT(("PP CONFIG FAILED!!!\n"));
+        PRINT(("PP CONFIG FAILED!!!\n"));
         goto end;
       }
 #endif
@@ -1322,9 +1352,9 @@ int main(int argc, char **argv) {
       /* Set a flag to indicate that headers are ready */
 #ifdef USE_EXTERNAL_BUFFER
       rv = VC1DecGetBufferInfo(dec_inst, &hbuf);
-      printf("VC1DecGetBufferInfo ret %d\n", rv);
-      printf("buf_to_free %p, next_buf_size %d, buf_num %d\n",
-             (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num);
+      PRINT(("VC1DecGetBufferInfo ret %d\n", rv));
+      PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+             (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
 #endif
       hdrs_rdy = 1;
       new_headers = 1;
@@ -1360,7 +1390,8 @@ int main(int argc, char **argv) {
         } else {
           tmp = (dec_output.p_stream_curr_pos - dec_input.stream);
           stream_pos += tmp;
-          fseeko64( finput, stream_pos, SEEK_SET );
+          if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
           dec_input.stream_size =
             fread((u8*)dec_input.stream, sizeof(u8), VC1_MAX_STREAM_SIZE, finput);
 
@@ -1369,7 +1400,8 @@ int main(int argc, char **argv) {
               GetNextDuSize((u8*)dec_input.stream,
                             dec_input.stream, dec_input.stream_size, &skipped_bytes);
             stream_pos += skipped_bytes;
-            fseeko64( finput, stream_pos, SEEK_SET );
+            if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+              fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
             if(save_index) {
               if(dec_input.stream[0] == 0 &&
                   dec_input.stream[1] == 0 &&
@@ -1387,11 +1419,11 @@ int main(int argc, char **argv) {
           }
         }
         if (ferror(finput)) {
-          DEBUG_PRINT(("STREAM READ ERROR\n"));
+          PRINT(("STREAM READ ERROR\n"));
           goto end;
         }
         if (feof(finput)) {
-          DEBUG_PRINT(("STREAM WILL END\n"));
+          PRINT(("STREAM WILL END\n"));
           /*goto end;*/
         }
       }
@@ -1420,8 +1452,9 @@ int main(int argc, char **argv) {
         if (info.interlaced_sequence) {
           DEBUG_PRINT(("Interlaced sequence\n"));
           field_output = 1;
-        } else
+        } else {
           DEBUG_PRINT(("Progressive sequence\n"));
+        }
 
         DEBUG_PRINT(("Max size %dx%d\n", info.max_coded_width, info.max_coded_height));
         DEBUG_PRINT(("Coded size %dx%d\n", info.coded_width, info.coded_height));
@@ -1556,12 +1589,13 @@ int main(int argc, char **argv) {
                      dec_picture.coded_height, dec_picture.number_of_err_mbs,
                      dec_picture.key_picture ? "(KEYFRAME)" : ""));
 
-        if (dec_picture.interlaced && dec_picture.field_picture)
+        if (dec_picture.interlaced && dec_picture.field_picture) {
           DEBUG_PRINT(("Interlaced field %s, ", dec_picture.top_field ? "(Top)" : "(Bottom)"));
-        else if (dec_picture.interlaced && !dec_picture.field_picture)
+        } else if (dec_picture.interlaced && !dec_picture.field_picture) {
           DEBUG_PRINT(("Interlaced frame, "));
-        else
+        } else {
           DEBUG_PRINT(("Progressive, "));
+        }
 
         /* pic coding type */
         printVc1PicCodingType(dec_picture.pic_coding_type);
@@ -1596,8 +1630,7 @@ int main(int argc, char **argv) {
         decsw_performance();
 
         if (!use_peek_output) {
-          DEBUG_PRINT(("VC1DecNextPicture returned: "));
-          vc1DecPrintReturnValue(tmpret);
+          vc1DecPrintReturnValue(tmpret, "VC1DecNextPicture returned: ");
 
           if ( tmpret == VC1DEC_PIC_RDY ) {
             /* Increment display number for every displayed picture */
@@ -1608,12 +1641,13 @@ int main(int argc, char **argv) {
                          dec_picture.coded_height, dec_picture.number_of_err_mbs,
                          dec_picture.key_picture ? "(KEYFRAME)" : ""));
 
-            if (dec_picture.interlaced && dec_picture.field_picture)
+            if (dec_picture.interlaced && dec_picture.field_picture) {
               DEBUG_PRINT(("Interlaced field %s, ", dec_picture.top_field ? "(Top)" : "(Bottom)"));
-            else if (dec_picture.interlaced && !dec_picture.field_picture)
+            } else if (dec_picture.interlaced && !dec_picture.field_picture) {
               DEBUG_PRINT(("Interlaced frame, "));
-            else
+            } else {
               DEBUG_PRINT(("Progressive, "));
+            }
 
             /* pic coding type */
             printVc1PicCodingType(dec_picture.pic_coding_type);
@@ -1745,17 +1779,24 @@ int main(int argc, char **argv) {
         } else { /* LONG STREAM */
           if (!advanced) {
             ra = fread(tmp_strm, sizeof(u8),  4 + 4 * rcv_v2, finput);
+            (void)(ra);
             if (ferror(finput)) {
-              DEBUG_PRINT(("STREAM READ ERROR\n"));
+              PRINT(("STREAM READ ERROR\n"));
               goto end;
             }
             if (feof(finput)) {
-              DEBUG_PRINT(("END OF STREAM\n"));
+              PRINT(("END OF STREAM\n"));
               dec_input.stream_size = 0;
               continue;
             }
             dec_input.stream_size = DecodeFrameLayerData(tmp_strm);
-            ra = fread((u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput);
+            if (dec_input.stream_size > DEC_X170_MAX_STREAM) {
+              PRINT(("STREAM READ ERROR\n"));
+              goto end;
+            } else {
+              ra = fread((u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput);
+              (void)(ra);
+            }
           } else {
             if(use_index) {
               if(dec_output.data_left != 0) {
@@ -1770,7 +1811,8 @@ int main(int argc, char **argv) {
             } else {
               tmp = (dec_output.p_stream_curr_pos - dec_input.stream);
               stream_pos += tmp;
-              fseeko64( finput, stream_pos, SEEK_SET );
+              if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+                fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
               dec_input.stream_size =
                 fread((u8*)dec_input.stream, sizeof(u8), VC1_MAX_STREAM_SIZE, finput);
@@ -1793,7 +1835,8 @@ int main(int argc, char **argv) {
                   GetNextDuSize((u8*)dec_input.stream, dec_input.stream,
                                 dec_input.stream_size, &skipped_bytes);
                 stream_pos += skipped_bytes;
-                fseeko64( finput, stream_pos, SEEK_SET );
+                if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+                  fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
                 if(save_index) {
                   if(dec_input.stream[0] == 0 &&
@@ -1814,11 +1857,11 @@ int main(int argc, char **argv) {
             }
           }
           if (ferror(finput)) {
-            DEBUG_PRINT(("STREAM READ ERROR\n"));
+            PRINT(("STREAM READ ERROR\n"));
             goto end;
           }
           if (feof(finput)) {
-            DEBUG_PRINT(("STREAM WILL END\n"));
+            PRINT(("STREAM WILL END\n"));
             /*goto end;*/
           }
         }
@@ -1870,17 +1913,24 @@ int main(int argc, char **argv) {
         } else { /* LONG STREAM */
           if (!advanced) {
             ra = fread(tmp_strm, sizeof(u8),  4 + 4 * rcv_v2, finput);
+            (void)(ra);
             if (ferror(finput)) {
-              DEBUG_PRINT(("STREAM READ ERROR\n"));
+              PRINT(("STREAM READ ERROR\n"));
               goto end;
             }
             if (feof(finput)) {
-              DEBUG_PRINT(("END OF STREAM\n"));
+              PRINT(("END OF STREAM\n"));
               dec_input.stream_size = 0;
               continue;
             }
             dec_input.stream_size = DecodeFrameLayerData(tmp_strm);
-            ra = fread((u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput);
+            if (dec_input.stream_size > DEC_X170_MAX_STREAM) {
+              PRINT(("STREAM READ ERROR\n"));
+              goto end;
+            } else {
+              ra = fread((u8*)dec_input.stream, sizeof(u8), dec_input.stream_size, finput);
+              (void)(ra);
+            }
           } else {
             if(use_index) {
               if(dec_output.data_left != 0) {
@@ -1896,7 +1946,8 @@ int main(int argc, char **argv) {
             } else {
               tmp = (dec_output.p_stream_curr_pos - dec_input.stream);
               stream_pos += tmp;
-              fseeko64( finput, stream_pos, SEEK_SET );
+              if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+                fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
               dec_input.stream_size =
                 fread((u8*)dec_input.stream, sizeof(u8),
@@ -1906,7 +1957,8 @@ int main(int argc, char **argv) {
                   GetNextDuSize((u8*)dec_input.stream, dec_input.stream,
                                 dec_input.stream_size, &skipped_bytes);
                 stream_pos += skipped_bytes;
-                fseeko64( finput, stream_pos, SEEK_SET );
+                if (fseeko64( finput, stream_pos, SEEK_SET ) != 0)
+                  fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
                 if(save_index) {
                   if(dec_input.stream[0] == 0 &&
@@ -1927,11 +1979,11 @@ int main(int argc, char **argv) {
             }
           }
           if (ferror(finput)) {
-            DEBUG_PRINT(("STREAM READ ERROR\n"));
+            PRINT(("STREAM READ ERROR\n"));
             goto end;
           }
           if (feof(finput)) {
-            DEBUG_PRINT(("STREAM WILL END\n"));
+            PRINT(("STREAM WILL END\n"));
             /*goto end;*/
           }
         }
@@ -1946,13 +1998,13 @@ int main(int argc, char **argv) {
       break;
 
     default:
-      DEBUG_PRINT(("FATAL ERROR: %d\n", ret));
+      PRINT(("FATAL ERROR: %d\n", ret));
       goto end;
     }
     /* keep decoding until all data from input stream buffer consumed */
   } while(dec_input.stream_size > 0);
 
-  printf("STREAM END ENCOUNTERED\n");
+  PRINT(("STREAM END ENCOUNTERED\n"));
   if(save_index && advanced) {
     tmp = (dec_output.p_stream_curr_pos - dec_input.stream);
     stream_pos += tmp;
@@ -1979,21 +2031,22 @@ int main(int argc, char **argv) {
     pic_display_number++;
 
 #if !defined(VC1_EVALUATION_VERSION)
-    DEBUG_PRINT(("   BUFFERED %s ID %d SIZE %dx%d;",
+    PRINT(("   BUFFERED %s ID %d SIZE %dx%d;",
                  dec_picture.key_picture ? "(KEYFRAME)" : "", dec_picture.pic_id,
                  dec_picture.coded_width,
                  dec_picture.coded_height));
 
-    if (dec_picture.interlaced && dec_picture.field_picture)
-      DEBUG_PRINT((" Interlaced field %s, ", dec_picture.top_field ? "(Top)" : "(Bottom)"));
-    else if (dec_picture.interlaced && !dec_picture.field_picture)
-      DEBUG_PRINT((" Interlaced frame, "));
-    else
-      DEBUG_PRINT((" Progressive, "));
+    if (dec_picture.interlaced && dec_picture.field_picture) {
+      PRINT((" Interlaced field %s, ", dec_picture.top_field ? "(Top)" : "(Bottom)"));
+    } else if (dec_picture.interlaced && !dec_picture.field_picture) {
+      PRINT((" Interlaced frame, "));
+    } else {
+      PRINT((" Progressive, "));
+    }
 
     /* pic coding type */
     printVc1PicCodingType(dec_picture.pic_coding_type);
-    DEBUG_PRINT(("\n"));
+    PRINT(("\n"));
 #endif
 
 #ifndef PP_PIPELINE_ENABLED
@@ -2129,22 +2182,23 @@ end:
   if (NULL == foutput) {
     strm_len = 0;
   } else {
-    fseek(foutput, 0L, SEEK_END);
+    if (fseek(foutput, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     strm_len = (u32) ftell(foutput);
     fclose(foutput);
   }
 
-  DEBUG_PRINT(("Output file: %s\n", out_file_name));
+  PRINT(("Output file: %s\n", out_file_name));
 
-  DEBUG_PRINT(("OUTPUT_SIZE %d\n", strm_len));
-  DEBUG_PRINT(("NUMBER OF WRITTEN FRAMES %d\n", number_of_written_frames));
+  PRINT(("OUTPUT_SIZE %d\n", strm_len));
+  PRINT(("NUMBER OF WRITTEN FRAMES %d\n", number_of_written_frames));
 
   FINALIZE_SW_PERFORMANCE;
 
-  DEBUG_PRINT(("DECODING DONE\n"));
+  PRINT(("DECODING DONE\n"));
 
   if(num_errors || pic_decode_number == 1) {
-    DEBUG_PRINT(("ERRORS FOUND in %d out of %d PICTURES\n",
+    PRINT(("ERRORS FOUND in %d out of %d PICTURES\n",
                  num_errors, pic_decode_number));
     return 1;
   }
@@ -2182,7 +2236,7 @@ u32 GetNextDuSize(const u8* stream, const u8* stream_start, u32 strm_len, u32 *s
     u32 ret = 0;
     ret = TBRandomizePacketLoss(tb_cfg.tb_params.stream_packet_loss, (u8 *)&next_packet);
     if (ret != 0) {
-      printf("RANDOM STREAM ERROR FAILED\n");
+      PRINT(("RANDOM STREAM ERROR FAILED\n"));
       return 0;
     }
   }
@@ -2329,7 +2383,7 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data, u32 frame_numb
     if(strcmp(filename, "none") != 0) {
       foutput = fopen(filename, "wb");
       if(foutput == NULL) {
-        DEBUG_PRINT(("UNABLE TO OPEN OUTPUT FILE\n"));
+        PRINT(("UNABLE TO OPEN OUTPUT FILE\n"));
         return;
       }
     }
@@ -2416,14 +2470,17 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data, u32 frame_numb
       u8* pic_copy = NULL;
 #endif
 
-      if (interlaced && !interlaced_field && first_field)
+      if (interlaced && !interlaced_field && first_field) {
+        if(raster_scan)
+          free(raster_scan);
         return;
+      }
 
 #ifndef ASIC_TRACE_SUPPORT
       if(output_picture_endian == DEC_X170_BIG_ENDIAN) {
         pic_copy = (u8*) malloc(pic_size);
         if (NULL == pic_copy) {
-          DEBUG_PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
+          PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
           if(raster_scan)
             free(raster_scan);
 
@@ -2599,17 +2656,19 @@ u32 DecodeFrameLayerData(u8 *stream) {
   tmp = BIT7(tmp);
   if( rcv_v2 ) {
     time_stamp = SHOW4(p);
-    if (tmp == 1)
+    if (tmp == 1) {
       DEBUG_PRINT(("INTRA FRAME timestamp: %d size: %d\n",
                    time_stamp, frame_size));
-    else
+    } else {
       DEBUG_PRINT(("INTER FRAME timestamp: %d size: %d\n",
                    time_stamp, frame_size));
+    }
   } else {
-    if (tmp == 1)
+    if (tmp == 1) {
       DEBUG_PRINT(("INTRA FRAME size: %d\n", frame_size));
-    else
+    } else {
       DEBUG_PRINT(("INTER FRAME size: %d\n", frame_size));
+    }
   }
 
   return frame_size;
@@ -2705,95 +2764,94 @@ void FramePicture( u8 *p_in, i32 in_width, i32 in_height,
 
 }
 
-void vc1DecPrintReturnValue(VC1DecRet ret) {
+void vc1DecPrintReturnValue(VC1DecRet ret, char *str) {
   switch(ret) {
   case VC1DEC_OK:
-    DEBUG_PRINT(("VC1DEC_OK\n"));
+    DEBUG_PRINT(("%s VC1DEC_OK\n", str));
     break;
 
   case VC1DEC_HDRS_RDY:
-    DEBUG_PRINT(("VC1DEC_HDRS_RDY\n"));
+    DEBUG_PRINT(("%s VC1DEC_HDRS_RDY\n", str));
     break;
 
   case VC1DEC_PIC_RDY:
-    DEBUG_PRINT(("VC1DEC_PIC_RDY\n"));
+    DEBUG_PRINT(("%s VC1DEC_PIC_RDY\n", str));
     break;
 
   case VC1DEC_END_OF_SEQ:
-    DEBUG_PRINT(("VC1DEC_END_OF_SEQ\n"));
+    PRINT(("%s VC1DEC_END_OF_SEQ\n", str));
     break;
 
   case VC1DEC_PIC_DECODED:
-    DEBUG_PRINT(("VC1DEC_PIC_DECODED\n"));
+    DEBUG_PRINT(("%s VC1DEC_PIC_DECODED\n", str));
     break;
 
   case VC1DEC_PIC_CONSUMED:
-    DEBUG_PRINT(("VC1DEC_PIC_CONSUMED\n"));
+    DEBUG_PRINT(("%s VC1DEC_PIC_CONSUMED\n", str));
     break;
 
   case VC1DEC_RESOLUTION_CHANGED:
-    DEBUG_PRINT(("VC1DEC_RESOLUTION_CHANGED\n"));
+    DEBUG_PRINT(("%s VC1DEC_RESOLUTION_CHANGED\n", str));
     break;
 
   case VC1DEC_STRM_ERROR:
-    DEBUG_PRINT(("VC1DEC_STRM_ERROR\n"));
+    PRINT(("%s VC1DEC_STRM_ERROR\n", str));
     break;
 
   case VC1DEC_STRM_PROCESSED:
-    DEBUG_PRINT(("VC1DEC_STRM_PROCESSED\n"));
+    DEBUG_PRINT(("%s VC1DEC_STRM_PROCESSED\n", str));
     break;
 
   case VC1DEC_NO_DECODING_BUFFER:
-    DEBUG_PRINT(("VC1DEC_NO_DECODING_BUFFER\n"));
+    DEBUG_PRINT(("%s VC1DEC_NO_DECODING_BUFFER\n", str));
     break;
 
   case VC1DEC_PARAM_ERROR:
-    DEBUG_PRINT(("VC1DEC_PARAM_ERROR\n"));
+    PRINT(("%s VC1DEC_PARAM_ERROR\n", str));
     break;
 
   case VC1DEC_NOT_INITIALIZED:
-    DEBUG_PRINT(("VC1DEC_NOT_INITIALIZED\n"));
+    PRINT(("%s VC1DEC_NOT_INITIALIZED\n", str));
     break;
 
   case VC1DEC_MEMFAIL:
-    DEBUG_PRINT(("VC1DEC_MEMFAIL\n"));
+    PRINT(("%s VC1DEC_MEMFAIL\n", str));
     break;
 
   case VC1DEC_INITFAIL:
-    DEBUG_PRINT(("VC1DEC_INITFAIL\n"));
+    PRINT(("%s VC1DEC_INITFAIL\n", str));
     break;
 
   case VC1DEC_METADATA_FAIL:
-    DEBUG_PRINT(("VC1DEC_METADATA_FAIL\n"));
+    PRINT(("%s VC1DEC_METADATA_FAIL\n", str));
     break;
 
   case VC1DEC_HW_RESERVED:
-    DEBUG_PRINT(("VC1DEC_HW_RESERVED\n"));
+    PRINT(("%s VC1DEC_HW_RESERVED\n", str));
     break;
 
   case VC1DEC_HW_TIMEOUT:
-    DEBUG_PRINT(("VC1DEC_HW_TIMEOUT\n"));
+    PRINT(("%s VC1DEC_HW_TIMEOUT\n", str));
     break;
 
   case VC1DEC_HW_BUS_ERROR:
-    DEBUG_PRINT(("VC1DEC_HW_BUS_ERROR\n"));
+    PRINT(("%s VC1DEC_HW_BUS_ERROR\n", str));
     break;
 
   case VC1DEC_SYSTEM_ERROR:
-    DEBUG_PRINT(("VC1DEC_SYSTEM_ERROR\n"));
+    PRINT(("%s VC1DEC_SYSTEM_ERROR\n", str));
     break;
 
   case VC1DEC_DWL_ERROR:
-    DEBUG_PRINT(("VC1DEC_DWL_ERROR\n"));
+    PRINT(("%s VC1DEC_DWL_ERROR\n", str));
     break;
 
   case VC1DEC_NONREF_PIC_SKIPPED:
-    DEBUG_PRINT(("VC1DEC_NONREF_PIC_SKIPPED\n"));
+    PRINT(("%s VC1DEC_NONREF_PIC_SKIPPED\n", str));
     break;
 
   default:
-
-    DEBUG_PRINT(("unknown return value!\n"));
+    PRINT(("%s unknown return value!\n", str));
   }
 }
 
@@ -2805,40 +2863,40 @@ void vc1DecPrintReturnValue(VC1DecRet ret) {
 
 ------------------------------------------------------------------------------*/
 void printVc1PicCodingType(u32 *pic_type) {
-  printf("Coding type ");
+  DEBUG_PRINT(("Coding type "));
   switch (pic_type[0]) {
   case DEC_PIC_TYPE_I:
-    printf("[I:");
+    DEBUG_PRINT(("[I:"));
     break;
   case DEC_PIC_TYPE_P:
-    printf("[P:");
+    DEBUG_PRINT(("[P:"));
     break;
   case DEC_PIC_TYPE_B:
-    printf("[B:");
+    DEBUG_PRINT(("[B:"));
     break;
   case DEC_PIC_TYPE_BI:
-    printf("[BI:");
+    DEBUG_PRINT(("[BI:"));
     break;
   default:
-    printf("[Other %d:", *pic_type);
+    DEBUG_PRINT(("[Other %d:", *pic_type));
     break;
   }
 
   switch (pic_type[1]) {
   case DEC_PIC_TYPE_I:
-    printf("I]");
+    DEBUG_PRINT(("I]"));
     break;
   case DEC_PIC_TYPE_P:
-    printf("P]");
+    DEBUG_PRINT(("P]"));
     break;
   case DEC_PIC_TYPE_B:
-    printf("B]");
+    DEBUG_PRINT(("B]"));
     break;
   case DEC_PIC_TYPE_BI:
-    printf("BI]");
+    DEBUG_PRINT(("BI]"));
     break;
   default:
-    printf("Other %d]", *pic_type);
+    DEBUG_PRINT(("Other %d]", *pic_type));
     break;
   }
 }
@@ -2870,9 +2928,10 @@ u32 fillBuffer(u8 *stream) {
   off64_t pos = ftello64(finput);
   int ret;
   if(cur_index != pos) {
-    fseeko64(finput, cur_index, SEEK_SET);
+    if (fseeko64(finput, cur_index, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
   ret = fscanf(f_index, "%lu", &next_index);
 #else
   ret = fscanf(f_index, "%llu", &next_index);
@@ -2881,6 +2940,10 @@ u32 fillBuffer(u8 *stream) {
   cur_index = next_index;
 
   /* read data */
+  if (amount > DEC_X170_MAX_STREAM) {
+    PRINT(("FILE ERROR\n"));
+    return 0;
+  }
   data_len = fread(stream, 1, amount, finput);
 
   return data_len;

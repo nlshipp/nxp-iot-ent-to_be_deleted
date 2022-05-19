@@ -300,6 +300,7 @@ VC1DecRet VC1DecPictureConsumed(VC1DecInst  dec_inst,
                                 VC1DecPicture *picture);
 
 VC1DecRet VC1DecEndOfStream(VC1DecInst dec_inst, u32 strm_end_flag);
+VC1DecRet VC1DecRemoveBuffer(VC1DecInst dec_inst);
 
 VC1DecRet VC1DecAbort(VC1DecInst dec_inst);
 
@@ -314,6 +315,10 @@ VC1DecRet VC1DecGetBufferInfo(VC1DecInst dec_inst, VC1DecBufferInfo *mem_info);
 VC1DecRet VC1DecAddBuffer(VC1DecInst dec_inst, struct DWLLinearMem *info);
 #endif
 
+/* For advance profile only.
+ * To indicate if following input frame data has frame-start-code (0) or not (1)
+ */
+VC1DecRet VC1DecSetFrameDataMode(VC1DecInst dec_inst, u32 raw_frame_data);
 /*------------------------------------------------------------------------------
     Prototype of the API trace funtion. Traces all API entries and returns.
     This must be implemented by the application using the decoder API!

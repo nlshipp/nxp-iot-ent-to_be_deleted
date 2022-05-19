@@ -126,10 +126,12 @@ extern FILE *trace_out2nd_ch;
 extern FILE *trace_pp_ablend1;
 extern FILE *trace_pp_ablend2;
 extern FILE *trace_pp_in;
+#if 0
 extern FILE *trace_pp_in_tiled4x4;
 extern FILE *trace_ctrl_pp_in_tiled4x4;
 extern FILE *trace_dscale_pp_out;
 extern FILE *trace_ctrl_dscale_pp_out;
+#endif
 extern FILE *trace_pp_in_tiled;
 extern FILE *trace_pp_in_bot;
 extern FILE *trace_pp_out;
@@ -198,10 +200,10 @@ u32 openTraceFiles(void) {
 
   trace_cfg = fopen("trace.cfg", "r");
   if(!trace_cfg) {
-    return (1);
+    return (0);
   }
 
-  while(fscanf(trace_cfg, "%s\n", trace_string) != EOF) {
+  while(fscanf(trace_cfg, "%79s\n", trace_string) != EOF) {
     if(!strcmp(trace_string, "toplevel") && !trace_sequence_ctrl) {
       for (i = 0 ; i < 9 ; ++i) {
         sprintf(tmp_string, "stream_%d.trc", i+1 );
@@ -209,59 +211,59 @@ u32 openTraceFiles(void) {
         sprintf(tmp_string, "stream_control_%d.trc", i+1 );
         trace_bc_stream_ctrl[i] = fopen(tmp_string, "w");
       }
-      trace_prob_tables = fopen("boolcoder_prob.trc", "w");
-      trace_sequence_ctrl = fopen("sequence_ctrl.trc", "w");
-      trace_picture_ctrl_dec = fopen("picture_ctrl_dec.trc", "w");
-      trace_picture_ctrl_dec_tiled = fopen("picture_ctrl_dec_tiled.trc", "w");
-      trace_jpeg_tables = fopen("jpeg_tables.trc", "w");
-      trace_stream = fopen("stream.trc", "w");
-      trace_stream_ctrl = fopen("stream_control.trc", "w");
-      trace_out = fopen("decoder_out.trc", "w");
-      trace_out_tiled = fopen("decoder_out_tiled.trc", "w");
-      trace_separ_dc = fopen("dc_separate_coeffs.trc", "w");
-      trace_separ_dc_hex = fopen("dc_separate_coeffs.hex", "w");
-      trace_bit_plane_ctrl = fopen("vc1_bitplane_ctrl.trc", "w");
-      trace_dir_mode_mvs = fopen("direct_mode_mvs.trc", "w");
-      trace_dir_mode_mvs_hex = fopen("direct_mode_mvs.hex", "w");
-      trace_qtables = fopen("qtables.trc", "w");
-      trace_sw_reg_access = fopen("swreg_accesses.trc", "w");
-      trace_sw_reg_access_tiled = fopen("swreg_accesses_tiled.trc", "w");
-      trace_busload = fopen("busload.trc", "w");
+      if (!trace_prob_tables) trace_prob_tables = fopen("boolcoder_prob.trc", "w");
+      if (!trace_sequence_ctrl) trace_sequence_ctrl = fopen("sequence_ctrl.trc", "w");
+      if (!trace_picture_ctrl_dec) trace_picture_ctrl_dec = fopen("picture_ctrl_dec.trc", "w");
+      if (!trace_picture_ctrl_dec_tiled) trace_picture_ctrl_dec_tiled = fopen("picture_ctrl_dec_tiled.trc", "w");
+      if (!trace_jpeg_tables) trace_jpeg_tables = fopen("jpeg_tables.trc", "w");
+      if (!trace_stream) trace_stream = fopen("stream.trc", "w");
+      if (!trace_stream_ctrl) trace_stream_ctrl = fopen("stream_control.trc", "w");
+      if (!trace_out) trace_out = fopen("decoder_out.trc", "w");
+      if (!trace_out_tiled) trace_out_tiled = fopen("decoder_out_tiled.trc", "w");
+      if (!trace_separ_dc) trace_separ_dc = fopen("dc_separate_coeffs.trc", "w");
+      if (!trace_separ_dc_hex) trace_separ_dc_hex = fopen("dc_separate_coeffs.hex", "w");
+      if (!trace_bit_plane_ctrl) trace_bit_plane_ctrl = fopen("vc1_bitplane_ctrl.trc", "w");
+      if (!trace_dir_mode_mvs) trace_dir_mode_mvs = fopen("direct_mode_mvs.trc", "w");
+      if (!trace_dir_mode_mvs_hex) trace_dir_mode_mvs_hex = fopen("direct_mode_mvs.hex", "w");
+      if (!trace_qtables) trace_qtables = fopen("qtables.trc", "w");
+      if (!trace_sw_reg_access) trace_sw_reg_access = fopen("swreg_accesses.trc", "w");
+      if (!trace_sw_reg_access_tiled) trace_sw_reg_access_tiled = fopen("swreg_accesses_tiled.trc", "w");
+      if (!trace_busload) trace_busload = fopen("busload.trc", "w");
 
-      trace_cabac_table[0] = fopen("cabac_table_intra.trc", "w");
-      trace_cabac_table[1] = fopen("cabac_table_inter0.trc", "w");
-      trace_cabac_table[2] = fopen("cabac_table_inter1.trc", "w");
-      trace_cabac_table[3] = fopen("cabac_table_inter2.trc", "w");
-      trace_segmentation = fopen("segmentation.trc", "w");
+      if (!trace_cabac_table[0]) trace_cabac_table[0] = fopen("cabac_table_intra.trc", "w");
+      if (!trace_cabac_table[1]) trace_cabac_table[1] = fopen("cabac_table_inter0.trc", "w");
+      if (!trace_cabac_table[2]) trace_cabac_table[2] = fopen("cabac_table_inter1.trc", "w");
+      if (!trace_cabac_table[3]) trace_cabac_table[3] = fopen("cabac_table_inter2.trc", "w");
+      if (!trace_segmentation) trace_segmentation = fopen("segmentation.trc", "w");
 
       /*required if sw is performing entropy decoding */
-      trace_mb_ctrl = fopen("mbcontrol.trc", "w");
-      trace_mb_ctrl_hex = fopen("mbcontrol.hex", "w");
-      trace_motion_vectors = fopen("motion_vectors.trc", "w");
-      trace_motion_vectors_hex = fopen("motion_vectors.hex", "w");
-      trace_intra4x4_modes = fopen("intra4x4_modes.trc", "w");
-      trace_intra4x4_modes_hex = fopen("intra4x4_modes.hex", "w");
-      trace_rlc = fopen("rlc.trc", "w");
-      trace_rlc_unpacked = fopen("rlc_unpacked.trc", "w");
-      trace_vp78_mv_weight = fopen("vp78_context_weight.trc", "w" );
+      if (!trace_mb_ctrl) trace_mb_ctrl = fopen("mbcontrol.trc", "w");
+      if (!trace_mb_ctrl_hex) trace_mb_ctrl_hex = fopen("mbcontrol.hex", "w");
+      if (!trace_motion_vectors) trace_motion_vectors = fopen("motion_vectors.trc", "w");
+      if (!trace_motion_vectors_hex) trace_motion_vectors_hex = fopen("motion_vectors.hex", "w");
+      if (!trace_intra4x4_modes) trace_intra4x4_modes = fopen("intra4x4_modes.trc", "w");
+      if (!trace_intra4x4_modes_hex) trace_intra4x4_modes_hex = fopen("intra4x4_modes.hex", "w");
+      if (!trace_rlc) trace_rlc = fopen("rlc.trc", "w");
+      if (!trace_rlc_unpacked) trace_rlc_unpacked = fopen("rlc_unpacked.trc", "w");
+      if (!trace_vp78_mv_weight) trace_vp78_mv_weight = fopen("vp78_context_weight.trc", "w" );
 
-      trace_ref_bufferd_pic_ctrl = fopen("refbufferd_picctrl.trc", "w");
-      trace_ref_bufferd_ctrl = fopen("refbufferd_ctrl.trc", "w");
+      if (!trace_ref_bufferd_pic_ctrl) trace_ref_bufferd_pic_ctrl = fopen("refbufferd_picctrl.trc", "w");
+      if (!trace_ref_bufferd_ctrl) trace_ref_bufferd_ctrl = fopen("refbufferd_ctrl.trc", "w");
 
-      trace_pjpeg_coeffs = fopen("prog_jpeg_coefficients.trc", "w");
-      trace_pjpeg_coeffs_hex = fopen("prog_jpeg_coefficients.hex", "w");
+      if (!trace_pjpeg_coeffs) trace_pjpeg_coeffs = fopen("prog_jpeg_coefficients.trc", "w");
+      if (!trace_pjpeg_coeffs_hex) trace_pjpeg_coeffs_hex = fopen("prog_jpeg_coefficients.hex", "w");
 
-      trace_pic_ord_cnts = fopen("picord_counts.trc", "w");
-      trace_scaling_lists = fopen("scaling_lists.trc", "w");
+      if (!trace_pic_ord_cnts) trace_pic_ord_cnts = fopen("picord_counts.trc", "w");
+      if (!trace_scaling_lists) trace_scaling_lists = fopen("scaling_lists.trc", "w");
 
-      trace_slice_sizes = fopen("slice_sizes.trc", "w");;
+      if (!trace_slice_sizes) trace_slice_sizes = fopen("slice_sizes.trc", "w");;
 
-      trace_rv_mvd_bits = fopen("mvd_flags.trc", "w");;
-      trace_huffman = fopen("huffman.trc", "w");
-      trace_prob1 = fopen("boolcoder_1.trc", "w");
-      trace_prob2 = fopen("boolcoder_2.trc", "w");
+      if (!trace_rv_mvd_bits) trace_rv_mvd_bits = fopen("mvd_flags.trc", "w");;
+      if (!trace_huffman) trace_huffman = fopen("huffman.trc", "w");
+      if (!trace_prob1) trace_prob1 = fopen("boolcoder_1.trc", "w");
+      if (!trace_prob2) trace_prob2 = fopen("boolcoder_2.trc", "w");
 
-      trace_out2nd_ch = fopen("decoder_out_ch_8pix.trc", "w");
+      if (!trace_out2nd_ch) trace_out2nd_ch = fopen("decoder_out_ch_8pix.trc", "w");
 
       if((trace_sequence_ctrl == NULL) || (trace_picture_ctrl_dec == NULL) ||
           (trace_jpeg_tables == NULL) || (trace_stream == NULL) ||
@@ -279,6 +281,8 @@ u32 openTraceFiles(void) {
           (trace_out2nd_ch == NULL))
 
       {
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
         return (0);
       }
     }
@@ -288,63 +292,63 @@ u32 openTraceFiles(void) {
         sprintf(tmp_string, "boolcoder_%d_ctx.trc", i+1 );
         trace_boolcoder[i] = fopen(tmp_string, "w");
       }
-      trace_acdcd_out = fopen("acdcd_out.trc", "w");
-      trace_acdcd_out_data = fopen("acdcd_outdata.trc", "w");
-      trace_bs = fopen("bs.trc", "w");
-      trace_dct_out_data = fopen("dct_outdata.trc", "w");
-      trace_decoded_mvs = fopen("decoded_mvs.trc", "w");
-      trace_final_mvs = fopen("final_mvs.trc", "w");
-      trace_inter_ref_y = fopen("inter_reference_y.trc", "w");
-      trace_inter_ref_y1 = fopen("inter_reference1_y.trc", "w");
-      trace_inter_ref_cb = fopen("inter_reference_cb.trc", "w");
-      trace_inter_ref_cb1 = fopen("inter_reference1_cb.trc", "w");
-      trace_inter_ref_cr = fopen("inter_reference_cr.trc", "w");
-      trace_inter_ref_cr1 = fopen("inter_reference1_cr.trc", "w");
-      trace_overfill = fopen("inter_overfill.trc", "w");
-      trace_overfill1 = fopen("inter_overfill1.trc", "w");
-      trace_inter_out_data = fopen("inter_outdata.trc", "w");
-      trace_intra_pred = fopen("intra_predicted.trc", "w");
-      trace_recon = fopen("reconstructed.trc", "w");
-      trace_scd_out_data = fopen("scd_outdata.trc", "w");
-      trace_transd_first_round = fopen("transd_1rnd.trc", "w");
-      trace_h264_pic_id_map = fopen("h264_picid_map.trc", "w");
-      trace_residual = fopen("residual.trc", "w");
-      trace_iq = fopen("inverse_quant.trc", "w");
-      trace_overlap_smooth = fopen("overlap_smoothed.trc", "w");
-      trace_vc1_filtering_ctrl = fopen("vc1_filtering_ctrl.trc", "w");
-      trace_stream_txt = fopen("stream.txt", "w");
-      trace_neighbour_mv = fopen("neighbour_mvs.trc", "w");
-      trace_ic_sets = fopen("intensity_sets.trc", "w");
-      trace_above_mb_mem = fopen("above_mb_ctrl_sram.trc", "w");
-      trace_ref_pic_list = fopen("ref_pic_list.trc", "w");
-      trace_implicit_weights = fopen("implicit_weights.trc", "w");
-      trace_intra_filtered_pels = fopen("intra_filtered_pxls.trc", "w");
-      trace_motion_vectors_fixed = fopen("motion_vectors_fixed.trc", "w");
-      trace_decoded_mvs_fixed = fopen("decoded_mvs_fixed.trc", "w");
-      trace_dir_mv_fetch = fopen("h264_dirmv_fetch.trc", "w");
-      trace_scaling_out = fopen("h264_scaling_out.trc", "w");
-      trace_custom_idct = fopen("custom_idct.trc", "w");
-      trace_inter_out_y = fopen("inter_interpolated_y.trc", "w");
-      trace_inter_out_y1 = fopen("inter_interpolated1_y.trc", "w");
-      trace_inter_out_cb = fopen("inter_interpolated_cb.trc", "w");
-      trace_inter_out_cb1 = fopen("inter_interpolated1_cb.trc", "w");
-      trace_inter_out_cr = fopen("inter_interpolated_cr.trc", "w");
-      trace_inter_out_cr1 = fopen("inter_interpolated1_cr.trc", "w");
-      trace_filter_internal = fopen("rv_filter.trc", "w");
-      trace_variance = fopen("inter_variance.trc", "w");
-      trace_huffman_ctx = fopen("huffman_ctx.trc", "w");
-      trace_zig_zag = fopen("zigzag.trc", "w");
-      trace_nearest = fopen("nearest.trc", "w" );
-      trace_inter_filtered_y = fopen("inter_vp6_filtered_ref_y.trc","w");
-      trace_inter_filtered_cb = fopen("inter_vp6_filtered_ref_cb.trc","w");
-      trace_inter_filtered_cr = fopen("inter_vp6_filtered_ref_cr.trc","w");
+      if (!trace_acdcd_out) trace_acdcd_out = fopen("acdcd_out.trc", "w");
+      if (!trace_acdcd_out_data) trace_acdcd_out_data = fopen("acdcd_outdata.trc", "w");
+      if (!trace_bs) trace_bs = fopen("bs.trc", "w");
+      if (!trace_dct_out_data) trace_dct_out_data = fopen("dct_outdata.trc", "w");
+      if (!trace_decoded_mvs) trace_decoded_mvs = fopen("decoded_mvs.trc", "w");
+      if (!trace_final_mvs) trace_final_mvs = fopen("final_mvs.trc", "w");
+      if (!trace_inter_ref_y) trace_inter_ref_y = fopen("inter_reference_y.trc", "w");
+      if (!trace_inter_ref_y1) trace_inter_ref_y1 = fopen("inter_reference1_y.trc", "w");
+      if (!trace_inter_ref_cb) trace_inter_ref_cb = fopen("inter_reference_cb.trc", "w");
+      if (!trace_inter_ref_cb1) trace_inter_ref_cb1 = fopen("inter_reference1_cb.trc", "w");
+      if (!trace_inter_ref_cr) trace_inter_ref_cr = fopen("inter_reference_cr.trc", "w");
+      if (!trace_inter_ref_cr1) trace_inter_ref_cr1 = fopen("inter_reference1_cr.trc", "w");
+      if (!trace_overfill) trace_overfill = fopen("inter_overfill.trc", "w");
+      if (!trace_overfill1) trace_overfill1 = fopen("inter_overfill1.trc", "w");
+      if (!trace_inter_out_data) trace_inter_out_data = fopen("inter_outdata.trc", "w");
+      if (!trace_intra_pred) trace_intra_pred = fopen("intra_predicted.trc", "w");
+      if (!trace_recon) trace_recon = fopen("reconstructed.trc", "w");
+      if (!trace_scd_out_data) trace_scd_out_data = fopen("scd_outdata.trc", "w");
+      if (!trace_transd_first_round) trace_transd_first_round = fopen("transd_1rnd.trc", "w");
+      if (!trace_h264_pic_id_map) trace_h264_pic_id_map = fopen("h264_picid_map.trc", "w");
+      if (!trace_residual) trace_residual = fopen("residual.trc", "w");
+      if (!trace_iq) trace_iq = fopen("inverse_quant.trc", "w");
+      if (!trace_overlap_smooth) trace_overlap_smooth = fopen("overlap_smoothed.trc", "w");
+      if (!trace_vc1_filtering_ctrl) trace_vc1_filtering_ctrl = fopen("vc1_filtering_ctrl.trc", "w");
+      if (!trace_stream_txt) trace_stream_txt = fopen("stream.txt", "w");
+      if (!trace_neighbour_mv) trace_neighbour_mv = fopen("neighbour_mvs.trc", "w");
+      if (!trace_ic_sets) trace_ic_sets = fopen("intensity_sets.trc", "w");
+      if (!trace_above_mb_mem) trace_above_mb_mem = fopen("above_mb_ctrl_sram.trc", "w");
+      if (!trace_ref_pic_list) trace_ref_pic_list = fopen("ref_pic_list.trc", "w");
+      if (!trace_implicit_weights) trace_implicit_weights = fopen("implicit_weights.trc", "w");
+      if (!trace_intra_filtered_pels) trace_intra_filtered_pels = fopen("intra_filtered_pxls.trc", "w");
+      if (!trace_motion_vectors_fixed) trace_motion_vectors_fixed = fopen("motion_vectors_fixed.trc", "w");
+      if (!trace_decoded_mvs_fixed) trace_decoded_mvs_fixed = fopen("decoded_mvs_fixed.trc", "w");
+      if (!trace_dir_mv_fetch) trace_dir_mv_fetch = fopen("h264_dirmv_fetch.trc", "w");
+      if (!trace_scaling_out) trace_scaling_out = fopen("h264_scaling_out.trc", "w");
+      if (!trace_custom_idct) trace_custom_idct = fopen("custom_idct.trc", "w");
+      if (!trace_inter_out_y) trace_inter_out_y = fopen("inter_interpolated_y.trc", "w");
+      if (!trace_inter_out_y1) trace_inter_out_y1 = fopen("inter_interpolated1_y.trc", "w");
+      if (!trace_inter_out_cb) trace_inter_out_cb = fopen("inter_interpolated_cb.trc", "w");
+      if (!trace_inter_out_cb1) trace_inter_out_cb1 = fopen("inter_interpolated1_cb.trc", "w");
+      if (!trace_inter_out_cr) trace_inter_out_cr = fopen("inter_interpolated_cr.trc", "w");
+      if (!trace_inter_out_cr1) trace_inter_out_cr1 = fopen("inter_interpolated1_cr.trc", "w");
+      if (!trace_filter_internal) trace_filter_internal = fopen("rv_filter.trc", "w");
+      if (!trace_variance) trace_variance = fopen("inter_variance.trc", "w");
+      if (!trace_huffman_ctx) trace_huffman_ctx = fopen("huffman_ctx.trc", "w");
+      if (!trace_zig_zag) trace_zig_zag = fopen("zigzag.trc", "w");
+      if (!trace_nearest) trace_nearest = fopen("nearest.trc", "w" );
+      if (!trace_inter_filtered_y) trace_inter_filtered_y = fopen("inter_vp6_filtered_ref_y.trc","w");
+      if (!trace_inter_filtered_cb) trace_inter_filtered_cb = fopen("inter_vp6_filtered_ref_cb.trc","w");
+      if (!trace_inter_filtered_cr) trace_inter_filtered_cr = fopen("inter_vp6_filtered_ref_cr.trc","w");
 
-      trace_cabac_bin = fopen("cabac_bin.trc", "w");
-      trace_ref_bufferd_pic_y = fopen("refbufferd_buffil_y.trc", "w");
-      trace_adv_pre_fetch = fopen("advanced_prefetch.trc", "w" );
-      trace_ref_bufferd_pic_cb_cr = fopen("refbufferd_buffil_c.trc", "w");
+      if (!trace_cabac_bin) trace_cabac_bin = fopen("cabac_bin.trc", "w");
+      if (!trace_ref_bufferd_pic_y) trace_ref_bufferd_pic_y = fopen("refbufferd_buffil_y.trc", "w");
+      if (!trace_adv_pre_fetch) trace_adv_pre_fetch = fopen("advanced_prefetch.trc", "w" );
+      if (!trace_ref_bufferd_pic_cb_cr) trace_ref_bufferd_pic_cb_cr = fopen("refbufferd_buffil_c.trc", "w");
 
-      trace_vp78_above_cbf = fopen("vp78_above_cbf.trc", "w");
+      if (!trace_vp78_above_cbf) trace_vp78_above_cbf = fopen("vp78_above_cbf.trc", "w");
 
       if((trace_acdcd_out == NULL) || (trace_acdcd_out_data == NULL) ||
           (trace_bs == NULL) || (trace_dct_out_data == NULL) ||
@@ -371,19 +375,24 @@ u32 openTraceFiles(void) {
           (trace_inter_out_cr == NULL) || (trace_inter_out_cr1 == NULL) ||
           (trace_ref_bufferd_pic_y == NULL) || (trace_ref_bufferd_pic_cb_cr == NULL) ||
           (trace_filter_internal == NULL)) {
-        return (1);
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
+        return (0);
       }
     }
     if(!strcmp(trace_string, "fpga") && !trace_picture_ctrl_dec) {
-      trace_picture_ctrl_dec = fopen("picture_ctrl_dec.trc", "w");
-      trace_picture_ctrl_pp = fopen("picture_ctrl_pp.trc", "w");
-      trace_picture_ctrl_dec_tiled = fopen("picture_ctrl_dec_tiled.trc", "w");
-      trace_picture_ctrl_pp_tiled = fopen("picture_ctrl_pp_tiled.trc", "w");
-      trace_busload = fopen("busload.trc", "w");
+      if (!trace_picture_ctrl_dec) trace_picture_ctrl_dec = fopen("picture_ctrl_dec.trc", "w");
+      if (!trace_picture_ctrl_pp) trace_picture_ctrl_pp = fopen("picture_ctrl_pp.trc", "w");
+      if (!trace_picture_ctrl_dec_tiled) trace_picture_ctrl_dec_tiled = fopen("picture_ctrl_dec_tiled.trc", "w");
+      if (!trace_picture_ctrl_pp_tiled) trace_picture_ctrl_pp_tiled = fopen("picture_ctrl_pp_tiled.trc", "w");
+      if (!trace_busload) trace_busload = fopen("busload.trc", "w");
 
 
-      if(trace_picture_ctrl_dec == NULL)
-        return (1);
+      if(trace_picture_ctrl_dec == NULL) {
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
+        return (0);
+      }
     }
     if(!strcmp(trace_string, "decoding_tools")) {
       /* MPEG2 decoding tools trace */
@@ -428,52 +437,60 @@ u32 openTraceFiles(void) {
       memset(&trace_rv_dec_tools, 0,
              sizeof(struct TraceRvDecTools));
 
-      trace_decoding_tools = fopen("decoding_tools.trc", "w");
+      if (!trace_decoding_tools) trace_decoding_tools = fopen("decoding_tools.trc", "w");
 
-      if(trace_decoding_tools == NULL)
-        return (1);
+      if(trace_decoding_tools == NULL) {
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
+        return (0);
+      }
     }
     if(!strcmp(trace_string, "pp_toplevel")) {
-      trace_sequence_ctrl_pp = fopen("sequence_ctrl_pp.trc", "w");
-      trace_picture_ctrl_pp = fopen("picture_ctrl_pp.trc", "w");
-      trace_picture_ctrl_pp_tiled = fopen("picture_ctrl_pp_tiled.trc", "w");
-      trace_pp_in = fopen("pp_in.trc", "w");
-      trace_pp_in_tiled = fopen("pp_in_tiled.trc", "w");
-      trace_pp_in_bot = fopen("pp_in_bot.trc", "w");
-      trace_pp_out = fopen("pp_out.trc", "w");
-      trace_pp_background = fopen("pp_background.trc", "w");
-      trace_pp_ablend1 = fopen("pp_ablend1.trc", "w");
-      trace_pp_ablend2 = fopen("pp_ablend2.trc", "w");
+      if (!trace_sequence_ctrl_pp) trace_sequence_ctrl_pp = fopen("sequence_ctrl_pp.trc", "w");
+      if (!trace_picture_ctrl_pp) trace_picture_ctrl_pp = fopen("picture_ctrl_pp.trc", "w");
+      if (!trace_picture_ctrl_pp_tiled) trace_picture_ctrl_pp_tiled = fopen("picture_ctrl_pp_tiled.trc", "w");
+      if (!trace_pp_in) trace_pp_in = fopen("pp_in.trc", "w");
+      if (!trace_pp_in_tiled) trace_pp_in_tiled = fopen("pp_in_tiled.trc", "w");
+      if (!trace_pp_in_bot) trace_pp_in_bot = fopen("pp_in_bot.trc", "w");
+      if (!trace_pp_out) trace_pp_out = fopen("pp_out.trc", "w");
+      if (!trace_pp_background) trace_pp_background = fopen("pp_background.trc", "w");
+      if (!trace_pp_ablend1) trace_pp_ablend1 = fopen("pp_ablend1.trc", "w");
+      if (!trace_pp_ablend2) trace_pp_ablend2 = fopen("pp_ablend2.trc", "w");
+#if 0
       trace_pp_in_tiled4x4 = fopen("ppin_tiled4x4.bin", "wb");
       trace_ctrl_pp_in_tiled4x4 = fopen("ppin_ctrl_tiled4x4.bin", "wb");
       trace_dscale_pp_out = fopen("ppout_downscale.bin", "wb");
       trace_ctrl_dscale_pp_out = fopen("ppout_ctrl_downscale.bin", "wb");
+#endif
       if(trace_sequence_ctrl_pp == NULL ||
           trace_picture_ctrl_pp == NULL ||
           trace_pp_in == NULL ||
           trace_pp_in_bot == NULL ||
           trace_pp_out == NULL ||
           trace_pp_background == NULL ||
-          trace_pp_ablend1 == NULL || trace_pp_ablend2 == NULL ||
+          trace_pp_ablend1 == NULL || trace_pp_ablend2 == NULL /*||
           trace_pp_in_tiled4x4 == NULL || trace_ctrl_pp_in_tiled4x4 == NULL ||
-          trace_dscale_pp_out == NULL || trace_ctrl_dscale_pp_out == NULL)
-        return (1);
+          trace_dscale_pp_out == NULL || trace_ctrl_dscale_pp_out == NULL*/) {
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
+        return (0);
+      }
     }
     if(!strcmp(trace_string, "pp_all")) {
-      trace_pp_deint_in = fopen("pp_deint_in.trc", "w");
-      trace_pp_deint_out_y = fopen("pp_deint_out_y.trc", "w");
-      trace_pp_deint_out_cb = fopen("pp_deint_out_cb.trc", "w");
-      trace_pp_deint_out_cr = fopen("pp_deint_out_cr.trc", "w");
-      trace_pp_crop = fopen("pp_crop.trc", "w");;
-      trace_pp_rotation = fopen("pp_rotation.trc", "w");;
-      trace_pp_scaling_kernel = fopen("pp_scaling_kernel.trc", "w");;
-      trace_pp_scaling_r = fopen("pp_scaling_r.trc", "w");;
-      trace_pp_scaling_g = fopen("pp_scaling_g.trc", "w");;
-      trace_pp_scaling_b = fopen("pp_scaling_b.trc", "w");;
-      trace_pp_color_conv_r = fopen("pp_colorconv_r.trc", "w");;
-      trace_pp_color_conv_g = fopen("pp_colorconv_g.trc", "w");;
-      trace_pp_color_conv_b = fopen("pp_colorconv_b.trc", "w");;
-      trace_pp_weights = fopen("pp_weights.trc", "w");;
+      if (!trace_pp_deint_in) trace_pp_deint_in = fopen("pp_deint_in.trc", "w");
+      if (!trace_pp_deint_out_y) trace_pp_deint_out_y = fopen("pp_deint_out_y.trc", "w");
+      if (!trace_pp_deint_out_cb) trace_pp_deint_out_cb = fopen("pp_deint_out_cb.trc", "w");
+      if (!trace_pp_deint_out_cr) trace_pp_deint_out_cr = fopen("pp_deint_out_cr.trc", "w");
+      if (!trace_pp_crop) trace_pp_crop = fopen("pp_crop.trc", "w");;
+      if (!trace_pp_rotation) trace_pp_rotation = fopen("pp_rotation.trc", "w");;
+      if (!trace_pp_scaling_kernel) trace_pp_scaling_kernel = fopen("pp_scaling_kernel.trc", "w");;
+      if (!trace_pp_scaling_r) trace_pp_scaling_r = fopen("pp_scaling_r.trc", "w");;
+      if (!trace_pp_scaling_g) trace_pp_scaling_g = fopen("pp_scaling_g.trc", "w");;
+      if (!trace_pp_scaling_b) trace_pp_scaling_b = fopen("pp_scaling_b.trc", "w");;
+      if (!trace_pp_color_conv_r) trace_pp_color_conv_r = fopen("pp_colorconv_r.trc", "w");;
+      if (!trace_pp_color_conv_g) trace_pp_color_conv_g = fopen("pp_colorconv_g.trc", "w");;
+      if (!trace_pp_color_conv_b) trace_pp_color_conv_b = fopen("pp_colorconv_b.trc", "w");;
+      if (!trace_pp_weights) trace_pp_weights = fopen("pp_weights.trc", "w");;
       if(trace_pp_deint_in == NULL ||
           trace_pp_deint_out_y == NULL ||
           trace_pp_deint_out_cb == NULL ||
@@ -486,10 +503,14 @@ u32 openTraceFiles(void) {
           trace_pp_scaling_b == NULL ||
           trace_pp_color_conv_r == NULL ||
           trace_pp_color_conv_g == NULL ||
-          trace_pp_color_conv_b == NULL || trace_pp_weights == NULL)
-        return (1);
+          trace_pp_color_conv_b == NULL || trace_pp_weights == NULL) {
+        closeTraceFiles();
+        if (trace_cfg) fclose(trace_cfg);
+        return (0);
+      }
     }
   }
+  if (trace_cfg) fclose(trace_cfg);
   return (1);
 }
 

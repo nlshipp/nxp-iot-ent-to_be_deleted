@@ -39,14 +39,24 @@
 #include "dwl_defs.h"
 #include "dwl_linux.h"
 #include "dwl.h"
+#ifdef USE_VSI_ENV
+#include "hantrodec.h"
+#else
 #include <linux/hantrodec.h>
+#endif
 #ifdef USE_ION
-#include <linux/ion.h>
 #include <linux/dma-buf.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0) || defined(ENABLE_DMABUF_HEAP)
+#include <linux/dma-heap.h>
+#else
+#include <linux/ion.h>
+#endif
 #ifdef ANDROID
+#if !defined(ENABLE_DMABUF_HEAP)
 #include <linux/mxc_ion.h>
 #include <ion_4.12.h>
+#endif
 #endif
 #ifdef CFG_SECURE_DATA_PATH
 #include <linux/secure_ion.h>
@@ -55,6 +65,10 @@
 #include "memalloc.h"
 #endif  //USE_ION
 #include "sw_util.h"
+
+#ifdef ENABLE_DMABUF_HEAP
+#include <linux/dma-buf-imx.h>
+#endif
 
 #include <assert.h>
 #include <errno.h>
@@ -77,6 +91,7 @@
 #ifdef INTERNAL_TEST
 #include "internal_test.h"
 #endif
+
 
 #define DWL_PJPEG_E 22    /* 1 bit */
 #define DWL_REF_BUFF_E 20 /* 1 bit */
@@ -166,7 +181,7 @@ static void DWLFakeTimeout(u32 *status);
 /* shadow HW registers */
 u32 dwl_shadow_regs[MAX_ASIC_CORES][264];
 
-static inline u32 CheckRegOffset(struct HX170DWL *dec_dwl, u32 offset) {
+static inline u32 CheckRegOffset(struct HANTRODWL *dec_dwl, u32 offset) {
   if (dec_dwl->client_type == DWL_CLIENT_TYPE_PP)
     return offset < dec_dwl->reg_size && offset >= HANTRODECPP_REG_START;
   else
@@ -196,6 +211,34 @@ static void PrintIrqType(u32 core_id, u32 status) {
 }
 #endif
 
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+u32 *DWLReadRegisters(int mem_dev, unsigned int core_id, unsigned int reg_size)
+{
+  const char *io = NULL;
+  struct core_desc Core;
+ 
+  DWL_DEBUG("%s %d\n", __func__, core_id);
+ 
+  io = DWLmalloc(reg_size);
+  if (!io)
+    goto error;
+ 
+  Core.id = core_id;
+  Core.regs = io;
+  Core.size = reg_size;
+
+  if (ioctl(mem_dev, HANTRODEC_IOCS_DEC_PULL_REG, &Core)) {
+    DWL_DEBUG("%s","ioctl HANTRODEC_IOCS_*_PULL_REG failed\n");
+    goto error;
+  }
+ 
+  return (u32 *)io;
+
+error:
+  DWLfree(io);
+  return NULL;
+}
+#endif
 /*------------------------------------------------------------------------------
     Function name   : DWLMapRegisters
     Description     :
@@ -619,8 +662,9 @@ void DWLReadAsicConfig(DWLHwConfig *hw_cfg,u32 client_type) {
   unsigned long base;
   i32 core_id,idx=0;
   static struct asic_cfg_info asic_cfg_info[2]; /*idx 0:G1, idx 1:G2*/
-
-  //int fd = (-1);
+#ifdef USE_VSI_ENV
+  int fd = (-1);
+#endif
   int fd_dec = (-1);
 
   DWL_DEBUG("client_type=%d\n",client_type);
@@ -649,12 +693,13 @@ void DWLReadAsicConfig(DWLHwConfig *hw_cfg,u32 client_type) {
   	}
   
   asic_cfg_info[idx].is_read = 1;
-
-  //fd = open("/dev/mem", O_RDONLY);
-  //if (fd == -1) {
-  //  DWL_DEBUG("%s","failed to open /dev/mem\n");
-  //  goto end;
-  //}
+#ifdef USE_VSI_ENV
+  fd = open("/dev/mem", O_RDONLY);
+  if (fd == -1) {
+    DWL_DEBUG("%s","failed to open /dev/mem\n");
+    goto end;
+  }
+#endif
   
   fd_dec = open(DEC_MODULE_PATH, O_RDONLY);
   if (fd_dec == -1) {
@@ -687,22 +732,36 @@ void DWLReadAsicConfig(DWLHwConfig *hw_cfg,u32 client_type) {
     goto end;
   }
   
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+  io = DWLReadRegisters(fd_dec,core_id, reg_size);
+  if (io == NULL) {
+    DWL_DEBUG("%s","failed to read registers\n");
+    goto end;
+  }
+#else
   io = DWLMapRegisters(fd_dec, base, reg_size, 0);
   if (io == MAP_FAILED) {
     DWL_DEBUG("%s","failed to mmap registers\n");
     goto end;
   }
-  
+#endif
+
   /* Decoder configuration */
   memset(hw_cfg, 0, sizeof(*hw_cfg));
 
   ReadCoreConfig(io, hw_cfg);
   asic_cfg_info[idx].cfg = *hw_cfg; /*store the value*/
 
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+  DWLfree(io);
+#else
   DWLUnmapRegisters(io, reg_size);
+#endif
 
 end:
-  //if (fd != -1) close(fd);
+#ifdef USE_VSI_ENV
+  if (fd != -1) close(fd);
+#endif
   if (fd_dec != -1) close(fd_dec);
   pthread_mutex_unlock(&dwl_asic_read_mutex);
   return;
@@ -713,18 +772,19 @@ void DWLReadMCAsicConfig(DWLHwConfig hw_cfg[MAX_ASIC_CORES]) {
   unsigned int reg_size;
   unsigned int n_cores, i;
   unsigned long mc_reg_base[MAX_ASIC_CORES];
-
-  //int fd = (-1);
+#ifdef USE_VSI_ENV
+  int fd = (-1);
+#endif
   int fd_dec = (-1);
 
   DWL_DEBUG("%s","\n");
-
-  //fd = open("/dev/mem", O_RDONLY);
-  //if (fd == -1) {
-  //  DWL_DEBUG("%s","failed to open /dev/mem\n");
-  //  goto end;
-  //}
-
+#ifdef USE_VSI_ENV
+  fd = open("/dev/mem", O_RDONLY);
+  if (fd == -1) {
+    DWL_DEBUG("%s","failed to open /dev/mem\n");
+    goto end;
+  }
+#endif
   fd_dec = open(DEC_MODULE_PATH, O_RDONLY);
   if (fd_dec == -1) {
     DWL_DEBUG("failed to open %s\n", DEC_MODULE_PATH);
@@ -753,19 +813,33 @@ void DWLReadMCAsicConfig(DWLHwConfig hw_cfg[MAX_ASIC_CORES]) {
   memset(hw_cfg, 0, MAX_ASIC_CORES * sizeof(*hw_cfg));
 
   for (i = 0; i < n_cores; i++) {
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+    io = DWLReadRegisters(fd_dec,i, reg_size);
+    if (io == NULL) {
+      DWL_DEBUG("%s","failed to read registers\n");
+      goto end;
+    }
+#else
     io = DWLMapRegisters(fd_dec, mc_reg_base[i], reg_size, 0);
     if (io == MAP_FAILED) {
       DWL_DEBUG("%s","failed to mmap registers\n");
       goto end;
     }
+#endif
 
     ReadCoreConfig(io, hw_cfg + i);
 
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+    DWLfree(io);
+#else
     DWLUnmapRegisters(io, reg_size);
+#endif
   }
 
 end:
-  //if (fd != -1) close(fd);
+#ifdef USE_VSI_ENV
+  if (fd != -1) close(fd);
+#endif
   if (fd_dec != -1) close(fd_dec);
 }
 
@@ -782,20 +856,21 @@ void DWLReadAsicFuseStatus(struct DWLHwFuseStatus *hw_fuse_sts) {
 
   unsigned long base;
   unsigned int reg_size;
-
-  //int fd = (-1);
+#ifdef USE_VSI_ENV
+  int fd = (-1);
+#endif
   int fd_dec = (-1);
 
   DWL_DEBUG("%s","\n");
 
   memset(hw_fuse_sts, 0, sizeof(*hw_fuse_sts));
-
-  //fd = open("/dev/mem", O_RDONLY);
-  //if (fd == -1) {
-  //  DWL_DEBUG("%s","failed to open /dev/mem\n");
-  //  goto end;
-  //}
-
+#ifdef USE_VSI_ENV
+  fd = open("/dev/mem", O_RDONLY);
+  if (fd == -1) {
+    DWL_DEBUG("%s","failed to open /dev/mem\n");
+    goto end;
+  }
+#endif
   fd_dec = open(DEC_MODULE_PATH, O_RDONLY);
   if (fd_dec == -1) {
     DWL_DEBUG("failed to open %s\n", DEC_MODULE_PATH);
@@ -814,20 +889,33 @@ void DWLReadAsicFuseStatus(struct DWLHwFuseStatus *hw_fuse_sts) {
     goto end;
   }
 
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+  io = DWLReadRegisters(fd_dec,0, reg_size);
+  if (io == NULL) {
+    DWL_DEBUG("%s","failed to read registers\n");
+    goto end;
+  }
+#else
   io = DWLMapRegisters(fd_dec, base, reg_size, 0);
-
   if (io == MAP_FAILED) {
     DWL_DEBUG("%s","failed to mmap\n");
     goto end;
   }
+#endif
 
   /* Decoder fuse configuration */
   ReadCoreFuse(io, hw_fuse_sts);
 
+#if defined(CFG_SECURE_DATA_PATH) || defined(CFG_SECURE_IOCTRL_REGS)
+  DWLfree(io);
+#else
   DWLUnmapRegisters(io, reg_size);
+#endif
 
 end:
-  //if (fd != -1) close(fd);
+#ifdef USE_VSI_ENV
+  if (fd != -1) close(fd);
+#endif
   if (fd_dec != -1) close(fd_dec);
 }
 
@@ -879,7 +967,7 @@ void DWLFreeRefFrm(const void *instance, struct DWLLinearMem *info) {
 #ifdef USE_ION
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   u32 pgsize = getpagesize();
 #ifdef USE_ION
@@ -1005,7 +1093,7 @@ i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
 #endif
 
 #ifdef MEMORY_USAGE_TRACE
-printf("DWLMallocLinear 0x%08x virtual_address: 0x%08x (type %d)\n", info->bus_address,
+  printf("DWLMallocLinear 0x%08x virtual_address: 0x%08x (type %d)\n", info->bus_address,
          (unsigned)info->virtual_address, info->mem_type);
 #endif
   
@@ -1023,9 +1111,9 @@ bail:
 #endif
 }
 
-#else //LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)) && !defined(ENABLE_DMABUF_HEAP) // LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   u32 pgsize = getpagesize();
 
@@ -1067,56 +1155,52 @@ i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
   struct ion_heap_data ihd[heap_cnt];
   memset(&ihd, 0, sizeof(ihd));
   query.cnt = heap_cnt;
-  query.heaps = (u64)&ihd;
+  query.heaps = (unsigned long)&ihd;
   ret = ioctl (dec_dwl->fd_memalloc, ION_IOC_HEAP_QUERY, &query);
   if (ret != 0) {
     DWL_DEBUG("can't get ion heaps \n");
     return DWL_ERROR;
   }
 
-#ifdef CFG_SECURE_DATA_PATH
+  int normal_heaps = 0;
+  int secure_heaps = 0;
+  for (i = 0; i < heap_cnt; i++) {
+      if (ihd[i].type == ION_HEAP_TYPE_DMA) {
+          normal_heaps |= 1 << ihd[i].heap_id;
+          continue;
+      }
+#ifdef ANDROID
+      if (ihd[i].type == ION_HEAP_TYPE_UNMAPPED) {
+          secure_heaps = 1 << ihd[i].heap_id;
+          continue;
+      }
+#endif
+  }
+
   switch(info->mem_type) {
     case DWL_MEM_TYPE_CPU:
     case DWL_MEM_TYPE_VPU_WORKING:
     case DWL_MEM_TYPE_VPU_WORKING_SPECIAL:
-      for (i=0; i<heap_cnt; i++) {
-        if (ihd[i].type == ION_HEAP_TYPE_DMA) {
-          heap_mask |=  1 << ihd[i].heap_id;
-        }
-      }
+      heap_mask = normal_heaps;
       break;
     case DWL_MEM_TYPE_DPB:
     case DWL_MEM_TYPE_VPU_ONLY:
-      for (i=0; i<heap_cnt; i++) {
-        if ((ihd[i].type == ION_HEAP_TYPE_UNMAPPED) &&
-            (!memcmp(ihd[i].name,
-                DWL_ION_DECODED_BUFFER_DISPLAY_HEAP_NAME,
-                sizeof(DWL_ION_DECODED_BUFFER_DISPLAY_HEAP_NAME)))) {
-          heap_mask |=  1 << ihd[i].heap_id;
-        }
-      }
-      break;
     case DWL_MEM_TYPE_SLICE:
-      for (i=0; i<heap_cnt; i++) {
-        if ((ihd[i].type == ION_HEAP_TYPE_UNMAPPED) &&
-            (!memcmp(ihd[i].name,
-                DWL_ION_ENCODED_BUFFER_OPTEE_HEAP_NAME,
-                sizeof(DWL_ION_ENCODED_BUFFER_OPTEE_HEAP_NAME)))) {
-          heap_mask |=  1 << ihd[i].heap_id;
-        }
+      if (dec_dwl->use_secure_mode) {
+          heap_mask = secure_heaps;
+      } else {
+          heap_mask = normal_heaps;
       }
       break;
     default:
-      DWL_DEBUG("ERROR! Incorrect memory type\n");
-      return DWL_ERROR;
+      if (dec_dwl->use_secure_mode) {
+          DWL_DEBUG("ERROR! Incorrect memory type\n");
+          return DWL_ERROR;
+      } else {
+          heap_mask = normal_heaps;
+          break;
+      }
   }
-#else
-  for (i=0; i<heap_cnt; i++) {
-    if (ihd[i].type == ION_HEAP_TYPE_DMA) {
-      heap_mask |=  1 << ihd[i].heap_id;
-    }
-  }
-#endif
 
   allocation_data.heap_id_mask = heap_mask;
   allocation_data.len = info->size;
@@ -1181,11 +1265,198 @@ bail:
   return DWL_ERROR;
 }
 
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)) || defined(ENABLE_DMABUF_HEAP) //(LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0))
+i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+  struct dma_heap_allocation_data data = { 0 };
+  struct dma_buf_phys dma_phys;
+  u32 pgsize = getpagesize();
+  int mem_fd = -1;
+  int ret;
+
+  assert(dec_dwl != NULL);
+  assert(info != NULL);
+
+#ifdef MEMORY_USAGE_TRACE
+  printf("DWLMallocLinear\t%8d bytes \n", size);
+#endif
+
+  info->logical_size = size;
+  info->size = NEXT_MULTIPLE(size, pgsize);
+  info->virtual_address = MAP_FAILED;
+  info->bus_address = 0;
+
+  info->ion_fd = -1;
+
+  data.len = info->size,
+  data.fd_flags = O_RDWR | O_CLOEXEC;
+  data.heap_flags = 0;
+
+  switch(info->mem_type) {
+    case DWL_MEM_TYPE_CPU:
+    case DWL_MEM_TYPE_VPU_WORKING:
+    case DWL_MEM_TYPE_VPU_WORKING_SPECIAL:
+      mem_fd = dec_dwl->fd_memalloc;
+      break;
+    case DWL_MEM_TYPE_DPB:
+    case DWL_MEM_TYPE_VPU_ONLY:
+    case DWL_MEM_TYPE_SLICE:
+      if (dec_dwl->use_secure_mode) {
+        mem_fd = dec_dwl->fd_mem_sec;
+      } else {
+        mem_fd = dec_dwl->fd_memalloc;
+      }
+      break;
+    default:
+      if (dec_dwl->use_secure_mode) {
+        DWL_DEBUG("ERROR! Incorrect memory type\n");
+        return DWL_ERROR;
+      } else {
+        mem_fd = dec_dwl->fd_memalloc;
+        break;
+      }
+  }
+
+  ret = ioctl (mem_fd, DMA_HEAP_IOCTL_ALLOC, &data);
+  if (ret < 0) {
+    DWL_DEBUG("dma-buf allocate failed. \n");
+    return DWL_ERROR;
+  }
+
+  info->ion_fd = data.fd;
+  ret = ioctl(info->ion_fd, DMA_BUF_IOCTL_PHYS, &dma_phys);
+  if (ret < 0) {
+#ifdef ENABLE_DMABUF_HEAP
+    DWL_DEBUG("ion DMA_BUF_IOCTL_PHYS get phys failed. \n");
+    struct dmabuf_imx_phys_data data;
+    int fd_;
+    fd_ = open("/dev/dmabuf_imx", O_RDONLY | O_CLOEXEC);
+    if (fd_ < 0) {
+        DWL_DEBUG("open /dev/dmabuf_imx failed: %s", strerror(errno));
+        goto bail;
+    }
+
+    data.dmafd = info->ion_fd;
+    if (ioctl(fd_, DMABUF_GET_PHYS, &data) < 0) {
+        DWL_DEBUG("%s ION_GET_PHYS  failed",__func__);
+        close(fd_);
+        goto bail;
+    } else {
+        info->bus_address = data.phys;
+    }
+
+    close(fd_);
+  } else {
+    info->bus_address = dma_phys.phys;
+  }
+#else
+    DWL_DEBUG("ion get phys failed. \n");
+    goto bail;
+  }
+
+  info->bus_address = dma_phys.phys;
+#endif
+
+  DWL_DEBUG("DWLMallocLinear\t mem_type %d\n", info->mem_type);
+  DWL_DEBUG("DWLMallocLinear\t physical address: %p\n", info->bus_address);
+
+  switch(info->mem_type) {
+    case DWL_MEM_TYPE_CPU:
+    case DWL_MEM_TYPE_VPU_WORKING:
+    case DWL_MEM_TYPE_VPU_WORKING_SPECIAL:
+      info->virtual_address =
+      (u32 *)mmap(0, info->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                  info->ion_fd, 0);
+      break;
+#ifndef CFG_SECURE_DATA_PATH
+    case DWL_MEM_TYPE_DPB:
+    case DWL_MEM_TYPE_VPU_ONLY:
+    case DWL_MEM_TYPE_SLICE:
+#endif
+      if (dec_dwl->use_secure_mode) {
+        info->virtual_address = NULL;
+      } else {
+        info->virtual_address =
+        (u32 *)mmap(0, info->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    info->ion_fd, 0);
+      }
+      break;
+    default:
+      info->virtual_address = NULL;
+      break;
+  }
+
+  if (info->virtual_address == MAP_FAILED) {
+    DWL_DEBUG("ERROR! mmap failed\n");
+    goto bail;
+  }
+
+#ifdef MEMORY_USAGE_TRACE
+  printf("DWLMallocLinear 0x%08x virtual_address: 0x%08x (type %d)\n", info->bus_address,
+         (unsigned)info->virtual_address, info->mem_type);
+#endif
+
+  if (info->virtual_address == MAP_FAILED) return DWL_ERROR;
+
+  return DWL_OK;
+
+bail:
+  if (info->ion_fd >= 0)
+    close(info->ion_fd);
+
+  return DWL_ERROR;
+}
 #endif //LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 
 #else  //USE_ION
 
-//non-ION not supported
+//non-ION not supported in customer env
+i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+
+  u32 pgsize = getpagesize();
+  MemallocParams params;
+
+  assert(dec_dwl != NULL);
+  assert(info != NULL);
+
+#ifdef MEMORY_USAGE_TRACE
+  printf("DWLMallocLinear\t%8d bytes \n", size);
+#endif
+
+  info->logical_size = size;
+  info->size = NEXT_MULTIPLE(size, pgsize);
+  info->virtual_address = MAP_FAILED;
+  info->bus_address = 0;
+
+  params.size = info->size;
+
+  /* get memory linear memory buffers */
+  ioctl(dec_dwl->fd_memalloc, MEMALLOC_IOCXGETBUFFER, &params);
+  if (params.bus_address == 0) {
+    DWL_DEBUG("%s","ERROR! No linear buffer available\n");
+    return DWL_ERROR;
+  }
+
+  /* The bus address for mmap and HW may be different. translation_offset
+   * is used to calculate the bus address for HW access. If no translation is
+   * needed memalloc-driver sets it to 0 */
+  info->bus_address = params.bus_address - params.translation_offset;
+
+  /* Map the bus address to virtual address */
+  info->virtual_address =
+    (u32 *)mmap(0, info->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                dec_dwl->fd_mem, params.bus_address);
+
+#ifdef MEMORY_USAGE_TRACE
+  printf("DWLMallocLinear 0x%08x virtual_address: 0x%08x (type %d)\n", info->bus_address,
+         (unsigned)info->virtual_address, info->mem_type);
+#endif
+
+  if (info->virtual_address == MAP_FAILED) return DWL_ERROR;
+
+  return DWL_OK;
+}
 
 #endif //USE_ION
 
@@ -1200,46 +1471,73 @@ bail:
     Argument        : void *info - linear buffer memory information
 ------------------------------------------------------------------------------*/
 void DWLFreeLinear(const void *instance, struct DWLLinearMem *info) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
   assert(dec_dwl != NULL);
   assert(info != NULL);
 
 #ifdef USE_ION
-  switch(info->mem_type) {
-    case DWL_MEM_TYPE_CPU:
-    case DWL_MEM_TYPE_VPU_WORKING:
-    case DWL_MEM_TYPE_VPU_WORKING_SPECIAL:
-#ifndef CFG_SECURE_DATA_PATH
-    case DWL_MEM_TYPE_DPB:
-    case DWL_MEM_TYPE_VPU_ONLY:
-    case DWL_MEM_TYPE_SLICE:
-#endif // CFG_SECURE_DATA_PATH
-      if (info->virtual_address != NULL)
-        munmap(info->virtual_address, info->size);
-      break;
-#ifdef CFG_SECURE_DATA_PATH
-    case DWL_MEM_TYPE_DPB:
-    case DWL_MEM_TYPE_VPU_ONLY:
-    case DWL_MEM_TYPE_SLICE:
-      break;
-#endif // CFG_SECURE_DATA_PATH
-    default:
-      DWL_DEBUG("ERROR! Incorrect memory type\n");
-      return;
+  if (info->virtual_address != NULL) {
+    munmap(info->virtual_address, info->size);
+    info->virtual_address = NULL;
   }
-
+  info->bus_address = 0;
   if (info->ion_fd >= 0)
     close(info->ion_fd);
 #else // USE_ION
-  if (info->virtual_address != NULL)
+  if (info->virtual_address != NULL) {
     munmap(info->virtual_address, info->size);
+    info->virtual_address = NULL;
+  }
 
-  if (info->bus_address != 0)
+  if (info->bus_address != 0) {
     ioctl(dec_dwl->fd_memalloc, MEMALLOC_IOCSFREEBUFFER, &info->bus_address);
+    info->bus_address = 0;
+  }
 #endif // USE_ION
 
 
+}
+
+
+/*------------------------------------------------------------------------------
+    Function name   : DWLFlushCache
+    Description     : Flush the data in the cached buffer
+
+    Return type     : i32 - 0 for success or a negative error code
+
+    Argument        : const void * instance - DWL instance
+    Argument        : void *info - place cached buffer parameters
+------------------------------------------------------------------------------*/
+
+i32 DWLFlushCache(const void *instance, struct DWLLinearMem *info) {
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+#ifdef USE_ION
+
+  struct dma_buf_sync dma_sync;
+
+  assert(dec_dwl != NULL);
+  assert(info != NULL);
+
+  if (info->ion_fd <= 0)
+    return DWL_OK;
+
+  dma_sync.flags = DMA_BUF_SYNC_RW | DMA_BUF_SYNC_START;
+
+  if (ioctl(info->ion_fd, DMA_BUF_IOCTL_SYNC, &dma_sync) < 0) {
+      DWL_DEBUG("%s DMA_BUF_IOCTL_SYNC DMA_BUF_SYNC_START failed", __FUNCTION__);
+      return DWL_ERROR;
+  }
+
+  dma_sync.flags = DMA_BUF_SYNC_RW | DMA_BUF_SYNC_END;
+
+  if (ioctl(info->ion_fd, DMA_BUF_IOCTL_SYNC, &dma_sync) < 0) {
+      DWL_DEBUG("%s DMA_BUF_IOCTL_SYNC DMA_BUF_SYNC_END failed", __FUNCTION__);
+      return DWL_ERROR;
+  }
+
+#endif
+  return DWL_OK;
 }
 
 /*------------------------------------------------------------------------------
@@ -1254,7 +1552,7 @@ void DWLFreeLinear(const void *instance, struct DWLLinearMem *info) {
 ------------------------------------------------------------------------------*/
 
 void DWLWriteReg(const void *instance, i32 core_id, u32 offset, u32 value) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
 
 #ifndef DWL_DISABLE_REG_PRINTS
   DWL_DEBUG("Core[%d] swreg[%d] at offset 0x%02X = %08X\n", core_id, offset / 4,
@@ -1285,7 +1583,7 @@ void DWLWriteReg(const void *instance, i32 core_id, u32 offset, u32 value) {
     Argument        : u32 offset - byte offset of the register to be read
 ------------------------------------------------------------------------------*/
 u32 DWLReadReg(const void *instance, i32 core_id, u32 offset) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
   u32 val;
 
   assert(dec_dwl != NULL);
@@ -1318,8 +1616,8 @@ u32 DWLReadReg(const void *instance, i32 core_id, u32 offset) {
     Argument        : u32 value - value to be written out
 ------------------------------------------------------------------------------*/
 void DWLEnableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
-  struct core_desc Core;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+  struct core_desc core;
   int ioctl_req;
 
   assert(dec_dwl);
@@ -1330,13 +1628,13 @@ void DWLEnableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
 
   DWL_DEBUG("%s %d enabled by previous DWLWriteReg\n", "DEC", core_id);
 
-  Core.id = core_id;
-  Core.regs = dwl_shadow_regs[core_id];
-  Core.size = dec_dwl->reg_size;
+  core.id = core_id;
+  core.regs = dwl_shadow_regs[core_id];
+  core.size = dec_dwl->reg_size;
 
   ActivityTraceStartDec(&dec_dwl->activity);
 
-  if (ioctl(dec_dwl->fd, ioctl_req, &Core)) {
+  if (ioctl(dec_dwl->fd, ioctl_req, &core)) {
     DWL_DEBUG("%s","ioctl HANTRODEC_IOCS_*_PUSH_REG failed\n");
     assert(0);
   }
@@ -1351,8 +1649,8 @@ void DWLEnableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
     Argument        : u32 value - value to be written out
 ------------------------------------------------------------------------------*/
 void DWLDisableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
-  struct core_desc Core;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+  struct core_desc core;
   int ioctl_req;
 
   assert(dec_dwl);
@@ -1363,11 +1661,11 @@ void DWLDisableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
 
   DWL_DEBUG("%s %d disabled by previous DWLWriteReg\n", "DEC", core_id);
 
-  Core.id = core_id;
-  Core.regs = dwl_shadow_regs[core_id];
-  Core.size = dec_dwl->reg_size;
+  core.id = core_id;
+  core.regs = dwl_shadow_regs[core_id];
+  core.size = dec_dwl->reg_size;
 
-  if (ioctl(dec_dwl->fd, ioctl_req, &Core)) {
+  if (ioctl(dec_dwl->fd, ioctl_req, &core)) {
     DWL_DEBUG("%s","ioctl HANTRODEC_IOCS_*_PUSH_REG failed\n");
     assert(0);
   }
@@ -1386,8 +1684,8 @@ void DWLDisableHw(const void *instance, i32 core_id, u32 offset, u32 value) {
     Argument        : const void * instance - DWL instance
 ------------------------------------------------------------------------------*/
 i32 DWLWaitHwReady(const void *instance, i32 core_id, u32 timeout) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
-  struct core_desc Core;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+  struct core_desc core;
   int ioctl_req;
   i32 ret = DWL_HW_WAIT_OK;
 
@@ -1399,16 +1697,16 @@ i32 DWLWaitHwReady(const void *instance, i32 core_id, u32 timeout) {
 
   DWL_DEBUG("%s %d\n", "DEC", core_id);
 
-  Core.id = core_id;
-  Core.regs = dwl_shadow_regs[core_id];
-  Core.size = dec_dwl->reg_size;
+  core.id = core_id;
+  core.regs = dwl_shadow_regs[core_id];
+  core.size = dec_dwl->reg_size;
 
 #ifdef DWL_USE_DEC_IRQ
 #if 1
   /*wait for interrupt from specified core*/
   ioctl_req = (int)HANTRODEC_IOCX_DEC_WAIT;
   DWL_DEBUG("%s","DWLWaitHwReady wait irq\n");
-  if (ioctl(dec_dwl->fd, ioctl_req, &Core)) {
+  if (ioctl(dec_dwl->fd, ioctl_req, &core)) {
     DWL_DEBUG("%s","ioctl HANTRODEC_IOCG_*_WAIT failed\n");
     ret = DWL_HW_WAIT_ERROR;
   }
@@ -1425,7 +1723,7 @@ i32 DWLWaitHwReady(const void *instance, i32 core_id, u32 timeout) {
     u32 irq_stats;
     const unsigned int usec = 1000; /* 1 ms polling interval */
     DWL_DEBUG("%s","do polling to get IRQ status\n");
-    if (ioctl(dec_dwl->fd, ioctl_req, &Core)) {
+    if (ioctl(dec_dwl->fd, ioctl_req, &core)) {
       DWL_DEBUG("%s","ioctl HANTRODEC_IOCS_*_PULL_REG failed\n");
       ret = DWL_HW_WAIT_ERROR;
       break;
@@ -1541,6 +1839,12 @@ void *DWLmemcpy(void *d, const void *s, u32 n) {
 ------------------------------------------------------------------------------*/
 void *DWLmemset(void *d, i32 c, u32 n) {
   return memset(d, (int)c, (size_t)n);
+}
+
+void DWLSetSecureMode(const void *instance, u32 use_secure_mode)
+{
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+  dec_dwl->use_secure_mode = use_secure_mode;
 }
 
 /*------------------------------------------------------------------------------

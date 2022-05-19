@@ -104,7 +104,7 @@ PCIE_DEVICE_DATA PcieDeviceData[] = {
                         .LowerBaseAddr = PCIE1_DEVICE_CONFIG0_BASE_REG,
                         .UpperBaseAddr = 0,
                         .LimitAddr = (PCIE1_DEVICE_CONFIG0_BASE_REG + PCIE1_DEVICE_CONFIG0_SIZE - 1),
-                        .LowerTargetAddr = PCIE1_DEVICE_CONFIG0_BASE_REG,
+                        .LowerTargetAddr = 0,
                         .UpperTargetAddr = 0,
                         .State = REGION_ENABLE,
                       },
@@ -172,7 +172,7 @@ PCIE_DEVICE_DATA PcieDeviceData[] = {
                         .LowerBaseAddr = PCIE2_DEVICE_CONFIG0_BASE_REG,
                         .UpperBaseAddr = 0,
                         .LimitAddr = (PCIE2_DEVICE_CONFIG0_BASE_REG + PCIE2_DEVICE_CONFIG0_SIZE - 1),
-                        .LowerTargetAddr = PCIE2_DEVICE_CONFIG0_BASE_REG,
+                        .LowerTargetAddr = 0,
                         .UpperTargetAddr = 0,
                         .State = REGION_ENABLE,
                       },
@@ -1303,7 +1303,7 @@ EFI_STATUS PcieInitialize (
     }
 
     /* Enable Fast Link Mode - sets all internal timers to "Fast Mode" */
-    PCIE_PORT_LINK_CTRL_OFF_REG(PcieDeviceDataPtr->PcieMemMap) |= PCIE_PORT_LINK_CTRL_OFF_FAST_LINK_MODE_MASK;
+    PCIE_PORT_LINK_CTRL_OFF_REG(PcieDeviceDataPtr->PcieMemMap) &= ~(PCIE_PORT_LINK_CTRL_OFF_FAST_LINK_MODE_MASK);
     /* Configure speed to Gen1 before starting link up */
     PCIE_LINK_CAPABILITIES_REG_REG(PcieDeviceDataPtr->PcieMemMap) =
                                 ((PCIE_LINK_CAPABILITIES_REG_REG(PcieDeviceDataPtr->PcieMemMap) &

@@ -324,7 +324,7 @@ static CODEC_STATE encoder_encode_vp8(ENCODER_PROTOTYPE* arg, FRAME* frame,
         ret = VP8EncSetRateCtrl(this->instance, &rate_ctrl);
     }
 
-
+	(void) ret;
     ret = VP8EncGetCodingCtrl(this->instance, &coding_ctrl);
 
     if (ret == VP8ENC_OK)

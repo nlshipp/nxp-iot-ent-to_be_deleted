@@ -137,6 +137,10 @@ typedef struct
     int dnfNoiseMaxPrev;
     int dnfQpPrev;
     u32 dnfFrameNum;
+
+    u32 vuiVideoSignalTypePresentFlag;
+    u32 vuiVideoFormat;
+    VuiColorDescription vuiColorDescription;
 } h264Instance_s;
 
 #endif

@@ -373,7 +373,8 @@ vp8EncodeFrame_e VP8CodeFrameMultiPass(vp8Instance_s * inst)
         /* Write final probability tables for ASIC. */
         WriteEntropyTables(inst, true);
 
-        EncAsicFrameStart(inst->asic.ewl, &inst->asic.regs);
+        if (EncTryAsicFrameStart(inst->asic.ewl, &inst->asic.regs) != 0)
+            return VP8ENCODE_HW_ERROR;
 
         {
             /* Encode one frame */
@@ -483,7 +484,8 @@ vp8EncodeFrame_e VP8CodeFrameMultiPass(vp8Instance_s * inst)
     /* Write final probability tables for ASIC. */
     WriteEntropyTables(inst, true);
 
-    EncAsicFrameStart(inst->asic.ewl, &inst->asic.regs);
+    if (EncTryAsicFrameStart(inst->asic.ewl, &inst->asic.regs) != 0)
+        return VP8ENCODE_HW_ERROR;
 
     {
         /* Encode one frame */
@@ -570,7 +572,7 @@ vp8EncodeFrame_e VP8CodeFrame(vp8Instance_s * inst)
     asicData_s *asic = &inst->asic;
     vp8EncodeFrame_e ret;
     i32 status = ASIC_STATUS_ERROR;
-    
+
     inst->passNbr = 0;
     /*
     intra16RecReadEnable = 0;
@@ -612,7 +614,8 @@ vp8EncodeFrame_e VP8CodeFrame(vp8Instance_s * inst)
     Vp8ConfigureTestPenalties(inst);
 #endif
 
-    EncAsicFrameStart(inst->asic.ewl, &inst->asic.regs);
+    if (EncTryAsicFrameStart(inst->asic.ewl, &inst->asic.regs) != 0)
+        return VP8ENCODE_HW_ERROR;
 
     {
         /* Encode one frame */

@@ -48,6 +48,24 @@
     Module defines
 ------------------------------------------------------------------------------*/
 
+#define G1_RENAME_MACRO(macro) G1_##macro
+#define G1_RENAME_FUNC(func) G1##func
+
+#define SET_ADDR_REG G1_RENAME_MACRO(SET_ADDR_REG)
+#define SET_ADDR_REG2 G1_RENAME_MACRO(SET_ADDR_REG2)
+#define SET_PP_ADDR_REG G1_RENAME_MACRO(SET_PP_ADDR_REG)
+#define SET_PP_ADDR_REG2 G1_RENAME_MACRO(SET_PP_ADDR_REG2)
+#define GET_ADDR_REG G1_RENAME_MACRO(GET_ADDR_REG)
+#define GET_ADDR_REG2 G1_RENAME_MACRO(GET_ADDR_REG2)
+#define GET_PP_ADDR_REG G1_RENAME_MACRO(GET_PP_ADDR_REG)
+#define GET_PP_ADDR_REG2 G1_RENAME_MACRO(GET_PP_ADDR_REG2)
+#define SET_ADDR64_REG G1_RENAME_MACRO(SET_ADDR64_REG)
+#define GET_ADDR64_REG G1_RENAME_MACRO(GET_ADDR64_REG)
+#define SetDecRegister G1_RENAME_FUNC(SetDecRegister)
+#define GetDecRegister G1_RENAME_FUNC(GetDecRegister)
+#define SetPpRegister G1_RENAME_FUNC(SetPpRegister)
+#define GetPpRegister G1_RENAME_FUNC(GetPpRegister)
+
 #define DEC_8170_IRQ_RDY            0x02
 #define DEC_8170_IRQ_BUS            0x04
 #define DEC_8170_IRQ_BUFFER         0x08
@@ -72,91 +90,91 @@
 
 #ifdef USE_64BIT_ENV
 
-#define SET_ADDR_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_ADDR_REG(reg_base, REGBASE, addr) do {\
     SetDecRegister((reg_base), REGBASE, (u32)(addr));  \
     SetDecRegister((reg_base), REGBASE##_MSB, (u32)((addr) >> 32)); \
   } while (0)
 
-#define SET_ADDR_REG2(reg_base, lsb, msb, addr) do {\
+#define G1_SET_ADDR_REG2(reg_base, lsb, msb, addr) do {\
     SetDecRegister((reg_base), (lsb), (u32)(addr));  \
     SetDecRegister((reg_base), (msb), (u32)((addr) >> 32)); \
   } while (0)
 
-#define SET_PP_ADDR_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_PP_ADDR_REG(reg_base, REGBASE, addr) do {\
     SetPpRegister((reg_base), REGBASE, (u32)(addr));  \
     SetPpRegister((reg_base), REGBASE##_MSB, (u32)((addr) >> 32)); \
   } while (0)
 
-#define SET_PP_ADDR_REG2(reg_base, lsb, msb, addr) do {\
+#define G1_SET_PP_ADDR_REG2(reg_base, lsb, msb, addr) do {\
     SetPpRegister((reg_base), (lsb), (u32)(addr));  \
     SetPpRegister((reg_base), (msb), (u32)((addr) >> 32)); \
   } while (0)
 
-#define GET_ADDR_REG(reg_base, REGBASE)  \
+#define G1_GET_ADDR_REG(reg_base, REGBASE)  \
   (((addr_t)GetDecRegister((reg_base), REGBASE)) |  \
   (((addr_t)GetDecRegister((reg_base), REGBASE##_MSB)) << 32))
 
-#define GET_ADDR_REG2(reg_base, lsb, msb)  \
+#define G1_GET_ADDR_REG2(reg_base, lsb, msb)  \
   (((addr_t)GetDecRegister((reg_base), (lsb))) |  \
   (((addr_t)GetDecRegister((reg_base), (msb))) << 32))
 
-#define GET_PP_ADDR_REG(reg_base, REGBASE)  \
+#define G1_GET_PP_ADDR_REG(reg_base, REGBASE)  \
   (((addr_t)GetPpRegister((reg_base), REGBASE)) |  \
   (((addr_t)GetPpRegister((reg_base), REGBASE##_MSB)) << 32))
 
-#define GET_PP_ADDR_REG2(reg_base, lsb, msb)  \
+#define G1_GET_PP_ADDR_REG2(reg_base, lsb, msb)  \
   (((addr_t)GetPpRegister((reg_base), (lsb))) |  \
   (((addr_t)GetPpRegister((reg_base), (msb))) << 32))
 
 #else
 
-#define SET_ADDR_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_ADDR_REG(reg_base, REGBASE, addr) do {\
     SetDecRegister((reg_base), REGBASE, (u32)(addr));  \
   } while (0)
 
-#define SET_ADDR_REG2(reg_base, lsb, msb, addr) do {\
+#define G1_SET_ADDR_REG2(reg_base, lsb, msb, addr) do {\
     SetDecRegister((reg_base), (lsb), (u32)(addr));  \
     SetDecRegister((reg_base), (msb), 0); \
   } while (0)
 
-#define SET_PP_ADDR_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_PP_ADDR_REG(reg_base, REGBASE, addr) do {\
     SetPpRegister((reg_base), REGBASE, (u32)(addr));  \
   } while (0)
 
-#define SET_PP_ADDR_REG2(reg_base, lsb, msb, addr) do {\
+#define G1_SET_PP_ADDR_REG2(reg_base, lsb, msb, addr) do {\
     SetPpRegister((reg_base), (lsb), (u32)(addr));  \
     SetPpRegister((reg_base), (msb), 0); \
   } while (0)
 
-#define GET_ADDR_REG(reg_base, REGID)  \
+#define G1_GET_ADDR_REG(reg_base, REGID)  \
   ((addr_t)GetDecRegister((reg_base), REGID))
 
-#define GET_ADDR_REG2(reg_base, lsb, msb)  \
+#define G1_GET_ADDR_REG2(reg_base, lsb, msb)  \
   (((addr_t)GetDecRegister((reg_base), (lsb))) |  \
   (((addr_t)GetDecRegister((reg_base), (msb))) & 0))
 
-#define GET_PP_ADDR_REG(reg_base, REGID)  \
+#define G1_GET_PP_ADDR_REG(reg_base, REGID)  \
   ((addr_t)GetDecRegister((reg_base), REGID))
 
-#define GET_PP_ADDR_REG2(reg_base, lsb, msb)  \
+#define G1_GET_PP_ADDR_REG2(reg_base, lsb, msb)  \
   ((addr_t)GetPpRegister((reg_base), (lsb)))
 
 #endif
 
 #ifdef USE_64BIT_ENV
-#define SET_ADDR64_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_ADDR64_REG(reg_base, REGBASE, addr) do {\
     SetDecRegister((reg_base), REGBASE##_LSB, (u32)(addr));  \
     SetDecRegister((reg_base), REGBASE##_MSB, (u32)((addr) >> 32)); \
   } while (0)
-#define GET_ADDR64_REG(reg_base, REGBASE)  \
+#define G1_GET_ADDR64_REG(reg_base, REGBASE)  \
   (((addr_t)GetDecRegister((reg_base), REGBASE##_LSB)) |  \
   (((addr_t)GetDecRegister((reg_base), REGBASE##_MSB)) << 32))
 #else
-#define SET_ADDR64_REG(reg_base, REGBASE, addr) do {\
+#define G1_SET_ADDR64_REG(reg_base, REGBASE, addr) do {\
     SetDecRegister((reg_base), REGBASE##_LSB, (u32)(addr));  \
     SetDecRegister((reg_base), REGBASE##_MSB, 0); \
   } while (0)
-#define GET_ADDR64_REG(reg_base, REGBASE)  \
+#define G1_GET_ADDR64_REG(reg_base, REGBASE)  \
   (((addr_t)GetDecRegister((reg_base), REGBASE##_LSB)) |  \
   (((addr_t)GetDecRegister((reg_base), REGBASE##_MSB)) << 32))
 #endif

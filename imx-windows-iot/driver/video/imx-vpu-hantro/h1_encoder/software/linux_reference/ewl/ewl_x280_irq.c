@@ -44,7 +44,6 @@
 
 #include "basetype.h"
 #include "ewl.h"
-#include "linux/hx280enc.h"   /* This EWL uses the kernel module */
 #include "ewl_x280_common.h"
 #include "ewl_linux_lock.h"
 
@@ -96,7 +95,6 @@ i32 EWLWaitHwRdy(const void *inst, u32 *slicesReady)
     hx280ewl_t *enc = (hx280ewl_t *) inst;
     i32 ret = EWL_HW_WAIT_OK;
     //u32 prevSlicesReady = 0;
-    u32 temp;
 
     PTRACE("EWLWaitHw: Start\n");
 
@@ -108,7 +106,7 @@ i32 EWLWaitHwRdy(const void *inst, u32 *slicesReady)
     }
 
 #ifdef EWL_NO_HW_TIMEOUT
-    if ((ret = ioctl(enc->fd_enc, HX280ENC_IOCG_CORE_WAIT, &temp))==-1)
+    if ((ret = ioctl(enc->fd_enc, HX280ENC_IOCG_CORE_WAIT, enc->regMirror))<0)
     {
         PTRACE("ioctl HX280ENC_IOCG_CORE_WAIT failed\n");
         ret = EWL_HW_WAIT_ERROR;
@@ -120,11 +118,10 @@ i32 EWLWaitHwRdy(const void *inst, u32 *slicesReady)
 #endif
 
     if (slicesReady)
-       *slicesReady = (enc->pRegBase[21] >> 16) & 0xFF;
-    PTRACE("EWLWaitHw: asic_status = %x\n", asic_status);
+       *slicesReady = (enc->regMirror[21] >> 16) & 0xFF;
 out:
-    asic_status = enc->pRegBase[1]; /* update the buffered asic status */
-    PTRACE("EWLWaitHw: OK!\n");
+    asic_status = enc->regMirror[1]; /* update the buffered asic status */
+    PTRACE("EWLWaitHw OK: asic_status = %x\n", asic_status);
 
     return EWL_OK;
 }

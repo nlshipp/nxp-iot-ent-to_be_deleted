@@ -213,6 +213,8 @@ enum DecRet HevcDecPictureConsumed(HevcDecInst dec_inst,
 
 enum DecRet HevcDecEndOfStream(HevcDecInst dec_inst);
 
+enum DecRet HevcDecGetSpsBitDepth(HevcDecInst dec_inst, u32 *bit_depth);
+
 enum DecRet HevcDecGetInfo(HevcDecInst dec_inst, struct HevcDecInfo *dec_info);
 
 enum DecRet HevcDecPeek(HevcDecInst dec_inst, struct HevcDecPicture *output);
@@ -224,6 +226,8 @@ enum DecRet HevcDecGetBufferInfo(HevcDecInst dec_inst, struct HevcDecBufferInfo 
 
 enum DecRet HevcDecAbort(HevcDecInst dec_inst);
 
+enum DecRet HevcDecRemoveBuffer(HevcDecInst dec_inst);
+
 enum DecRet HevcDecAbortAfter(HevcDecInst dec_inst);
 #endif
 
@@ -231,6 +235,7 @@ enum DecRet HevcDecSetNoReorder(HevcDecInst dec_inst, u32 no_reorder);
 
 enum DecRet HevcDecSetInfo(HevcDecInst dec_inst,
                           struct HevcDecConfig *dec_cfg);
+u32 HevcDecDiscardDpbNums(HevcDecInst dec_inst);
 
 #ifdef __cplusplus
 }

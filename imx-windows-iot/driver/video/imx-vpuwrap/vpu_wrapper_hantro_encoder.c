@@ -1,10 +1,12 @@
-/*!
- *	CopyRight Notice:
- *	Copyright 2018 NXP
+/**
+ *  Copyright 2018-2020 NXP
  *
- *	History :
- *	Date	(y.m.d)		Author			Version			Description
- *	2018-06-10		  Bao Xiahong		0.1				Created
+ *  The following programs are the sole property of NXP,
+ *  and contain its proprietary and confidential information.
+ *
+ *  History :
+ *  Date    (y.m.d)     Author          Version         Description
+ *  2018-06-10        Bao Xiahong       0.1             Created
  */
 
 /** Vpu_wrapper_hantro_encoder.c
@@ -12,14 +14,25 @@
  *	application
  */
 
+#ifdef ANDROID_LOCAL_DEBUG
+//#define LOG_NDEBUG 0
+#define LOG_TAG "VpuWrapper"
+#include <utils/Log.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <semaphore.h>
 
 #include "headers/OMX_Video.h"
 #include "headers/OMX_VideoExt.h"
+#ifdef ANDROID
 #include "ewl.h"
+#else
+#include "hantro_enc/ewl.h"
+#endif
 #include "encoder/codec.h"
 #include "encoder/encoder.h"
 #include "encoder/encoder_h264.h"
@@ -29,9 +42,8 @@
 #include "vpu_wrapper.h"
 
 static int nVpuLogLevel=0;      //bit 0: api log; bit 1: raw dump; bit 2: yuv dump
-#ifdef ANDROID
-#include "Log.h"
-#define LOG_PRINTF LogOutput
+#ifdef ANDROID_LOCAL_DEBUG
+#define LOG_PRINTF ALOGV
 #define VPU_LOG_LEVELFILE "/data/vpu_log_level"
 #define VPU_DUMP_RAWFILE "/data/temp_wrapper.bit"
 #define VPU_DUMP_YUVFILE "/data/temp_wrapper.yuv"
@@ -62,7 +74,11 @@ static int g_seek_dump=DUMP_ALL_DATA;   /*0: only dump data after seeking; other
 
 
 #define VPU_MEM_ALIGN           0x10
+#ifdef ANDROID
+#define VPU_BITS_BUF_SIZE       (3*1024*1024)      //bitstream buffer size : big enough contain two big frames
+#else
 #define VPU_BITS_BUF_SIZE       (4*1024*1024)      //bitstream buffer size : big enough for 1080p h264/vp8 with max bitrate
+#endif
 
 #define VPU_ENC_SEQ_DATA_SEPERATE
 #define VPU_ENC_MAX_RETRIES 10000
@@ -78,8 +94,8 @@ static int g_seek_dump=DUMP_ALL_DATA;   /*0: only dump data after seeking; other
 #define MAX_HEIGHT 1088
 #define MIN_HEIGHT 96
 
-#define VPU_ENC_DEFAULT_ALIGNMENT_H 8
-#define VPU_ENC_DEFAULT_ALIGNMENT_V 8
+#define VPU_ENC_DEFAULT_ALIGNMENT_H 4
+#define VPU_ENC_DEFAULT_ALIGNMENT_V 4
 
 #define H264_ENC_MAX_GOP_SIZE 300
 
@@ -88,6 +104,8 @@ static int g_seek_dump=DUMP_ALL_DATA;   /*0: only dump data after seeking; other
 
 #define H264_ENC_QP_DEFAULT 33
 #define VP8_ENC_QP_DEFAULT 26
+#define AVC_ENC_MAX_QP_DEFAULT 51
+#define VP8_ENC_MAX_QP_DEFAULT 127
 
 #define ALIGN(ptr,align)       ((align) ? (((unsigned long)(ptr))/(align)*(align)) : ((unsigned long)(ptr)))
 #define MemAlign(mem,align) ((((unsigned int)mem)%(align))==0)
@@ -146,7 +164,7 @@ static int AlignHeight(int height, int align)
     return (height) / align * align;
 }
 
-int VpuEncLogLevelParse(int * pLogLevel)
+static int VpuEncLogLevelParse(int * pLogLevel)
 {
   int level=0;
   FILE* fpVpuLog;
@@ -192,6 +210,11 @@ typedef struct
   VpuCodStd CodecFormat;
   int bStreamStarted;
   int bAvcc;
+
+  /* output frame buffer info */
+  STREAM_BUFFER outputStreamBuf[VPU_ENC_MAX_FRAME_INDEX];
+  int outputIndex;
+  int outputNum;
 
   /* perf calculation*/
   int totalFrameCnt;
@@ -391,6 +414,8 @@ static VpuEncRetCode VPU_EncSetBitrateDefaults(VpuEncObj* pEncObj, unsigned int 
 #ifdef CONFORMANCE
   config->eControlRate = OMX_Video_ControlRateConstant;
 #endif
+  if (bitrate == 0)
+    config->eControlRate = OMX_Video_ControlRateDisable;
   return VPU_ENC_RET_SUCCESS;
 }
 
@@ -403,12 +428,15 @@ static VpuEncRetCode  VPU_EncSetCommonConfig(
     int qpMin,
     int qpMax,
     VpuColorFormat colorFmt,
-    int chromaInterleave)
+    int chromaInterleave,
+    int Width,
+    int Height)
 {
   int validWidth, validHeight;
 
-  pPpCfg->origWidth = AlignWidth(pEncObj->encConfig.crop.nWidth, VPU_ENC_DEFAULT_ALIGNMENT_H);
-  pPpCfg->origHeight = AlignHeight(pEncObj->encConfig.crop.nHeight, VPU_ENC_DEFAULT_ALIGNMENT_V);
+  //set origWidth as width after right_padding (stride).
+  pPpCfg->origWidth = (Width + 15) & (~0x0f);
+  pPpCfg->origHeight = Height;
   pPpCfg->formatType = VPU_EncConvertColorFmtVpu2Omx(colorFmt, chromaInterleave);
   pPpCfg->angle = pEncObj->encConfig.rotation.nRotation;
   pPpCfg->frameStabilization = OMX_FALSE; // disable stabilization as default ?
@@ -421,20 +449,20 @@ static VpuEncRetCode  VPU_EncSetCommonConfig(
     pPpCfg->yOffset = pEncObj->encConfig.crop.nTop;
   }
 
-  validWidth = pPpCfg->origWidth;
-  validHeight = pPpCfg->origHeight;
+  validWidth = AlignWidth(pEncObj->encConfig.crop.nWidth, VPU_ENC_DEFAULT_ALIGNMENT_H);
+  validHeight = AlignHeight(pEncObj->encConfig.crop.nHeight, VPU_ENC_DEFAULT_ALIGNMENT_V);
 
   if (pEncObj->encConfig.rotation.nRotation == 90 || pEncObj->encConfig.rotation.nRotation == 270) {
-    validWidth = pPpCfg->origHeight;
-    validHeight = pPpCfg->origWidth;
+    validWidth = AlignHeight(pEncObj->encConfig.crop.nHeight, VPU_ENC_DEFAULT_ALIGNMENT_V);
+    validHeight = AlignWidth(pEncObj->encConfig.crop.nWidth, VPU_ENC_DEFAULT_ALIGNMENT_H);
   }
 
   pCommonCfg->nInputFramerate = FLOAT_Q16(frameRate);
   pCommonCfg->nOutputWidth = validWidth;
   pCommonCfg->nOutputHeight = validHeight;
 
-  pRateCfg->nQpMin = qpMin; //0
-  pRateCfg->nQpMax = qpMax; //51
+  pRateCfg->nQpMin = qpMin;
+  pRateCfg->nQpMax = qpMax;
   pRateCfg->eRateControl = pEncObj->encConfig.bitrate.eControlRate;
   pRateCfg->nTargetBitrate = pEncObj->encConfig.bitrate.nTargetBitrate;
 
@@ -480,6 +508,30 @@ static VpuEncRetCode  VPU_EncSetCommonConfig(
     int compression = 50;
     pRateCfg->nTargetBitrate = bitPerFrame / compression  * frameRate / 1000 * 1000;
     pEncObj->encConfig.bitrate.nTargetBitrate = pRateCfg->nTargetBitrate;
+  }
+
+  return VPU_ENC_RET_SUCCESS;
+}
+
+// T-REC-H.264-201201-I!!PDF-E.pdf
+// E.1.1 VUI parameters syntax
+static VpuEncRetCode  VPU_EncSetColorAspectsInfo(
+        void * pConfig,
+        VpuIsoColorAspects * pIsoColorAspects,
+        VpuCodStd format)
+{
+  if (!pConfig || !pIsoColorAspects)
+    return VPU_ENC_RET_INVALID_PARAM;
+
+  if (format == VPU_V_AVC) {
+      H264_CONFIG * pH264Config= (H264_CONFIG*)pConfig;
+      pH264Config->videoSignalTypePresent = pIsoColorAspects->nVideoSignalPresentFlag;
+      pH264Config->fullRange = pIsoColorAspects->nFullRange;
+      pH264Config->primaries = pIsoColorAspects->nPrimaries;
+      pH264Config->matrixCoeffs = pIsoColorAspects->nMatrixCoeffs;
+      pH264Config->transfer = pIsoColorAspects->nTransfer;
+      pH264Config->colorDescription = pIsoColorAspects->nColourDescPresentFlag;
+      pH264Config->videoFormat = 5;    // Unspecified video format
   }
 
   return VPU_ENC_RET_SUCCESS;
@@ -547,7 +599,7 @@ static VpuEncRetCode VPU_EncDoEncode(VpuEncObj *pObj, FRAME* pFrame, STREAM_BUFF
 
   if (pStream->streamlen > pStream->buf_max_size) {
     VPU_ENC_ERROR("%s: output buffer is too small, need %d but actual is %d\n",
-        __FUNCTION__, pStream->streamlen, pStream->buf_max_size);
+        __FUNCTION__, (int)pStream->streamlen, (int)pStream->buf_max_size);
     return VPU_ENC_RET_INSUFFICIENT_FRAME_BUFFERS;
   }
 
@@ -614,7 +666,7 @@ VpuEncRetCode VPU_EncOpen(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,VpuEn
 
   if ((pMemPhy->pVirtAddr == NULL) || MemNotAlign(pMemPhy->pVirtAddr, VPU_MEM_ALIGN)
       || (pMemPhy->pPhyAddr == NULL) || MemNotAlign(pMemPhy->pPhyAddr, VPU_MEM_ALIGN)
-      || (pMemPhy->nSize != (VPU_BITS_BUF_SIZE)))
+      || (pMemPhy->nSize < (VPU_BITS_BUF_SIZE)))
   {
     VPU_ENC_ERROR("%s: failure: invalid parameter !! \r\n", __FUNCTION__);
     return VPU_ENC_RET_INVALID_PARAM;
@@ -708,7 +760,9 @@ VpuEncRetCode VPU_EncOpen(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,VpuEn
       VPU_EncSetAvcDefaults(pObj);
       VPU_EncSetCommonConfig(pObj, &config.common_config, &config.rate_config, &config.pp_config,
             pInParam->nFrameRate, pInParam->nUserQpMin, pInParam->nUserQpMax,
-            pInParam->eColorFormat, pInParam->nChromaInterleave);
+            pInParam->eColorFormat, pInParam->nChromaInterleave,
+            pInParam->nOrigWidth, pInParam->nOrigHeight);
+      VPU_EncSetColorAspectsInfo(&config, &pInParam->sColorAspects, VPU_V_AVC);
 
       pObj->encConfig.avc.nPFrames = (pInParam->nGOPSize > H264_ENC_MAX_GOP_SIZE ? H264_ENC_MAX_GOP_SIZE : pInParam->nGOPSize);
 
@@ -742,7 +796,8 @@ VpuEncRetCode VPU_EncOpen(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,VpuEn
       if (config.rate_config.nTargetBitrate > H264_ENC_MAX_BITRATE)
         config.rate_config.nTargetBitrate = H264_ENC_MAX_BITRATE;
 
-      config.rate_config.nQpDefault = (pInParam->nRcIntraQp > 0 ? pInParam->nRcIntraQp : H264_ENC_QP_DEFAULT);
+      config.rate_config.nQpDefault = ((pInParam->nRcIntraQp >=config.rate_config.nQpMin && pInParam->nRcIntraQp <= config.rate_config.nQpMax) ? 
+            pInParam->nRcIntraQp : H264_ENC_QP_DEFAULT);
 
       pObj->codec = HantroHwEncOmx_encoder_create_h264(&config);
       VPU_ENC_LOG("open H.264 \r\n");
@@ -755,7 +810,8 @@ VpuEncRetCode VPU_EncOpen(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,VpuEn
       VPU_EncSetVp8Defaults(pObj);
       VPU_EncSetCommonConfig(pObj, &config.common_config, &config.rate_config, &config.pp_config,
             pInParam->nFrameRate, pInParam->nUserQpMin, pInParam->nUserQpMax,
-            pInParam->eColorFormat, pInParam->nChromaInterleave);
+            pInParam->eColorFormat, pInParam->nChromaInterleave,
+            pInParam->nOrigWidth, pInParam->nOrigHeight);
 
       config.vp8_config.eProfile = pObj->encConfig.vp8.eProfile;
       config.vp8_config.eLevel = pObj->encConfig.vp8.eLevel;
@@ -765,7 +821,8 @@ VpuEncRetCode VPU_EncOpen(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,VpuEn
       if (config.rate_config.nTargetBitrate > VP8_ENC_MAX_BITRATE)
         config.rate_config.nTargetBitrate = VP8_ENC_MAX_BITRATE;
 
-      config.rate_config.nQpDefault = (pInParam->nRcIntraQp > 0 ? pInParam->nRcIntraQp : VP8_ENC_QP_DEFAULT);
+      config.rate_config.nQpDefault = ((pInParam->nRcIntraQp >=config.rate_config.nQpMin && pInParam->nRcIntraQp <= config.rate_config.nQpMax) ? 
+            pInParam->nRcIntraQp : VP8_ENC_QP_DEFAULT);
 
       pObj->codec = HantroHwEncOmx_encoder_create_vp8(&config);
       VPU_ENC_LOG("open VP8 \r\n");
@@ -795,6 +852,16 @@ VpuEncRetCode VPU_EncOpenSimp(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,V
   sEncOpenParamMore.eFormat = pInParam->eFormat;
   sEncOpenParamMore.nPicWidth = pInParam->nPicWidth;
   sEncOpenParamMore.nPicHeight = pInParam->nPicHeight;
+
+  /* temporarily, Android will not set this parameter, add protect here */
+  if (pInParam->nOrigWidth == 0 || pInParam->nOrigHeight == 0) {
+    sEncOpenParamMore.nOrigWidth = pInParam->nPicWidth;
+    sEncOpenParamMore.nOrigHeight = pInParam->nPicHeight;
+  } else {
+    sEncOpenParamMore.nOrigWidth = pInParam->nOrigWidth;
+    sEncOpenParamMore.nOrigHeight = pInParam->nOrigHeight;
+  }
+
   sEncOpenParamMore.nRotAngle = pInParam->nRotAngle;
   sEncOpenParamMore.nFrameRate = pInParam->nFrameRate;
   sEncOpenParamMore.nBitRate = pInParam->nBitRate * 1000; //kbps->bps
@@ -822,7 +889,7 @@ VpuEncRetCode VPU_EncOpenSimp(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,V
     sEncOpenParamMore.nRcIntraQp = pInParam->nIntraQP;
   }
 
-  sEncOpenParamMore.nUserQpMax = 0;
+  sEncOpenParamMore.nUserQpMax = (pInParam->eFormat == VPU_V_AVC) ? AVC_ENC_MAX_QP_DEFAULT : VP8_ENC_MAX_QP_DEFAULT;
   sEncOpenParamMore.nUserQpMin = 0;
   sEncOpenParamMore.nUserQpMinEnable = 0;
   sEncOpenParamMore.nUserQpMaxEnable = 0;
@@ -831,6 +898,8 @@ VpuEncRetCode VPU_EncOpenSimp(VpuEncHandle *pOutHandle, VpuMemInfo* pInMemInfo,V
   sEncOpenParamMore.nRcIntervalMode = 0;        /* 0:normal, 1:frame_level, 2:slice_level, 3: user defined Mb_level */
   sEncOpenParamMore.nMbInterval = 0;
   sEncOpenParamMore.nAvcIntra16x16OnlyModeEnable = 0;
+
+  memcpy(&sEncOpenParamMore.sColorAspects, &pInParam->sColorAspects, sizeof(VpuIsoColorAspects));
 
   //set some default value structure 'VpuEncOpenParamMore'
   switch(pInParam->eFormat)
@@ -902,7 +971,11 @@ VpuEncRetCode VPU_EncClose(VpuEncHandle InHandle)
 
 VpuEncRetCode VPU_EncGetInitialInfo(VpuEncHandle InHandle, VpuEncInitInfo * pOutInitInfo)
 {
+#ifdef ANDROID
+  pOutInitInfo->nMinFrameBufferCount = 4; // Fixme later, hantro enc has no api to query out init info
+#else
   pOutInitInfo->nMinFrameBufferCount = 0; // Fixme later, hantro enc has no api to query out init info
+#endif
   pOutInitInfo->nAddressAlignment = 1;    // Fixme later, hantro enc has no api to query out init info
   pOutInitInfo->eType = VPU_TYPE_HANTRO;
   return VPU_ENC_RET_SUCCESS;
@@ -936,7 +1009,38 @@ VpuEncRetCode VPU_EncGetWrapperVersionInfo(VpuWrapperVersionInfo * pOutVerInfo)
 
 VpuEncRetCode VPU_EncRegisterFrameBuffer(VpuEncHandle InHandle,VpuFrameBuffer *pInFrameBufArray, int nNum,int nSrcStride)
 {
+#ifdef ANDROID
+  VpuEncHandleInternal * pVpuObj;
+  VpuEncObj * pObj;
+  VpuEncRetCode ret;
+  STREAM_BUFFER *pStreamBuf;
+  int i;
+
+  if(InHandle == NULL) {
+    VPU_ENC_ERROR("%s: failure: handle is null \r\n", __FUNCTION__);
+    return VPU_ENC_RET_INVALID_HANDLE;
+  }
+
+  if(nNum > VPU_ENC_MAX_FRAME_INDEX) {
+    VPU_ENC_ERROR("%s: failure: register frame number is too big(%d) \r\n",__FUNCTION__, nNum);
+    return VPU_ENC_RET_INVALID_PARAM;
+  }
+
+  pVpuObj = (VpuEncHandleInternal *)InHandle;
+  pObj = &(pVpuObj->obj);
+  pStreamBuf = pObj->outputStreamBuf;
+
+  for (i = 0; i < nNum; i++) {
+    pStreamBuf->bus_data = pInFrameBufArray->pbufVirtY;
+    pStreamBuf->bus_address = (OSAL_BUS_WIDTH)pInFrameBufArray->pbufY;
+    pInFrameBufArray++;
+    pStreamBuf++;
+  }
+
+  pObj->outputNum = nNum;
+#else
   // do nothing because h1 encoder don't need register frame buffer
+#endif
   return VPU_ENC_RET_SUCCESS;
 }
 
@@ -953,15 +1057,11 @@ VpuEncRetCode VPU_EncQueryMem(VpuMemInfo* pOutMemInfo)
   pMem->MemType = VPU_MEM_VIRT;
   pMem->nAlignment = VPU_MEM_ALIGN;
   pMem->nSize = sizeof(VpuEncHandleInternal);
-  pMem->pVirtAddr = NULL;
-  pMem->pPhyAddr = NULL;
 
   pMem = &pOutMemInfo->MemSubBlock[PHY_INDEX];
   pMem->MemType = VPU_MEM_PHY;
   pMem->nAlignment = VPU_MEM_ALIGN;
   pMem->nSize = VPU_BITS_BUF_SIZE;
-  pMem->pVirtAddr = NULL;
-  pMem->pPhyAddr = NULL;
 
   pOutMemInfo->nSubBlockNum = 2;
   return VPU_ENC_RET_SUCCESS;
@@ -994,8 +1094,9 @@ VpuEncRetCode VPU_EncGetMem(VpuMemDesc* pInOutMem)
   pInOutMem->nPhyAddr = info.busAddress;
   pInOutMem->nVirtAddr = (unsigned long)info.virtualAddress;
   pInOutMem->nCpuAddr = info.ion_fd;
-  VPU_ENC_LOG("EWLMallocLinear pewl %p, size %d, virt 0x%x phy 0x%x\n",
-    pewl, pInOutMem->nSize, info.virtualAddress, info.busAddress);
+  pInOutMem->nSize = info.size;
+  VPU_ENC_LOG("EWLMallocLinear pewl %p, size %d, virt 0x%p phy 0x%llx\n",
+    pewl, info.size, info.virtualAddress, (long long)info.busAddress);
 
   if (pewl)
     EWLRelease(pewl);
@@ -1074,7 +1175,7 @@ VpuEncRetCode VPU_EncConfig(VpuEncHandle InHandle, VpuEncConfig InEncConf, void*
         0: sequence header(SPS/PPS) + IDR +P +P +...+ (SPS/PPS)+IDR+....
         1: sequence header(SPS/PPS) + (SPS/PPS)+IDR +P +P +...+ (SPS/PPS)+IDR+....
       */
-      VPU_ENC_LOG("%s: enable SPS/PPS for IDR frames %d \r\n",__FUNCTION__);
+      VPU_ENC_LOG("%s: enable SPS/PPS for IDR frames \r\n",__FUNCTION__);
       pObj->encConfig.prependSPSPPSToIDRFrames = OMX_TRUE;
       break;
     case VPU_ENC_CONF_RC_INTRA_QP: /*avc: 0..51, other 1..31*/
@@ -1123,6 +1224,21 @@ VpuEncRetCode VPU_EncEncodeFrame(VpuEncHandle InHandle, VpuEncEncParam* pInOutPa
   memset(&stream, 0, sizeof(STREAM_BUFFER));
 
   /* set output buffer */
+#ifdef ANDROID
+  if (pObj->outputStreamBuf[pObj->outputIndex].bus_address) {
+    memcpy(&stream, &(pObj->outputStreamBuf[pObj->outputIndex]), sizeof(STREAM_BUFFER));
+    pObj->outputIndex = (pObj->outputIndex + 1) % pObj->outputNum;
+    copy = 1;
+  } else if (pInOutParam->nInPhyOutput){
+    stream.bus_data = (OMX_U8*)pInOutParam->nInVirtOutput;
+    stream.bus_address = (OSAL_BUS_WIDTH)pInOutParam->nInPhyOutput;
+  } else {
+    VPU_ENC_ERROR("invalid output buffer\n");
+    return VPU_ENC_RET_FAILURE;
+  }
+
+  stream.buf_max_size = pInOutParam->nInOutputBufLen;
+#else
   copy = 1;
   stream.bus_data = (OMX_U8*)pObj->pBsBufVirt;
   stream.bus_address = (OSAL_BUS_WIDTH)pObj->pBsBufPhy;
@@ -1135,6 +1251,7 @@ VpuEncRetCode VPU_EncEncodeFrame(VpuEncHandle InHandle, VpuEncEncParam* pInOutPa
     stream.bus_address = (OSAL_BUS_WIDTH)pInOutParam->nInPhyOutput;
     stream.buf_max_size = pInOutParam->nInOutputBufLen;
   }
+#endif
 
   pInOutParam->eOutRetCode |= VPU_ENC_INPUT_NOT_USED;
 
@@ -1146,6 +1263,10 @@ VpuEncRetCode VPU_EncEncodeFrame(VpuEncHandle InHandle, VpuEncEncParam* pInOutPa
         memcpy((void*)pInOutParam->nInVirtOutput, stream.bus_data, stream.streamlen);
 
       pInOutParam->nOutOutputSize = stream.streamlen; // codec data
+
+      if (pObj->bAvcc) {
+        VpuConvertToAvccHeader((unsigned char*)pInOutParam->nInVirtOutput, pInOutParam->nOutOutputSize, &pInOutParam->nOutOutputSize);
+      }
 
       pInOutParam->eOutRetCode |= VPU_ENC_OUTPUT_SEQHEADER;
 
@@ -1203,6 +1324,10 @@ VpuEncRetCode VPU_EncEncodeFrame(VpuEncHandle InHandle, VpuEncEncParam* pInOutPa
   }
 
   pInOutParam->nOutOutputSize = stream.streamlen;
+
+  if (pObj->bAvcc) {
+    VpuConvertToAvccData((unsigned char*)pInOutParam->nInVirtOutput, pInOutParam->nOutOutputSize);
+  }
 
   pInOutParam->eOutRetCode |= (VPU_ENC_OUTPUT_DIS | VPU_ENC_INPUT_USED);
   pObj->totalFrameCnt++;

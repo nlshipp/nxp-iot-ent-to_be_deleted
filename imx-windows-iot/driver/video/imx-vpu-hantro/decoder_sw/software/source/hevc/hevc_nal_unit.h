@@ -57,6 +57,7 @@
 struct NalUnit {
   enum NalUnitType nal_unit_type;
   u32 temporal_id;
+  u32 nuh_layer_id;
 };
 
 u32 HevcDecodeNalUnit(struct StrmData* stream, struct NalUnit* nal_unit);

@@ -493,6 +493,18 @@ extern "C"
         u32 hwBuild;         /* Hardware build ID */
     } H264EncBuild;
 
+/**
+* color description in the vui which coded in the sps(sequence parameter sets).
+* only valid when video signal type present flag in the vui is set.
+*/
+    typedef struct
+    {
+        u8 vuiColorDescripPresentFlag;                        /* color description present in the vui.0- not present, 1- present */
+        u8 vuiColorPrimaries;                                 /* Color's Primaries */
+        u8 vuiTransferCharacteristics;                        /* Transfer Characteristics */
+        u8 vuiMatrixCoefficients;                             /* Matrix Coefficients */
+    }VuiColorDescription;
+
 /*------------------------------------------------------------------------------
     4. Encoder API function prototypes
 ------------------------------------------------------------------------------*/
@@ -568,6 +580,10 @@ extern "C"
 /* Set motionVectors field of H264EncOut structure to point macroblock mbNum */
     H264EncRet H264EncGetMbInfo(H264EncInst inst, H264EncOut * pEncOut,
                                 u32 mbNum);
+
+/* Set color description. */
+i32 H264EncSetVuiColorDescription(H264EncInst inst, u32 vuiVideoSignalTypePresentFlag, u32 vuiVideoFormat,
+        u32 vuiColorDescripPresentFlag, u32 vuiColorPrimaries, u32 vuiTransferCharacteristics, u32 vuiMatrixCoefficients);
 
 /*------------------------------------------------------------------------------
     5. Encoder API tracing callback function

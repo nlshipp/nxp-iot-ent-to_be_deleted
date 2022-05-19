@@ -2,6 +2,7 @@
 * Description: iMX8MQuad I2C Controllers
 *
 *  Copyright (c) 2018, Microsoft Corporation. All rights reserved.
+*  Copyright 2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -74,27 +75,6 @@ Device (I2C3)
     Name (RBUF, ResourceTemplate () {
       MEMORY32FIXED(ReadWrite, 0x30A40000, 0x14, )
       Interrupt(ResourceConsumer, Level, ActiveHigh, Exclusive) { 69 }
-    })
-    Return(RBUF)
-  }
-}
-
-Device (I2C4)
-{
-  Name (_HID, "NXP0104")
-  Name (_HRV, 0x1)
-  Name (_UID, 0x4)
-
-  Method (_STA)
-  {
-    Return(0x0)
-  }
-
-  Method (_CRS, 0x0, NotSerialized)
-  {
-    Name (RBUF, ResourceTemplate () {
-      MEMORY32FIXED(ReadWrite, 0x30A50000, 0x14, )
-      Interrupt(ResourceConsumer, Level, ActiveHigh, Exclusive) { 70 }
     })
     Return(RBUF)
   }

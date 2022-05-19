@@ -1,4 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright 2022 NXP
 // Licensed under the MIT License.
 //
 // Module Name:
@@ -1479,7 +1480,7 @@ SdhcSlotInitialize(
         // Give a chance to change break flags from debugger to control debugging experience
         // from within crashdump environment
         //
-        DbgBreakPoint();
+        //  DbgBreakPoint();
     }
 #endif // DBG
 
@@ -1492,8 +1493,7 @@ SdhcSlotInitialize(
         SdhcLogInit(sdhcExtPtr);
         // Load device properties and keep a local copy of it
         USDHC_DEVICE_PROPERTIES* devPropsPtr =
-            DevicePropertiesListSafeFindByKey(
-                reinterpret_cast<UINT32>(sdhcExtPtr->PhysicalAddress));
+            DevicePropertiesListSafeFindByKey((UINT32)(UINT64)(sdhcExtPtr->PhysicalAddress));
         if (devPropsPtr == nullptr) {
             //
             // Currently, we don't support SDBus power control
@@ -1510,6 +1510,16 @@ SdhcSlotInitialize(
                 devPropsPtr,
                 sizeof(*devPropsPtr));
         }
+    } else {
+        // FIXME: HW specific device properties are read from ACPI in SdhcGetSlotCount() method. This method is not called in crashdump mode after dump_DriverEntry() is called 
+        // so these values are hardcoded here. Please keep them synchronized with values in Dsdt-Sdhc.asl ACPI table. 
+        // No modification is needed for currently supported NXP boards.
+        sdhcExtPtr->DeviceProperties.Regulator1V8Exist = TRUE;
+        sdhcExtPtr->DeviceProperties.SlotPowerControlSupported = FALSE;
+        sdhcExtPtr->DeviceProperties.SlotCount = USDHC_DEFAULT_SLOT_COUNT;
+        sdhcExtPtr->DeviceProperties.BaseClockFrequencyHz = 400000000;
+        sdhcExtPtr->DeviceProperties.TuningStartTap = 20;
+        sdhcExtPtr->DeviceProperties.TuningStep = 2;
     }
 
     // Reset tuning circuit
@@ -2414,6 +2424,14 @@ NTSTATUS SdhcSendTuneCmd(USDHC_EXTENSION* SdhcExtPtr)
     SdhcExtPtr->WaitTuningCmd = TRUE;
     SdhcSendCommand(SdhcExtPtr, RequestPtr);
     while (SdhcExtPtr->WaitTuningCmd) {
+        if (SdhcExtPtr->CrashdumpMode) {
+            ULONG   EventsPtr = 0;
+            ULONG   ErrorsPtr = 0;
+            BOOLEAN CardChangePtr = FALSE;
+            BOOLEAN SdioInterruptPtr = FALSE;
+            BOOLEAN TuningPtr = FALSE;
+            SdhcSlotInterrupt(SdhcExtPtr, &EventsPtr, &ErrorsPtr, &CardChangePtr, &SdioInterruptPtr, &TuningPtr);
+        }
         SdPortWait(1000);
         retries--;
         if (retries == 0) {

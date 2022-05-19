@@ -53,6 +53,7 @@
 #include "tiledref.h"
 #include "errorhandling.h"
 #include "commonconfig.h"
+#include <basetsd.h>
 
 #include "mpeg2hwd_debug.h"
 #ifdef MPEG2_ASIC_TRACE
@@ -77,7 +78,9 @@
 #include "stream_corrupt.h"
 #endif
 
+#ifndef USE_WORDACCESS
 #define USE_WORDACCESS
+#endif
 #ifdef USE_WORDACCESS
 /* word width */
 #define WORDWIDTH_64BIT
@@ -107,7 +110,7 @@ typedef u32 uword;
 
 #define MPEG2DEC_UPDATE_POUTPUT \
     dec_cont->MbSetDesc.out_data.data_left = \
-    DEC_STRM.p_strm_buff_start - dec_cont->MbSetDesc.out_data.strm_curr_pos; \
+    (u32)(DEC_STRM.p_strm_buff_start - dec_cont->MbSetDesc.out_data.strm_curr_pos); \
     (void) DWLmemcpy(output, &dec_cont->MbSetDesc.out_data, \
                              sizeof(Mpeg2DecOutput))
 #define NON_B_BUT_B_ALLOWED \
@@ -797,7 +800,7 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
             MPEG2_API_TRC("Mpeg2DecDecode# MPEG2DEC_NONREF_PIC_SKIPPED\n");
           }
           if (!dec_cont->ApiStorage.first_field && dec_cont->pp_enabled)
-            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
           ret = mpeg2HandleVlcModeError(dec_cont, input->pic_id);
           error_concealment = HANTRO_TRUE;
           Mpeg2CheckReleasePpAndHw(dec_cont);
@@ -828,7 +831,7 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
 
       case DEC_PIC_HDR_RDY_ERROR:
         if (!dec_cont->ApiStorage.first_field && dec_cont->pp_enabled)
-          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
         ret = mpeg2HandleVlcModeError(dec_cont, input->pic_id);
         error_concealment = HANTRO_TRUE;
         /* copy output parameters for this PIC */
@@ -921,7 +924,7 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
 #endif
         {
 #ifdef USE_OUTPUT_RELEASE
-          FifoPush(dec_cont->fifo_display, -2, FIFO_EXCEPTION_DISABLE);
+          FifoPush(dec_cont->fifo_display, (void *)-2, FIFO_EXCEPTION_DISABLE);
 #endif
           ret = MPEG2DEC_HDRS_RDY;
         }
@@ -997,6 +1000,10 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
           dec_cont->FrameDesc.frame_height,
           dec_cont->Hdrs.picture_structure == TOPFIELD,
           dec_cont->dpb_mode);
+
+        if (DWLFlushCache(dec_cont->dwl,
+          &dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].data))
+          return MPEG2DEC_MEMFAIL;
       }
       if (!dec_cont->asic_running && dec_cont->StrmStorage.partial_freeze)
         PreparePartialFreeze(
@@ -1060,7 +1067,7 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
           MPEG2FLUSH;
 
           if (dec_cont->pp_enabled) {
-            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+            InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
           }
           ret = mpeg2HandleVlcModeError(dec_cont, input->pic_id);
           error_concealment = HANTRO_TRUE;
@@ -1171,8 +1178,8 @@ Mpeg2DecRet Mpeg2DecDecode(Mpeg2DecInst dec_inst,
   output->strm_curr_pos = dec_cont->StrmDesc.strm_curr_pos;
   output->strm_curr_bus_address = input->stream_bus_address +
                                   (dec_cont->StrmDesc.strm_curr_pos - dec_cont->StrmDesc.p_strm_buff_start);
-  output->data_left = dec_cont->StrmDesc.strm_buff_size -
-                      (output->strm_curr_pos - DEC_STRM.p_strm_buff_start);
+  output->data_left = (u32)(dec_cont->StrmDesc.strm_buff_size -
+                      (output->strm_curr_pos - DEC_STRM.p_strm_buff_start));
 
 #ifdef USE_RANDOM_TEST
   fwrite(input->stream, 1, (input_data_len - output->data_left), dec_cont->ferror_stream);
@@ -1268,6 +1275,8 @@ void Mpeg2DecRelease(Mpeg2DecInst dec_inst) {
 #endif
 
   mpeg2FreeBuffers(dec_cont);
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
 
   DWLfree(dec_cont);
 #ifndef USE_EXTERNAL_BUFFER
@@ -1381,7 +1390,7 @@ void mpeg2RefreshRegs(DecContainer * dec_cont) {
   u32 offset;
 
   for(i = 0; i < DEC_X170_REGISTERS; i++) {
-    pp_regs[i] = DWLReadReg(dec_cont->dwl, dec_cont->core_id, 4 * i);
+    pp_regs[i] = DWLReadReg(dec_cont->dwl, dec_cont->core_id, (u32)(4 * i));
   }
 #if 0
   offset = TOTAL_X170_ORIGIN_REGS * 0x04;
@@ -1455,11 +1464,13 @@ u32 mpeg2HandleVlcModeError(DecContainer * dec_cont, u32 pic_num) {
     dec_cont->StrmStorage.error_in_hdr = 1;
 
     /* Don't do it if first field has been decoded successfully */
+#if 0
     if (!dec_cont->field_rdy)
       (void) DWLmemset(dec_cont->StrmStorage.
                        p_pic_buf[dec_cont->StrmStorage.work_out].data.
                        virtual_address, 128,
                        384 * dec_cont->FrameDesc.total_mb_in_frame);
+#endif
 
     mpeg2DecPreparePicReturn(dec_cont);
 
@@ -1555,9 +1566,9 @@ void mpeg2HandleFrameEnd(DecContainer * dec_cont) {
 
   u32 tmp;
 
-  dec_cont->StrmDesc.strm_buff_read_bits =
-    8 * (dec_cont->StrmDesc.strm_curr_pos -
-         dec_cont->StrmDesc.p_strm_buff_start);
+  dec_cont->StrmDesc.strm_buff_read_bits = 
+      (u32)(8 * (dec_cont->StrmDesc.strm_curr_pos -
+         dec_cont->StrmDesc.p_strm_buff_start));
   dec_cont->StrmDesc.bit_pos_in_word = 0;
 
 #ifndef USE_WORDACCESS
@@ -1769,7 +1780,7 @@ u32 RunDecoderAsic(DecContainer * dec_container, addr_t strm_bus_address) {
      * from previous 64-bit aligned boundary) */
     SetDecRegister(dec_container->mpeg2_regs, HWIF_STREAM_LEN,
                    dec_container->StrmDesc.strm_buff_size -
-                   ((tmp & ~0x7) - strm_bus_address));
+                   (u32)((tmp & ~0x7) - strm_bus_address));
     SetDecRegister(dec_container->mpeg2_regs, HWIF_STRM_START_BIT,
                    dec_container->StrmDesc.bit_pos_in_word + 8 * (tmp & 0x7));
 
@@ -1893,8 +1904,8 @@ u32 RunDecoderAsic(DecContainer * dec_container, addr_t strm_bus_address) {
   }
 
   dec_container->StrmDesc.strm_buff_read_bits =
-    8 * (dec_container->StrmDesc.strm_curr_pos -
-         dec_container->StrmDesc.p_strm_buff_start);
+    (u32)(8 * (dec_container->StrmDesc.strm_curr_pos -
+         dec_container->StrmDesc.p_strm_buff_start));
 
   dec_container->StrmDesc.bit_pos_in_word = 0;
 
@@ -2652,7 +2663,7 @@ Mpeg2DecRet Mpeg2DecNextPicture_INTERNAL(Mpeg2DecInst dec_inst,
         return MPEG2DEC_ABORTED;
 
       if(dec_cont->pp_enabled) {
-        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 #endif
       /* set this buffer as used */
@@ -2661,11 +2672,11 @@ Mpeg2DecRet Mpeg2DecNextPicture_INTERNAL(Mpeg2DecInst dec_inst,
         BqueueSetBufferAsUsed(&dec_cont->StrmStorage.bq, pic_index);
         dec_cont->StrmStorage.p_pic_buf[pic_index].first_show = 0;
         if(dec_cont->pp_enabled)
-          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 
       dec_cont->StrmStorage.picture_info[dec_cont->fifo_index] = *picture;
-      FifoPush(dec_cont->fifo_display, dec_cont->fifo_index, FIFO_EXCEPTION_DISABLE);
+      FifoPush(dec_cont->fifo_display, UIntToPtr(dec_cont->fifo_index), FIFO_EXCEPTION_DISABLE);
       dec_cont->fifo_index++;
       if(dec_cont->fifo_index == 32)
         dec_cont->fifo_index = 0;
@@ -2719,9 +2730,7 @@ Mpeg2DecRet Mpeg2DecPictureConsumed(Mpeg2DecInst dec_inst, Mpeg2DecPicture * pic
 
   if (!dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers; i++) {
-      if(picture->output_picture_bus_address == dec_cont->StrmStorage.p_pic_buf[i].data.bus_address
-          && (addr_t)picture->output_picture
-          == (addr_t)dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address) {
+      if(picture->output_picture_bus_address == dec_cont->StrmStorage.p_pic_buf[i].data.bus_address) {
         if(dec_cont->pp_instance == NULL) {
           BqueuePictureRelease(&dec_cont->StrmStorage.bq, i);
         }
@@ -2729,7 +2738,7 @@ Mpeg2DecRet Mpeg2DecPictureConsumed(Mpeg2DecInst dec_inst, Mpeg2DecPicture * pic
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue,(u32 *)picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
     return (MPEG2DEC_OK);
   }
   return (MPEG2DEC_PARAM_ERROR);
@@ -2794,7 +2803,7 @@ Mpeg2DecRet Mpeg2DecEndOfStream(Mpeg2DecInst dec_inst, u32 strm_end_flag) {
 
   if(strm_end_flag) {
     dec_cont->dec_stat = MPEG2DEC_END_OF_STREAM;
-    FifoPush(dec_cont->fifo_display, -1, FIFO_EXCEPTION_DISABLE);
+    FifoPush(dec_cont->fifo_display, (void *)-1, FIFO_EXCEPTION_DISABLE);
   }
 
   /* Wait all buffers as unused */
@@ -2978,7 +2987,7 @@ static u32 Mpeg2SetRegs(DecContainer * dec_container, addr_t strm_bus_address) {
    * number of bytes from previous 64-bit aligned boundary) */
   SetDecRegister(dec_container->mpeg2_regs, HWIF_STREAM_LEN,
                  dec_container->StrmDesc.strm_buff_size -
-                 ((tmp & ~0x7) - strm_bus_address));
+                (u32)((tmp & ~0x7) - strm_bus_address));
 
   SetDecRegister(dec_container->mpeg2_regs, HWIF_STRM_START_BIT,
                  dec_container->StrmDesc.bit_pos_in_word + 8 * (tmp & 0x7));
@@ -3667,7 +3676,7 @@ static void Mpeg2PpControl(DecContainer * dec_container, u32 pipeline_off) {
           dec_container->StrmStorage.p_pic_buf[index_for_pp].send_to_pp = 2;
         } else {
           MPEG2DEC_API_DEBUG(("PIPELINE OFF, DON*T SEND B TO PP\n"));
-          index_for_pp = dec_container->StrmStorage.work_out;
+          //index_for_pp = dec_container->StrmStorage.work_out;
           index_for_pp = MPEG2_BUFFER_UNDEFINED;
           pc->input_bus_luma = 0;
         }
@@ -4174,6 +4183,7 @@ Mpeg2DecRet Mpeg2DecGetBufferInfo(Mpeg2DecInst dec_inst, Mpeg2DecBufferInfo *mem
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -4182,7 +4192,7 @@ Mpeg2DecRet Mpeg2DecGetBufferInfo(Mpeg2DecInst dec_inst, Mpeg2DecBufferInfo *mem
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return MPEG2DEC_WAITING_FOR_BUFFER;
 }
@@ -4192,7 +4202,6 @@ Mpeg2DecRet Mpeg2DecAddBuffer(Mpeg2DecInst dec_inst, struct DWLLinearMem *info) 
   Mpeg2DecRet dec_ret = MPEG2DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return MPEG2DEC_PARAM_ERROR;
@@ -4316,7 +4325,8 @@ void Mpeg2StateReset(DecContainer *dec_cont) {
   dec_cont->StrmStorage.last_bskipped = 0;
 
   /* Clear parameters in DecApiStorage */
-  dec_cont->ApiStorage.DecStat = INITIALIZED;
+  if (dec_cont->ApiStorage.DecStat != HEADERSDECODED)
+    dec_cont->ApiStorage.DecStat = INITIALIZED;
   dec_cont->ApiStorage.first_field = 1;
   dec_cont->ApiStorage.output_other_field = 0;
   dec_cont->ApiStorage.ignore_field = 0;
@@ -4351,8 +4361,55 @@ void Mpeg2StateReset(DecContainer *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(MPEG2_MAX_BUFFERS*2, &dec_cont->fifo_display);
+  if (FifoInit(MPEG2_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
+}
+
+Mpeg2DecRet Mpeg2DecRemoveBuffer(Mpeg2DecInst dec_inst) {
+  DecContainer *dec_cont = (DecContainer *)dec_inst;
+  Mpeg2DecRet re = MPEG2DEC_OK;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  FifoSetAbort(dec_cont->fifo_display);
+  BqueueRemove(&dec_cont->StrmStorage.bq);
+  dec_cont->StrmStorage.work_out_prev = 0;
+  dec_cont->StrmStorage.work_out = 0;
+  dec_cont->StrmStorage.work0 =
+    dec_cont->StrmStorage.work1 = INVALID_ANCHOR_PICTURE;
+
+  Mpeg2StateReset(dec_cont);
+
+  u32 buffers = 3;
+  if( dec_cont->pp_instance ) { /* Combined mode used */
+    dec_cont->PPConfigQuery(dec_cont->pp_instance,
+                            &dec_cont->pp_config_query);
+    if(dec_cont->pp_config_query.multi_buffer)
+      buffers = 4;
+  } else { /* Dec only or separate PP */
+    buffers = dec_cont->StrmStorage.max_num_buffers;
+    if( buffers < 3 )
+      buffers = 3;
+  }
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->fifo_index = 0;
+  dec_cont->ext_buffer_num = 0;
+  dec_cont->StrmStorage.bq.queue_size = buffers;
+  dec_cont->StrmStorage.num_buffers = buffers;
+  (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf, 0, MPEG2_MAX_BUFFERS * sizeof(picture_t));
+  (void) DWLmemset(dec_cont->StrmStorage.picture_info, 0, MPEG2_MAX_BUFFERS * 2 * sizeof(Mpeg2DecPicture));
+  if (dec_cont->fifo_display)
+    FifoRelease(dec_cont->fifo_display);
+  if (FifoInit(MPEG2_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK) {
+    re = MPEG2DEC_MEMFAIL;
+    goto end;
+  }
+  FifoClearAbort(dec_cont->fifo_display);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 Mpeg2DecRet Mpeg2DecAbort(Mpeg2DecInst dec_inst) {

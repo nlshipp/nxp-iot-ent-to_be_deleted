@@ -284,16 +284,20 @@ u32 AvsStrmDec_DecodeIPictureHeader(DecContainer * dec_container) {
 
   if (p_hdr->profile_id == 0x48) { /* broadcast profile in avs+ */
     /* marker_bit, its value should be 1 */
+    (void) (tmp);
     tmp = AvsStrmDec_GetBits(dec_container, 1);
+    (void)(tmp);
     /* bbv_delay_extension */
     tmp = AvsStrmDec_GetBits(dec_container, 7);
   }
 
   /* time_code_flag */
+  (void) (tmp);
   tmp = AvsStrmDec_GetBits(dec_container, 1);
   if (tmp) {
     /* time_code */
     tmp = AvsStrmDec_GetBits(dec_container, 1); /* DropFrameFlag */
+    (void) (tmp);
     tmp = AvsStrmDec_GetBits(dec_container, 5); /* TimeCodeHours */
     p_hdr->time_code.hours = tmp;
     tmp = AvsStrmDec_GetBits(dec_container, 6); /* TimeCodeMinutes */
@@ -305,26 +309,36 @@ u32 AvsStrmDec_DecodeIPictureHeader(DecContainer * dec_container) {
   }
 
   tmp = AvsStrmDec_GetBits(dec_container, 1);
-
+  (void) (tmp);
   tmp = p_hdr->picture_distance = AvsStrmDec_GetBits(dec_container, 8);
 
-  if (p_hdr->low_delay)
+  if (p_hdr->low_delay) {
     /* bbv_check_times */
+    (void) (tmp);
     tmp = AvsDecodeExpGolombUnsigned(dec_container, &val);
+    (void) (tmp);
+  }
 
+  (void) (tmp);
   tmp = p_hdr->progressive_frame = AvsStrmDec_GetBits(dec_container, 1);
 
   if (!tmp) {
     tmp = p_hdr->picture_structure = AvsStrmDec_GetBits(dec_container, 1);
+    (void) (tmp);
   } else p_hdr->picture_structure = FRAMEPICTURE;
 
   tmp = p_hdr->top_field_first = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->repeat_first_field = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->fixed_picture_qp = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->picture_qp = AvsStrmDec_GetBits(dec_container, 6);
 
-  if (p_hdr->progressive_frame == 0 && p_hdr->picture_structure == 0)
+  if (p_hdr->progressive_frame == 0 && p_hdr->picture_structure == 0) {
     tmp = p_hdr->skip_mode_flag = AvsStrmDec_GetBits(dec_container, 1);
+    (void) (tmp);
+  }
 
   /* reserved_bits, shall be '0000', not checked */
   tmp = AvsStrmDec_GetBits(dec_container, 4);
@@ -437,11 +451,14 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
 
   if (p_hdr->profile_id == 0x48) { /* broadcast profile in avs+ */
     /* marker_bit, its value should be 1 */
+    (void)(tmp);
     tmp = AvsStrmDec_GetBits(dec_container, 1);
     /* bbv_delay_extension */
+    (void)(tmp);
     tmp = AvsStrmDec_GetBits(dec_container, 7);
   }
 
+  (void)(tmp);
   tmp = p_hdr->pic_coding_type = AvsStrmDec_GetBits(dec_container, 2)+1;
   if (tmp != PFRAME && tmp != BFRAME)
     return (HANTRO_NOK);
@@ -452,18 +469,24 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
     /* bbv_check_times */
     tmp = AvsDecodeExpGolombUnsigned(dec_container, &val);
 
+  (void)(tmp);
   tmp = p_hdr->progressive_frame = AvsStrmDec_GetBits(dec_container, 1);
 
   if (!tmp) {
     tmp = p_hdr->picture_structure = AvsStrmDec_GetBits(dec_container, 1);
-    if (tmp == 0)
+    if (tmp == 0) {
       tmp = p_hdr->advanced_pred_mode_disable =
               AvsStrmDec_GetBits(dec_container, 1);
+      (void)(tmp);
+    }
   } else p_hdr->picture_structure = FRAMEPICTURE;
 
   tmp = p_hdr->top_field_first = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->repeat_first_field = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->fixed_picture_qp = AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = p_hdr->picture_qp = AvsStrmDec_GetBits(dec_container, 6);
 
   if (!(p_hdr->pic_coding_type == BFRAME && p_hdr->picture_structure == 1)) {
@@ -485,10 +508,13 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
     p_hdr->pb_field_enhanced_flag = 0;
   }
   /* reserved_bits, shall be '00', not checked */
+  (void)(tmp);
   tmp = AvsStrmDec_GetBits(dec_container, 2);
 
+  (void)(tmp);
   tmp = p_hdr->skip_mode_flag = AvsStrmDec_GetBits(dec_container, 1);
 
+  (void)(tmp);
   tmp = p_hdr->loop_filter_disable = AvsStrmDec_GetBits(dec_container, 1);
   if (!tmp) {
     tmp = AvsStrmDec_GetBits(dec_container, 1);
@@ -498,6 +524,7 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
       if (p_hdr->alpha_offset < -8 || p_hdr->alpha_offset > 8)
         return (HANTRO_NOK);
       tmp = AvsDecodeExpGolombSigned(dec_container, (i32*)&val);
+      (void)(tmp);
       p_hdr->beta_offset = (i32)val;
       if (p_hdr->beta_offset < -8 || p_hdr->beta_offset > 8)
         return (HANTRO_NOK);
@@ -516,6 +543,7 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
       /* reserved_bits, shall be '0', not checked */
       tmp = AvsStrmDec_GetBits(dec_container, 1);
       /* chroma_quant_param_disable */
+      (void)(tmp);
       tmp = AvsStrmDec_GetBits(dec_container, 1);
       p_hdr->chroma_quant_param_disable = tmp;
       if (tmp == 0x0) {
@@ -523,7 +551,9 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
         tmp = AvsDecodeExpGolombSigned(dec_container, (i32*)&val);
         p_hdr->chroma_quant_param_delta_cb = (i32)val;
         /* chroma_quant_param_delta_cr */
+        (void)(tmp);
         tmp = AvsDecodeExpGolombSigned(dec_container, (i32*)&val);
+        (void)(tmp);
         p_hdr->chroma_quant_param_delta_cr = (i32)val;
       }
 
@@ -536,6 +566,7 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
 
       if (p_hdr->weighting_quant_param_index == 0x1) {
         for(i=0; i<6; i++) {
+          (void) (tmp);
           tmp = AvsDecodeExpGolombSigned(dec_container, (i32*)&val);
           p_hdr->weighting_quant_param_delta1[i] = (i32)val;
         }
@@ -543,6 +574,7 @@ u32 AvsStrmDec_DecodePBPictureHeader(DecContainer * dec_container) {
 
       if (p_hdr->weighting_quant_param_index == 0x2) {
         for(i=0; i<6; i++) {
+          (void) (tmp);
           tmp = AvsDecodeExpGolombSigned(dec_container, (i32*)&val);
           p_hdr->weighting_quant_param_delta2[i] = (i32)val;
         }
@@ -615,30 +647,39 @@ u32 AvsStrmDec_DecodeSeqDisplayExtHeader(DecContainer * dec_container) {
 
   tmp = dec_container->Hdrs.video_format =
           AvsStrmDec_GetBits(dec_container, 3);
+  (void)(tmp);
   tmp = dec_container->Hdrs.sample_range =
           AvsStrmDec_GetBits(dec_container, 1);
+  (void)(tmp);
   tmp = dec_container->Hdrs.color_description =
           AvsStrmDec_GetBits(dec_container, 1);
 
   if(dec_container->Hdrs.color_description) {
+    (void)(tmp);
     tmp = dec_container->Hdrs.color_primaries =
             AvsStrmDec_GetBits(dec_container, 8);
+    (void)(tmp);
     tmp = dec_container->Hdrs.transfer_characteristics =
             AvsStrmDec_GetBits(dec_container, 8);
+    (void)(tmp);
     tmp = dec_container->Hdrs.matrix_coefficients =
             AvsStrmDec_GetBits(dec_container, 8);
   }
 
+  (void)(tmp);
   tmp = dec_container->Hdrs.display_horizontal_size =
           AvsStrmDec_GetBits(dec_container, 14);
 
   /* marker bit ==> flush */
+  (void)(tmp);
   tmp = AvsStrmDec_FlushBits(dec_container, 1);
 
+  (void)(tmp);
   tmp = dec_container->Hdrs.display_vertical_size =
           AvsStrmDec_GetBits(dec_container, 14);
 
   /* reserved_bits */
+  (void)(tmp);
   tmp = AvsStrmDec_GetBits(dec_container, 2);
 
   if(tmp == END_OF_STREAM)

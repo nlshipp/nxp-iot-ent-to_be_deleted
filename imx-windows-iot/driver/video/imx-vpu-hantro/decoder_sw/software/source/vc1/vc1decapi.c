@@ -203,6 +203,11 @@ VC1DecRet VC1DecInit( VC1DecInst* dec_inst,
   if(reference_frame_format == DEC_REF_FRM_TILED_DEFAULT) {
     /* Assert support in HW before enabling.. */
     if(!config.tiled_mode_support) {
+      pthread_mutex_destroy(&dec_cont->protect_mutex);
+      DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+      (void)DWLRelease(dwl);
+#endif
       return VC1DEC_FORMAT_NOT_SUPPORTED;
     }
     dec_cont->tiled_mode_support = config.tiled_mode_support;
@@ -228,6 +233,7 @@ VC1DecRet VC1DecInit( VC1DecInst* dec_inst,
                   num_frame_buffers);
   if ( rv != VC1HWD_OK) {
     DEC_API_TRC("VC1DecInit# ERROR: Invalid initialization metadata");
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
     DWLfree(dec_cont);
 #ifndef USE_EXTERNAL_BUFFER
     (void)DWLRelease(dwl);
@@ -268,6 +274,11 @@ VC1DecRet VC1DecInit( VC1DecInst* dec_inst,
 
   if(!config.addr64_support && sizeof(void *) == 8) {
     DEC_API_TRC("VC1DecInit# ERROR: HW not support 64bit address!\n");
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void)DWLRelease(dwl);
+#endif
     return (VC1DEC_PARAM_ERROR);
   }
 
@@ -284,6 +295,11 @@ VC1DecRet VC1DecInit( VC1DecInst* dec_inst,
               dscale_cfg->down_scale_y != 2 &&
               dscale_cfg->down_scale_y != 4 &&
               dscale_cfg->down_scale_y != 8 )) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void)DWLRelease(dwl);
+#endif
     return (VC1DEC_PARAM_ERROR);
   } else {
     u32 scale_table[9] = {0, 0, 1, 0, 2, 0, 0, 0, 3};
@@ -297,6 +313,11 @@ VC1DecRet VC1DecInit( VC1DecInst* dec_inst,
 
   dec_cont->pp_buffer_queue = InputQueueInit(0);
   if (dec_cont->pp_buffer_queue == NULL) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void)DWLRelease(dwl);
+#endif
     return (VC1DEC_MEMFAIL);
   }
   dec_cont->storage.release_buffer = 0;
@@ -430,10 +451,14 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
   stream_data.strm_buff_read_bits = 0;
   stream_data.strm_exhausted = HANTRO_FALSE;
 
-  if (dec_cont->storage.profile == VC1_ADVANCED)
+  if (dec_cont->storage.profile == VC1_ADVANCED) {
     stream_data.remove_emul_prev_bytes = 1;
-  else
+    stream_data.raw_frame_data = dec_cont->raw_frame_data;
+  }
+  else {
     stream_data.remove_emul_prev_bytes = 0;
+    stream_data.raw_frame_data = 0;
+  }
 
   first_frame = (dec_cont->storage.first_frame) ? 1 : 0;
 
@@ -522,6 +547,14 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
   /* decode SW part (picture layer) */
   if (dec_cont->storage.resolution_changed == HANTRO_FALSE) {
     dec_result = vc1hwdDecode(dec_cont, &dec_cont->storage, &stream_data);
+    if(dec_result == VC1HWD_NOT_CODED_PIC ||
+        dec_result == VC1HWD_ERROR ||
+        dec_result == VC1HWD_METADATA_ERROR ||
+        dec_result == VC1HWD_HDRS_ERROR) {
+        if(stream_data.bit_pos_in_word) {
+          vc1hwdFlushBits(&stream_data, 8-stream_data.bit_pos_in_word);
+        }
+    }
     if (dec_cont->storage.resolution_changed) {
       /* save stream position and dec_result */
       dec_cont->storage.tmp_strm_data = stream_data;
@@ -790,7 +823,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
     if (first_frame || (is_bpic && !dec_cont->storage.intra_freeze) || dec_cont->storage.missing_field) {
       (void)vc1hwdSeekFrameStart(&dec_cont->storage, &stream_data);
       if (dec_cont->pp_enabled && first_frame) {
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
       }
       return_value = VC1DEC_STRM_PROCESSED;
     } else
@@ -1049,7 +1082,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
     if (asic_status == X170_DEC_TIMEOUT) {
       error_concealment = HANTRO_TRUE;
       if (dec_cont->pp_enabled) {
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
       }
       vc1hwdErrorConcealment(0, &dec_cont->storage);
       DEC_API_TRC("VC1DecDecode# VC1DEC_HW_TIMEOUT");
@@ -1057,7 +1090,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
     } else if (asic_status == X170_DEC_SYSTEM_ERROR) {
       error_concealment = HANTRO_TRUE;
       if (dec_cont->pp_enabled) {
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
       }
       vc1hwdErrorConcealment(0, &dec_cont->storage);
       DEC_API_TRC("VC1DecDecode# VC1DEC_SYSTEM_ERROR");
@@ -1065,7 +1098,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
     } else if (asic_status == X170_DEC_HW_RESERVED) {
       error_concealment = HANTRO_TRUE;
       if (dec_cont->pp_enabled) {
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
       }
       vc1hwdErrorConcealment(0, &dec_cont->storage);
       DEC_API_TRC("VC1DecDecode# VC1DEC_HW_RESERVED");
@@ -1077,7 +1110,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
     if (asic_status & DEC_X170_IRQ_BUS_ERROR) {
       error_concealment = HANTRO_TRUE;
       if (dec_cont->pp_enabled) {
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
       }
       vc1hwdErrorConcealment(0, &dec_cont->storage);
       DEC_API_TRC("VC1DecDecode# VC1DEC_HW_BUS_ERROR");
@@ -1116,7 +1149,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
           error_concealment = HANTRO_TRUE;
           if (!first_frame) {
             if (dec_cont->pp_enabled) {
-              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
             }
           }
           vc1hwdErrorConcealment( first_frame, &dec_cont->storage );
@@ -1125,7 +1158,7 @@ VC1DecRet VC1DecDecode( VC1DecInst dec_inst,
               || dec_cont->storage.slice) {
             (void)vc1hwdSeekFrameStart(&dec_cont->storage, &stream_data);
             if (dec_cont->pp_enabled && first_frame) {
-              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->virtual_address);
+              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.p_pic_buf[dec_cont->storage.work_out].pp_data->bus_address);
             }
             return_value = VC1DEC_STRM_PROCESSED;
           } else
@@ -1371,6 +1404,8 @@ void VC1DecRelease(VC1DecInst dec_inst) {
   dec_cont->storage.hrd_rate = NULL;
   dec_cont->storage.hrd_buffer = NULL;
   dec_cont->storage.hrd_fullness = NULL;
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
   DWLfree(dec_cont);
 #ifndef USE_EXTERNAL_BUFFER
   (void)DWLRelease(dwl);
@@ -2239,7 +2274,7 @@ VC1DecRet VC1DecNextPicture_INTERNAL( VC1DecInst     dec_inst,
         if (BqueueWaitBufNotInUse( &dec_cont->storage.bq, pic_index) != HANTRO_OK)
           return VC1DEC_ABORTED;
         if(dec_cont->pp_enabled) {
-          InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[pic_index].pp_data->virtual_address);
+          InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[pic_index].pp_data->bus_address);
         }
 #endif
 
@@ -2249,7 +2284,7 @@ VC1DecRet VC1DecNextPicture_INTERNAL( VC1DecInst     dec_inst,
           BqueueSetBufferAsUsed(&dec_cont->storage.bq, pic_index);
           dec_cont->storage.p_pic_buf[pic_index].first_show = 0;
           if(dec_cont->pp_enabled) {
-            InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[pic_index].pp_data->virtual_address);
+            InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->storage.p_pic_buf[pic_index].pp_data->bus_address);
             BqueuePictureRelease(&dec_cont->storage.bq, pic_index);
           }
         }
@@ -2306,9 +2341,7 @@ VC1DecRet VC1DecPictureConsumed(VC1DecInst dec_inst, VC1DecPicture * picture) {
 
   if (!dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->storage.work_buf_amount; i++) {
-      if(picture->output_picture_bus_address == dec_cont->storage.p_pic_buf[i].data.bus_address
-          && (addr_t)picture->output_picture
-          == (addr_t)dec_cont->storage.p_pic_buf[i].data.virtual_address) {
+      if(picture->output_picture_bus_address == dec_cont->storage.p_pic_buf[i].data.bus_address) {
         if(dec_cont->pp_instance == NULL) {
           BqueuePictureRelease(&dec_cont->storage.bq, i);
         }
@@ -2316,7 +2349,7 @@ VC1DecRet VC1DecPictureConsumed(VC1DecInst dec_inst, VC1DecPicture * picture) {
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue,(u32 *)picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
     return (VC1DEC_OK);
   }
   return (VC1DEC_PARAM_ERROR);
@@ -2373,6 +2406,36 @@ VC1DecRet VC1DecEndOfStream(VC1DecInst dec_inst, u32 strm_end_flag) {
 }
 
 #endif
+
+/*------------------------------------------------------------------------------
+
+    Function: VC1DecSetFrameDataMode()
+
+        Functional description:
+            To indicate if following input frame data has frame-start-code.
+
+        Inputs:
+            dec_inst         decoder instance
+            raw_frame_data   Has frame-start-code (0) or not (1)
+
+        Returns:
+
+------------------------------------------------------------------------------*/
+VC1DecRet VC1DecSetFrameDataMode(VC1DecInst dec_inst, u32 raw_frame_data) {
+  decContainer_t *dec_cont;
+
+  DEC_API_TRC("VC1DecGetInfo#");
+
+  if(dec_inst == NULL) {
+    DEC_API_TRC("VC1DecSetFrameDataMode# ERROR: dec_inst is NULL");
+    return (VC1DEC_PARAM_ERROR);
+  }
+
+  dec_cont = (decContainer_t*)dec_inst;
+
+  dec_cont->raw_frame_data = raw_frame_data;
+  return (VC1DEC_OK);
+}
 
 /*------------------------------------------------------------------------------
 
@@ -2631,6 +2694,7 @@ VC1DecRet VC1DecGetBufferInfo(VC1DecInst dec_inst, VC1DecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -2639,7 +2703,7 @@ VC1DecRet VC1DecGetBufferInfo(VC1DecInst dec_inst, VC1DecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return VC1DEC_WAITING_FOR_BUFFER;
 }
@@ -2649,7 +2713,6 @@ VC1DecRet VC1DecAddBuffer(VC1DecInst dec_inst, struct DWLLinearMem *info) {
   VC1DecRet dec_ret = VC1DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return VC1DEC_PARAM_ERROR;
@@ -2737,7 +2800,8 @@ void VC1StateReset(decContainer_t *dec_cont) {
   }
 
   /* Clear parameters in decContainer_t */
-  dec_cont->dec_stat = VC1DEC_RESOURCES_ALLOCATED;
+  if (dec_cont->dec_stat != VC1DEC_INITIALIZED)
+    dec_cont->dec_stat = VC1DEC_RESOURCES_ALLOCATED;
   dec_cont->pic_number = 0;
 #ifdef USE_EXTERNAL_BUFFER
 #ifdef USE_OMXIL_BUFFER
@@ -2792,8 +2856,59 @@ void VC1StateReset(decContainer_t *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(32, &dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
+}
+VC1DecRet VC1DecRemoveBuffer(VC1DecInst dec_inst) {
+  decContainer_t *dec_cont = (decContainer_t *) dec_inst;
+  VC1DecRet re = VC1DEC_OK;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  FifoSetAbort(dec_cont->fifo_display);
+  BqueueRemove(&dec_cont->storage.bq);
+  dec_cont->storage.work_out = 0;
+  dec_cont->storage.work_out_prev = 0;
+  dec_cont->storage.work0 =
+    dec_cont->storage.work1 = INVALID_ANCHOR_PICTURE;
+
+  VC1StateReset(dec_cont);
+
+  u32 buffers = 0;
+  if( dec_cont->storage.max_bframes > 0 ) {
+    buffers = 3;
+  } else {
+    buffers = 2;
+  }
+  if(dec_cont->pp_instance) {
+    if( dec_cont->storage.max_bframes > 0 )
+      buffers = 4;
+  } else {
+    u32 newbuffers = dec_cont->storage.max_num_buffers;
+    if(newbuffers > buffers)
+      buffers = newbuffers;
+  }
+
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->fifo_index = 0;
+  dec_cont->ext_buffer_num = 0;
+  dec_cont->storage.work_buf_amount = buffers;
+  dec_cont->storage.bq.queue_size = buffers;
+  if (dec_cont->storage.p_pic_buf)
+    (void) DWLmemset(dec_cont->storage.p_pic_buf, 0, 16 * sizeof(picture_t));
+  (void) DWLmemset(dec_cont->storage.picture_info, 0, 32 * sizeof(VC1DecPicture));
+  if (dec_cont->fifo_display)
+    FifoRelease(dec_cont->fifo_display);
+  if (FifoInit(32, &dec_cont->fifo_display) != FIFO_OK) {
+    re = VC1DEC_MEMFAIL;
+    goto end;
+  }
+  FifoClearAbort(dec_cont->fifo_display);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 VC1DecRet VC1DecAbort(VC1DecInst dec_inst) {

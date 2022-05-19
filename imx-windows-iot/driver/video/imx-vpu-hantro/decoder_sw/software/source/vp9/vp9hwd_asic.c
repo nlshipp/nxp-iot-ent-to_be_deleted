@@ -346,15 +346,15 @@ i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
 i32 Vp9FreeRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
   struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
 
-  if (asic_buff->pictures[index].virtual_address != NULL)
+  if (asic_buff->pictures[index].bus_address != 0)
     DWLFreeRefFrm(dec_cont->dwl, &asic_buff->pictures[index]);
-  if (asic_buff->pictures_c[index].virtual_address != NULL)
+  if (asic_buff->pictures_c[index].bus_address != 0)
     DWLFreeRefFrm(dec_cont->dwl, &asic_buff->pictures_c[index]);
   if (asic_buff->dir_mvs[index].virtual_address != NULL)
     DWLFreeRefFrm(dec_cont->dwl, &asic_buff->dir_mvs[index]);
-  if (asic_buff->pp_luma[index].virtual_address != NULL)
+  if (asic_buff->pp_luma[index].bus_address != 0)
     DWLFreeLinear(dec_cont->dwl, &asic_buff->pp_luma[index]);
-  if (asic_buff->pp_chroma[index].virtual_address != NULL)
+  if (asic_buff->pp_chroma[index].bus_address != 0)
     DWLFreeLinear(dec_cont->dwl, &asic_buff->pp_chroma[index]);
 
   if (dec_cont->use_video_compressor) {
@@ -709,7 +709,8 @@ i32 Vp9AsicAllocatePictures(struct Vp9DecContainer *dec_cont) {
   SetDecRegister(dec_cont->vp9_regs, HWIF_MAX_CB_SIZE, 6); /* 64x64 */
   SetDecRegister(dec_cont->vp9_regs, HWIF_MIN_CB_SIZE, 3); /* 8x8 */
 
-  asic_buff->out_buffer_i = -1;
+  asic_buff->out_buffer_i = VP9_UNDEFINED_BUFFER;
+  asic_buff->show_existing_buffer_i = VP9_UNDEFINED_BUFFER;
 
   return HANTRO_OK;
 
@@ -722,7 +723,7 @@ void Vp9AsicReleasePictures(struct Vp9DecContainer *dec_cont) {
   //for (i = 0; i < dec_cont->num_buffers; i++) {
   for (i = 0; i < VP9DEC_MAX_PIC_BUFFERS; i++) {
     if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER) &&
-        asic_buff->pictures[i].virtual_address != NULL)
+        asic_buff->pictures[i].bus_address != 0)
       DWLFreeRefFrm(dec_cont->dwl, &asic_buff->pictures[i]);
   }
 
@@ -761,24 +762,15 @@ i32 Vp9AllocateFrame(struct Vp9DecContainer *dec_cont, u32 index) {
 i32 Vp9ReallocateFrame(struct Vp9DecContainer *dec_cont, u32 index) {
   i32 ret = HANTRO_OK;
   struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
-  u32 out_index;
 
-  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
-    out_index = index;
-  else if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
-           IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER))
-    out_index = dec_cont->asic_buff->pp_buffer_map[index];
 
   pthread_mutex_lock(&dec_cont->sync_out);
-#ifndef USE_PICTURE_DISCARD
-  while (dec_cont->asic_buff->display_index[out_index])
-    pthread_cond_wait(&dec_cont->sync_out_cv, &dec_cont->sync_out);
-#endif
+
 
   /* Reallocate larger picture buffer into current index */
   if (!IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER) &&
       asic_buff->pictures[asic_buff->out_buffer_i].logical_size < asic_buff->picture_size) {
-    if (asic_buff->pictures[index].virtual_address != NULL)
+    if (asic_buff->pictures[index].bus_address != 0)
       DWLFreeRefFrm(dec_cont->dwl, &asic_buff->pictures[index]);
     asic_buff->pictures[index].mem_type = DWL_MEM_TYPE_DPB;
     ret |= DWLMallocRefFrm(dec_cont->dwl, asic_buff->picture_size, &asic_buff->pictures[index]);
@@ -832,6 +824,18 @@ i32 Vp9ReallocateFrame(struct Vp9DecContainer *dec_cont, u32 index) {
   return ret;
 }
 
+static u32 vp9CalcuCloselyLumaSize(struct Vp9DecContainer *dec_cont)
+{
+  u32 luma_size = 0 ;
+  u32 hw_addr_limit = 16;
+  struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
+  u32 pic_stride = NEXT_MULTIPLE(asic_buff->width, 8) * dec_cont->decoder.bit_depth / 8;
+
+  luma_size = NEXT_MULTIPLE(asic_buff->height * pic_stride, hw_addr_limit);
+
+  return luma_size;
+}
+
 i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
   struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
   u32 num_ctbs, luma_size, chroma_size, dir_mvs_size;
@@ -846,7 +850,12 @@ i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
   rs_bit_depth = (dec_cont->use_8bits_output || bit_depth == 8) ? 8 :
                  (dec_cont->use_p010_output) ? 16 : bit_depth;
 
-  luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  if(dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
+    luma_size = vp9CalcuCloselyLumaSize(dec_cont);
+  } else {
+    luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  }
+
   chroma_size = (asic_buff->height / 2) * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
   num_ctbs = ((asic_buff->width + 63) / 64) * ((asic_buff->height + 63) / 64);
   dir_mvs_size = num_ctbs * 64 * 16; /* MVs (16 MBs / CTB * 16 bytes / MB) */
@@ -885,7 +894,7 @@ i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
   asic_buff->picture_size = luma_size + chroma_size + dir_mvs_size + luma_table_size + chroma_table_size;
   asic_buff->pp_size = pp_luma_size + pp_chroma_size;
 
-  if (asic_buff->pictures[index].virtual_address == NULL) {
+  if (asic_buff->pictures[index].bus_address == 0) {
     if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
       dec_cont->next_buf_size = asic_buff->picture_size;
       dec_cont->buf_type = REFERENCE_BUFFER;
@@ -905,7 +914,7 @@ i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
   }
 
   if (index < dec_cont->min_buffer_num) {
-    if (asic_buff->pp_pictures[index].virtual_address == NULL
+    if (asic_buff->pp_pictures[index].bus_address == 0
         && dec_cont->output_format == DEC_OUT_FRM_RASTER_SCAN) {
       if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER)) {
         dec_cont->next_buf_size = asic_buff->pp_size;
@@ -920,7 +929,7 @@ i32 Vp9MallocRefFrm(struct Vp9DecContainer *dec_cont, u32 index) {
       }
     }
 
-    if (asic_buff->pp_pictures[index].virtual_address == NULL && dec_cont->down_scale_enabled) {
+    if (asic_buff->pp_pictures[index].bus_address == 0 && dec_cont->down_scale_enabled) {
       if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
         dec_cont->next_buf_size = asic_buff->pp_size;
         dec_cont->buf_type = DOWNSCALE_OUT_BUFFER;
@@ -981,7 +990,11 @@ void Vp9SetExternalBufferInfo(struct Vp9DecContainer *dec_cont) {
   rs_bit_depth = (dec_cont->use_8bits_output || bit_depth == 8) ? 8 :
                  (dec_cont->use_p010_output) ? 16 : bit_depth;
 
-  luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  if(dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
+    luma_size = vp9CalcuCloselyLumaSize(dec_cont);
+  } else {
+    luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  }
   chroma_size = (asic_buff->height / 2) * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
   num_ctbs = ((asic_buff->width + 63) / 64) * ((asic_buff->height + 63) / 64);
   dir_mvs_size = num_ctbs * 64 * 16; /* MVs (16 MBs / CTB * 16 bytes / MB) */
@@ -1054,7 +1067,11 @@ void Vp9CalculateBufSize(struct Vp9DecContainer *dec_cont, i32 index) {
   rs_bit_depth = (dec_cont->use_8bits_output || bit_depth == 8) ? 8 :
                  (dec_cont->use_p010_output) ? 16 : bit_depth;
 
-  luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  if(dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
+    luma_size = vp9CalcuCloselyLumaSize(dec_cont);
+  } else {
+    luma_size = asic_buff->height * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
+  }
   chroma_size = (asic_buff->height / 2) * NEXT_MULTIPLE(asic_buff->width * bit_depth, 16 * 8) / 8;
   num_ctbs = ((asic_buff->width + 63) / 64) * ((asic_buff->height + 63) / 64);
   dir_mvs_size = num_ctbs * 64 * 16; /* MVs (16 MBs / CTB * 16 bytes / MB) */
@@ -1081,16 +1098,19 @@ void Vp9CalculateBufSize(struct Vp9DecContainer *dec_cont, i32 index) {
   asic_buff->picture_size = luma_size + chroma_size + dir_mvs_size + luma_table_size + chroma_table_size;
   asic_buff->pp_size = pp_luma_size + pp_chroma_size;
 
-  asic_buff->pictures_c_offset[index] = luma_size;
-  asic_buff->dir_mvs_offset[index] = asic_buff->pictures_c_offset[index] + chroma_size;
-  if (dec_cont->use_video_compressor) {
-    asic_buff->cbs_y_tbl_offset[index] = asic_buff->dir_mvs_offset[index] + dir_mvs_size;
-    asic_buff->cbs_c_tbl_offset[index] = asic_buff->cbs_y_tbl_offset[index] + luma_table_size;
-  } else {
-    asic_buff->cbs_y_tbl_offset[index] = 0;
-    asic_buff->cbs_c_tbl_offset[index] = 0;
+  if (index >= 0) {
+    asic_buff->pictures_c_offset[index] = luma_size;
+    asic_buff->dir_mvs_offset[index] = asic_buff->pictures_c_offset[index] + chroma_size;
+    if (dec_cont->use_video_compressor) {
+      asic_buff->cbs_y_tbl_offset[index] = asic_buff->dir_mvs_offset[index] + dir_mvs_size;
+      asic_buff->cbs_c_tbl_offset[index] = asic_buff->cbs_y_tbl_offset[index] + luma_table_size;
+    } else {
+      asic_buff->cbs_y_tbl_offset[index] = 0;
+      asic_buff->cbs_c_tbl_offset[index] = 0;
+    }
+    asic_buff->pp_c_offset[index] = pp_luma_size;
   }
-  asic_buff->pp_c_offset[index] = pp_luma_size;
+
 }
 
 i32 Vp9GetRefFrm(struct Vp9DecContainer *dec_cont, u32 id) {
@@ -1104,7 +1124,8 @@ i32 Vp9GetRefFrm(struct Vp9DecContainer *dec_cont, u32 id) {
   if (!asic_buff->realloc_out_buffer && !asic_buff->realloc_seg_map_buffer) {
     if (!dec_cont->no_decoding_buffer || asic_buff->out_buffer_i == EMPTY_MARKER) {
       asic_buff->out_buffer_i = Vp9BufferQueueGetBuffer(dec_cont->bq, limit);
-      if (asic_buff->out_buffer_i >= 0 && asic_buff->out_buffer_i < VP9DEC_MAX_PIC_BUFFERS)
+      if (asic_buff->out_buffer_i >= 0 && asic_buff->out_buffer_i < VP9DEC_MAX_PIC_BUFFERS &&
+          IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
         asic_buff->first_show[asic_buff->out_buffer_i] = 0;
       if (asic_buff->out_buffer_i == ABORT_MARKER) {
         return DEC_ABORTED;
@@ -1124,6 +1145,10 @@ i32 Vp9GetRefFrm(struct Vp9DecContainer *dec_cont, u32 id) {
         //asic_buff->out_buffer_i = Vp9BufferQueueGetBuffer(dec_cont->bq, limit);
       }
 
+      /* add "asic_buff->out_buffer_i >= VP9DEC_MAX_PIC_BUFFERS" to */
+      /* just fix coverity warning */
+      if (asic_buff->out_buffer_i < 0 || asic_buff->out_buffer_i >= VP9DEC_MAX_PIC_BUFFERS)
+        return HANTRO_OK;
 #ifdef USE_VP9_EC
       asic_buff->picture_info[asic_buff->out_buffer_i].nbr_of_err_mbs = 0;
 #endif
@@ -1143,8 +1168,14 @@ i32 Vp9GetRefFrm(struct Vp9DecContainer *dec_cont, u32 id) {
           return DEC_NO_DECODING_BUFFER;
         }
 #endif
+        else if (asic_buff->out_pp_buffer_i < 0) {
+          /* pp buffer should be allocate when reference buffer return DEC_WAITING_FOR_BUFFER,*/
+          /* this code just for removing negative value warning. */
+          return DEC_WAITING_FOR_BUFFER;
+        }
       }
       asic_buff->pp_buffer_map[asic_buff->out_buffer_i] = asic_buff->out_pp_buffer_i;
+      asic_buff->first_show[asic_buff->out_pp_buffer_i] = 0;
     }
   }
 
@@ -1288,6 +1319,7 @@ i32 Vp9FreeSegmentMap(struct Vp9DecContainer *dec_cont) {
       asic_buff->segment_map.virtual_address = NULL;
       asic_buff->segment_map.size = 0;
     }
+    asic_buff->segment_map_size = 0;
   }
 
   return HANTRO_OK;
@@ -1968,8 +2000,8 @@ void Vp9AsicStrmPosUpdate(struct Vp9DecContainer *dec_cont,
       turn_around = 1;
     }
 
-    hw_bit_pos = (tmp_addr & DEC_HW_ALIGN_MASK) * 8;
-    tmp_addr &= (~DEC_HW_ALIGN_MASK); /* align the base */
+    hw_bit_pos = (tmp_addr & ((addr_t) DEC_HW_ALIGN_MASK)) * 8;
+    tmp_addr &= (addr_t) (~DEC_HW_ALIGN_MASK); /* align the base */
 
     SetDecRegister(dec_cont->vp9_regs, HWIF_STRM_START_BIT, hw_bit_pos);
 
@@ -1992,8 +2024,8 @@ void Vp9AsicStrmPosUpdate(struct Vp9DecContainer *dec_cont,
   } else {
     tmp_addr = strm_bus_address + tmp;
 
-    hw_bit_pos = (tmp_addr & DEC_HW_ALIGN_MASK) * 8;
-    tmp_addr &= (~DEC_HW_ALIGN_MASK); /* align the base */
+    hw_bit_pos = (tmp_addr & ((addr_t) DEC_HW_ALIGN_MASK)) * 8;
+    tmp_addr &= (addr_t) (~DEC_HW_ALIGN_MASK); /* align the base */
 
     SetDecRegister(dec_cont->vp9_regs, HWIF_STRM_START_BIT, hw_bit_pos);
 
@@ -2197,6 +2229,7 @@ void Vp9AsicReset(struct Vp9DecContainer *dec_cont) {
   asic_buff->out_buffer_i = VP9_UNDEFINED_BUFFER;
   asic_buff->prev_out_buffer_i = VP9_UNDEFINED_BUFFER;
   asic_buff->out_pp_buffer_i = VP9_UNDEFINED_BUFFER;
+  asic_buff->show_existing_buffer_i = VP9_UNDEFINED_BUFFER;
   asic_buff->realloc_seg_map_buffer = 0;
   asic_buff->realloc_tile_edge_mem = 0;
 #ifdef USE_OMXIL_BUFFER
@@ -2220,10 +2253,12 @@ void Vp9FixChromaRFCTable(struct Vp9DecContainer *dec_cont) {
   u32 frame_width = NEXT_MULTIPLE(dec_cont->width, 8);
   u32 frame_height = NEXT_MULTIPLE(dec_cont->height, 8);
   struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
-  u32 i, j, cbs_size=0;
-  u8 *pch_rfc_tbl, *ptbl=NULL;
+  u32 i, j;
+  u32 cbs_size = 64;
+  u8 *pch_rfc_tbl;
   u8 cbs_sizes_8bit[14] = {129, 2, 4, 8, 16, 32, 64, 129, 2, 4, 8, 16, 32, 64};
   u8 cbs_sizes_10bit[14] = {0xa1, 0x42, 0x85, 10, 20, 40, 80, 0xa1, 0x42, 0x85, 10, 20, 40, 80};
+  u8 *ptbl = cbs_sizes_8bit;
   u32 pic_width_in_cbsc  = NEXT_MULTIPLE(frame_width, 256)/16;
   u32 pic_height_in_cbsc = NEXT_MULTIPLE(frame_height/2, 4)/4;
   u32 offset;
@@ -2286,3 +2321,64 @@ void Vp9FixChromaRFCTable(struct Vp9DecContainer *dec_cont) {
   }
 }
 
+i32 Vp9GetBuffer4ShowExisting(struct Vp9DecContainer *dec_cont) {
+  struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
+  u32 limit = dec_cont->dynamic_buffer_limit;
+  if (RequiredBufferCount(dec_cont) < limit)
+    limit = RequiredBufferCount(dec_cont);
+
+  if (!asic_buff->realloc_out_buffer) {
+
+    if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
+      asic_buff->show_existing_buffer_i =
+          Vp9BufferQueueGetBuffer(dec_cont->bq, limit);
+    else
+      asic_buff->show_existing_buffer_i =
+          Vp9BufferQueueGetBuffer(dec_cont->pp_bq, 0);
+
+    if (asic_buff->show_existing_buffer_i == ABORT_MARKER)
+      return DEC_ABORTED;
+#ifdef GET_FREE_BUFFER_NON_BLOCK
+    else if (asic_buff->show_existing_buffer_i == EMPTY_MARKER)
+      return DEC_NO_DECODING_BUFFER;
+#endif
+    /* Just to fix coverity issue, should never called into */
+    else if (asic_buff->show_existing_buffer_i < 0)
+      return DEC_WAITING_FOR_BUFFER;
+  }
+
+  if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+    if (asic_buff->pictures[asic_buff->show_existing_buffer_i].logical_size <
+        asic_buff->pictures[asic_buff->out_buffer_i].logical_size) {
+      dec_cont->buf_to_free =
+          &asic_buff->pictures[asic_buff->show_existing_buffer_i];
+      dec_cont->next_buf_size =
+          asic_buff->pictures[asic_buff->out_buffer_i].logical_size;
+      dec_cont->buf_type = REFERENCE_BUFFER;
+      dec_cont->buffer_index = asic_buff->show_existing_buffer_i;
+      asic_buff->realloc_out_buffer = 1;
+      dec_cont->buf_num = 1;
+      return DEC_WAITING_FOR_BUFFER;
+    }
+  } else {
+    if (asic_buff->pp_pictures[asic_buff->
+        show_existing_buffer_i].logical_size <
+        asic_buff->pp_pictures[asic_buff->
+        pp_buffer_map[asic_buff->out_buffer_i]].logical_size) {
+      dec_cont->buf_to_free =
+          &asic_buff->pp_pictures[asic_buff->show_existing_buffer_i];
+      dec_cont->next_buf_size =
+          asic_buff->pp_pictures[asic_buff->
+          pp_buffer_map[asic_buff->out_buffer_i]].logical_size;
+      dec_cont->buf_type = RASTERSCAN_OUT_BUFFER;
+      dec_cont->buffer_index = asic_buff->show_existing_buffer_i;
+      asic_buff->realloc_out_buffer = 1;
+      dec_cont->buf_num = 1;
+      return DEC_WAITING_FOR_BUFFER;
+    }
+  }
+
+  asic_buff->realloc_out_buffer = 0;
+  asic_buff->first_show[asic_buff->show_existing_buffer_i] = 0;
+  return DEC_OK;
+}

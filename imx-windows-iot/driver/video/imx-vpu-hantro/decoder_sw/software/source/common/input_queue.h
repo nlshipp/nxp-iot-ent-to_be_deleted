@@ -61,14 +61,14 @@ struct DWLLinearMem *InputQueueGetBuffer(InputQueue queue, u32 wait);
 /* Function to wait until all buffers are in available status. */
 void InputQueueWaitNotUsed(InputQueue queue);
 
-void InputQueueWaitBufNotUsed(InputQueue queue, const u32 *addr);
+void InputQueueWaitBufNotUsed(InputQueue queue, const addr_t addr);
 
-void InputQueueSetBufAsUsed(InputQueue queue, const u32 *addr);
+void InputQueueSetBufAsUsed(InputQueue queue, const addr_t addr);
 
 void InputQueueAddBuffer(InputQueue queue, struct DWLLinearMem *buffer);
 
 /* Return buffer to input queue so that it can be used freely. */
-struct DWLLinearMem *InputQueueReturnBuffer(InputQueue queue, const u32 *addr);
+struct DWLLinearMem *InputQueueReturnBuffer(InputQueue queue, const addr_t addr);
 
 void InputQueueWaitPending(InputQueue queue);
 
@@ -77,5 +77,6 @@ void InputQueueSetAbort(InputQueue queue);
 void InputQueueClearAbort(InputQueue queue);
 void InputQueueReturnAllBuffer(InputQueue queue);
 void InputQueueReset(InputQueue queue);
+void InputQueueReset2(InputQueue queue);
 #endif
 #endif /* _INPUT_QUEUE_H_ */

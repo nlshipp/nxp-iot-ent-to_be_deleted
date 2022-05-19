@@ -268,7 +268,7 @@ void VP6HwdAsicReleasePictures(VP6DecContainer_t * dec_cont) {
 
 #ifndef USE_EXTERNAL_BUFFER
   for( i = 0 ; i < dec_cont->num_buffers ; ++i ) {
-    if(p_asic_buff->pictures[i].virtual_address != NULL) {
+    if(p_asic_buff->pictures[i].bus_address != 0) {
       DWLFreeRefFrm(dwl, &p_asic_buff->pictures[i]);
     }
   }
@@ -461,7 +461,7 @@ void VP6HwdAsicStrmPosUpdate(VP6DecContainer_t * dec_cont) {
   DEBUG_PRINT(("\tStart bit pos %8d\n", hw_bit_pos));
 
   tmp = dec_cont->asic_buff->partition1_base;   /* unaligned base */
-  tmp &= (~DEC_8190_ALIGN_MASK);  /* align the base */
+  tmp &= (addr_t)(~DEC_8190_ALIGN_MASK);  /* align the base */
 
   SET_ADDR_REG(dec_cont->vp6_regs, HWIF_VP6HWPART1_BASE, (addr_t)(~0));
   SET_ADDR_REG(dec_cont->vp6_regs, HWIF_VP6HWPART2_BASE, (addr_t)(~0));

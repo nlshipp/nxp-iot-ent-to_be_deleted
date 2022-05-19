@@ -135,6 +135,10 @@ int VpxRdrReadFrame(VpxReaderInst inst, u8* buffer, u8 *stream[2], i32* size, u8
   }
 
   frame_header_pos = ftello(fin);
+  if (frame_header_pos == -1L) {
+    fprintf(stderr, "ftell() failed in file %s at line # %d\n", __FILE__, __LINE__-2);
+    return -1;
+  }
   /* Read VPx IVF frame header */
   if (ff->format == FF_VP8 || ff->format == FF_VP9) {
     tmp = ReadIvfFrameHeader(fin, &frame_size);
@@ -149,12 +153,17 @@ int VpxRdrReadFrame(VpxReaderInst inst, u8* buffer, u8 *stream[2], i32* size, u8
     char signature[] = "WEBP";
     char format[] = "VP8 ";
     char tmp[4];
-    fseeko(fin, 8, SEEK_CUR);
-    if (!fread(tmp, sizeof(u8), 4, fin)) return -1;
+    size_t ret_code;
+    if (fseeko(fin, 8, SEEK_CUR) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    ret_code = fread(tmp, sizeof(u8), 4, fin);
+    if (ret_code == 0) return -1;
     if (strncmp(signature, tmp, 4)) return -1;
-    if (!fread(tmp, sizeof(u8), 4, fin)) return -1;
+    ret_code = fread(tmp, sizeof(u8), 4, fin);
+    if (ret_code == 0) return -1;
     if (strncmp(format, tmp, 4)) return -1;
-    if (!fread(tmp, sizeof(u8), 4, fin)) return -1;
+    ret_code = fread(tmp, sizeof(u8), 4, fin);
+    if (ret_code == 0) return -1;
     frame_size = tmp[0] + (tmp[1] << 8) + (tmp[2] << 16) + (tmp[3] << 24);
   }
 #ifdef WEBM_ENABLED
@@ -220,7 +229,8 @@ int VpxRdrReadFrame(VpxReaderInst inst, u8* buffer, u8 *stream[2], i32* size, u8
 
   if (frame_size > *size) {
     fprintf(stderr, "Frame size %d > buffer size %d\n", frame_size, *size);
-    fseeko(fin, frame_header_pos, SEEK_SET);
+    if (fseeko(fin, frame_header_pos, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     *size = frame_size;
     return -1;
   }
@@ -313,14 +323,18 @@ static i32 FfCheckFormat(struct FfReader* ff) {
 #endif
   {
     if (!strncmp(id, string, 5)) {
-      fseeko(ff->file, 8, SEEK_SET);
-      if (!fread(string, 1, 4, ff->file)) return 0;
-      if (!strncmp("VP8\0", string, 4)) {
-        ff->format = FF_VP8;
-        format = BITSTREAM_VP8;
-      } else if (!strncmp("VP90", string, 4)) {
-        ff->format = FF_VP9;
-        format = BITSTREAM_VP9;
+      if (fseeko(ff->file, 8, SEEK_SET) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+      if (fread(string, 1, 4, ff->file) == 4) {
+        if (!strncmp("VP8\0", string, 4)) {
+          ff->format = FF_VP8;
+          format = BITSTREAM_VP8;
+        } else if (!strncmp("VP90", string, 4)) {
+          ff->format = FF_VP9;
+          format = BITSTREAM_VP9;
+        }
+      } else {
+        return 0;
       }
     } else if (!strncmp(id2, string, 4)) {
       ff->format = FF_WEBP;
@@ -376,9 +390,11 @@ static int FileIsWebm(struct InputCtx* input, FILE* infile,
   nestegg_video_params params;
 
   /* Get the file size for nestegg. */
-  fseeko(infile, 0, SEEK_END);
+  if (fseeko(infile, 0, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   file_size = ftello(infile);
-  fseeko(infile, 0, SEEK_SET);
+  if (fseeko(infile, 0, SEEK_SET) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
   if (nestegg_init(&input->nestegg_ctx, io, NULL, file_size)) goto fail;
 

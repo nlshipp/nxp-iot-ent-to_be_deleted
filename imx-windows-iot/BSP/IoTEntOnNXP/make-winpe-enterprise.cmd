@@ -45,24 +45,29 @@ set DISABLE_UPDATES=
 set DISABLE_TRANSPARENCY=
 set PATCH_SDPORT=
 set UNATTEND=
+set TEST_SIGNING=
+set CUMULATIVE_UPDATE_PATH=
 
 :: Parse options
 :GETOPTS
  if /I "%~1" == "/?" ( goto USAGE
  ) else (if /I "%~1" == "/Help" ( goto USAGE
  ) else (if /I "%~1" == "/image" ( set IMAGE_PATH=%2& shift
+ ) else (if /I "%~1" == "/cumulative_update" ( set CUMULATIVE_UPDATE_PATH=%2& shift
+ set SPLIT_WIM=1
  ) else (if /I "%~1" == "/apply" ( set DISK_NUM=%2& shift
  ) else (if /I "%~1" == "/device" ( set DEV_NAME=%2& shift
  ) else (if /I "%~1" == "/clean" ( set CLEAN=1
  ) else (if /I "%~1" == "/winpedebug" ( set WINPE_DEBUG=1
  ) else (if /I "%~1" == "/windebug" ( set WIN_DEBUG=1
+ ) else (if /I "%~1" == "/test_signing" ( set TEST_SIGNING=1
  ) else (if /I "%~1" == "/splitwim" ( set SPLIT_WIM=1
  ) else (if /I "%~1" == "/patch_sdport" ( set PATCH_SDPORT=1
  ) else (if /I "%~1" == "/disable_updates" ( set DISABLE_UPDATES=1
  ) else (if /I "%~1" == "/disable_transparency" ( set DISABLE_TRANSPARENCY=1
  ) else (if /I "%~1" == "/unattend" ( set UNATTEND=1
  ) else goto USAGE
- ))))))))))))
+ ))))))))))))))
  shift
 if not (%1)==() goto GETOPTS
 
@@ -138,13 +143,15 @@ if not "%WINPE_DEBUG%" == "" (
     bcdedit /store "%TARGET_BCD_STORE%" /debug {default} on || goto err
 )
 
-echo Enable boot test/flight signing
-bcdedit /store "%TARGET_BCD_STORE%" /set {bootmgr} flightsigning on || goto err
-bcdedit /store "%TARGET_BCD_STORE%" /set {bootmgr} testsigning on || goto err
-
-echo Enable kernel test/flight signing...
-bcdedit /store "%TARGET_BCD_STORE%" /set {default} testsigning on || goto err
-bcdedit /store "%TARGET_BCD_STORE%" /set {default} flightsigning on || goto err
+if not "%TEST_SIGNING%" == "" (
+    echo Enable boot test/flight signing
+    bcdedit /store "%TARGET_BCD_STORE%" /set {bootmgr} flightsigning on || goto err
+    bcdedit /store "%TARGET_BCD_STORE%" /set {bootmgr} testsigning on || goto err
+    
+    echo Enable kernel test/flight signing...
+    bcdedit /store "%TARGET_BCD_STORE%" /set {default} testsigning on || goto err
+    bcdedit /store "%TARGET_BCD_STORE%" /set {default} flightsigning on || goto err
+)
 
 mkdir "%MOUNT_WINPE_DIR%" > NUL 2>&1
 echo Mounting WIM at %MOUNT_WINPE_DIR%
@@ -171,7 +178,9 @@ if not "%SPLIT_WIM%" == "" (
 
 echo echo Setting up BCD >> "%STARTNET_CMD%"
 echo W:\Windows\System32\bcdboot.exe W:\Windows /s S: >> "%STARTNET_CMD%"
-echo W:\Windows\System32\bcdedit.exe /store S:\EFI\microsoft\Boot\BCD /set {default} testsigning on >> "%STARTNET_CMD%"
+if not "%TEST_SIGNING%" == "" (
+    echo W:\Windows\System32\bcdedit.exe /store S:\EFI\microsoft\Boot\BCD /set {default} testsigning on >> "%STARTNET_CMD%"
+)
 
 if not "%WIN_DEBUG%" == "" (
     echo echo Enabling kernel debugging for Windows
@@ -191,16 +200,34 @@ echo REG LOAD HKLM\OFFLINE_SOFTWARE W:\Windows\System32\config\SOFTWARE >> "%STA
 echo echo Hide Sleep button >> "%STARTNET_CMD%"
 echo REG ADD "HKLM\OFFLINE_SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" /V ShowSleepOption /T REG_DWORD /D 0 /F >> "%STARTNET_CMD%"
 
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Classes\{ADA9253B-628C-40CE-B2C1-19F489A0F3DA}" /V Policy /T REG_DWORD /D 1 /F >> "%STARTNET_CMD%"
+:: H.264
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {34363248-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: H.
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {35363248-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: HEVC
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {43564548-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: VP80
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {30385056-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: VP90
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {30395056-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: MPEG-4 Simple Profile
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {5334504D-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: MPEG-4 ASP
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {3253344D-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: MPEG-4 Part 2
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {5634504D-0000-0010-8000-00AA00389B71} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+:: MPEG-2
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\Preferred" /V {E06D8026-DB46-11CF-B4D1-00805F6CBBEA} /T REG_SZ /D {8A12D5A9-69EC-4FE2-BF16-7B4C857D0DC0} /F >> "%STARTNET_CMD%"
+
+echo REG ADD "HKLM\OFFLINE_SOFTWARE\Classes\MediaFoundation\Transforms\62ce7e72-4c71-4d20-b15d-452831a87d9d" /V MFTFLAGS /T REG_DWORD /D 00000008 /F >> "%STARTNET_CMD%"
+
 echo echo Remove OneDrive >>  "%STARTNET_CMD%"
 echo del /f /q W:\windows\SysWOW64\OneDriveSetup.exe >>  "%STARTNET_CMD%"
 
 if not "%DISABLE_UPDATES%" == "" (
     echo echo Disable automatic updates >> "%STARTNET_CMD%"
-    :: Available registry keys and it's meaning:
-    :: NoAutoUpdate: 0 - enable automatic updates, 1 - disable automatic updates
-    :: AUOptions: 2 - notify before downloading updates, 3 - auto download updates and notify for install, 4 - auto download and install updates, 5 - allow local admin to choose setting
     echo REG ADD "HKLM\OFFLINE_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU " /V NoAutoUpdate /T REG_DWORD /D 1 /F >> "%STARTNET_CMD%"
-    REM echo REG ADD "HKLM\OFFLINE_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU " /V AUOptions /T REG_DWORD /D 2 /F >> "%STARTNET_CMD%"
 )
 
 echo REG UNLOAD HKLM\OFFLINE_SOFTWARE >> "%STARTNET_CMD%"
@@ -228,6 +255,11 @@ copy %IMAGE_PATH% %WIN_IMG%
 echo Injecting drivers from %DRIVER_DIR% into Enterprise WIM
 dism /mount-wim /wimfile:%WIN_IMG% /mountdir:%MOUNT_ENTERPRISE% /index:2 || goto err
 dism /Image:"%MOUNT_ENTERPRISE%" /Add-Driver /Driver:%DRIVER_DIR% /Recurse /ForceUnsigned || goto err
+
+if not "%CUMULATIVE_UPDATE_PATH%" == "" (
+	echo Installing updates from %CUMULATIVE_UPDATE_PATH% into Enterprise WIM
+	dism /Image:"%MOUNT_ENTERPRISE%" /Add-Package /PackagePath="%CUMULATIVE_UPDATE_PATH%" || goto err
+)
 
 echo Add disptrl.dll to system32
 xcopy /Y /R /F %DRIVER_DIR%\Galcore\dispctrl.dll %MOUNT_ENTERPRISE%\windows\system32\drivers
@@ -283,12 +315,15 @@ exit /b 0
     echo assign mount="%MOUNT_WINPE_DIR%" >> diskpart.txt
 
     echo Formatting disk %DISK_NUM% and mounting to %MOUNT_WINPE_DIR%...
-    diskpart /s diskpart.txt || goto err
+    diskpart /s diskpart.txt || exit /b 1
 
     echo Copying files from %DEST% to %MOUNT_WINPE_DIR%
-    xcopy /herky "%DEST%\*.*" "%MOUNT_WINPE_DIR%\" || goto err
+    xcopy /herky "%DEST%\*.*" "%MOUNT_WINPE_DIR%\" || exit /b 1
+    echo Copying files from %DEST% to %MOUNT_WINPE_DIR% 2
     move "%MOUNT_WINPE_DIR%\sources\boot_%DEV_NAME%.wim" "%MOUNT_WINPE_DIR%\sources\boot.wim"
+    echo Copying files from %DEST% to %MOUNT_WINPE_DIR% 3
     move "%MOUNT_WINPE_DIR%\diskpart_%DEV_NAME%.txt" "%MOUNT_WINPE_DIR%\diskpart.txt"
+    echo Copying files from %DEST% to %MOUNT_WINPE_DIR% 4
 
     mountvol "%MOUNT_WINPE_DIR%" /d
     timeout /t 10 /nobreak
@@ -317,6 +352,7 @@ exit /b 0
     echo    /device                          Which device shall the image be created for. {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB}
     echo    /winpedebug                      Optionally enable debugging for WinPE.
     echo    /windebug                        Optionally enable debugging for Windows.
+    echo    /test_signing                    Optionally enable driver test signing.
     echo    /splitwim                        Split wim file for install.wim ^> 4GB
     echo    /apply disk_number               Apply WinPE image to physical disk.
     echo    /disable_updates                 Disable automatic updates to save disk space.

@@ -68,6 +68,7 @@ typedef struct CODEC_VP9
     OMX_U32 frame_count;
     struct Vp9DecPicture out_pic[MAX_BUFFERS];
     OMX_BOOL secure_mode;
+    OMX_BOOL headers_rdy;
 } CODEC_VP9;
 
 CODEC_STATE decoder_setframebuffer_vp9(CODEC_PROTOTYPE * arg, BUFFER *buff,
@@ -139,7 +140,7 @@ static void ParseSuperframeIndex(const OMX_U8* data, size_t data_sz, OMX_U32 siz
             for (i = 0; i < frames; i++) {
                 OMX_U32 this_sz = 0;
 
-                for (j = 0; j < mag; j++) this_sz |= (*x++) << (j * 8);
+                for (j = 0; j < mag; j++) this_sz |= (OMX_U32)((*x++) << (j * 8));
                     sizes[i] = this_sz;
             }
 
@@ -270,6 +271,7 @@ static CODEC_STATE decoder_decode_vp9(CODEC_PROTOTYPE * arg,
         break;
     case DEC_HDRS_RDY:
         DBGT_PDEBUG("Headers ready");
+        this->headers_rdy = 1;
         stat = CODEC_HAS_INFO;
         break;
     case DEC_ADVANCED_TOOLS:
@@ -296,6 +298,17 @@ static CODEC_STATE decoder_decode_vp9(CODEC_PROTOTYPE * arg,
         DBGT_PDEBUG("Buffer size %d, number of buffers %d",
             info.next_buf_size, info.buf_num);
 #endif
+        /* Port reconfig, reset output params */
+        if (this->headers_rdy)
+        {
+            this->headers_rdy = 0;
+            // Reset output relatived parameters
+            this->out_index_w = 0;
+            this->out_index_r = 0;
+            this->out_num = 0;
+            memset(this->out_pic, 0, sizeof(struct Vp9DecPicture)*MAX_BUFFERS);
+        }
+
         stat = CODEC_WAITING_FRAME_BUFFER;
     }
         break;
@@ -719,6 +732,10 @@ CODEC_PROTOTYPE *HantroHwDecOmx_decoder_create_vp9(const void *DWLInstance,
     dec_cfg.dscale_cfg.down_scale_y = 1;
 #endif
     dec_cfg.use_secure_mode = this->secure_mode = g2Conf->bEnableSecureMode;
+    dec_cfg.use_cts_test = g2Conf->bEnableCtsTest;
+#ifdef USE_EXTERNAL_BUFFER
+    dec_cfg.use_adaptive_buffers = g2Conf->bEnableAdaptiveBuffers ? 1 : 0;
+#endif
     DBGT_PDEBUG("Output format %u, pixel format %u, RFC %u",
         dec_cfg.output_format, dec_cfg.pixel_format, dec_cfg.use_video_compressor);
     enum DecRet ret = Vp9DecInit(&this->instance, DWLInstance, &dec_cfg);
@@ -769,7 +786,7 @@ CODEC_STATE decoder_setframebuffer_vp9(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX_
 #ifdef USE_EXTERNAL_BUFFER
     CODEC_VP9 *this = (CODEC_VP9 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     struct Vp9DecBufferInfo info;
     enum DecRet ret;
     const int page_size = getpagesize();

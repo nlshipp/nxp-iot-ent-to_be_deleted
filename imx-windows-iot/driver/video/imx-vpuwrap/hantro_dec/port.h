@@ -60,6 +60,7 @@ typedef struct BUFFER
     OMX_U32               allocsize;
     OSAL_BUS_WIDTH        bus_address;
     OMX_U8*               bus_data;
+    OMX_S32               ion_fd;
 #ifdef USE_ANDROID_NATIVE_BUFFER
     void*                 native_buffer_hdl;
 #endif

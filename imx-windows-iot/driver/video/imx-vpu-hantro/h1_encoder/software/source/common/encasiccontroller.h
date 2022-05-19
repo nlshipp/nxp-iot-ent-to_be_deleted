@@ -413,7 +413,8 @@ u32 EncAsicGetStatus(const void *ewl);
 
 u32 EncAsicGetId(const void *ewl);
 
-void EncAsicFrameStart(const void *ewl, regValues_s * val);
+i32 EncAsicFrameStart(const void *ewl, regValues_s * val);
+i32 EncTryAsicFrameStart(const void *ewl, regValues_s * val);
 
 void EncAsicStop(const void *ewl);
 

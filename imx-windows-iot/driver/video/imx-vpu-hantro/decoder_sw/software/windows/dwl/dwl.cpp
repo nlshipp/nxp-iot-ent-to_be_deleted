@@ -1,6 +1,7 @@
 /*------------------------------------------------------------------------------
 --       Copyright (c) 2015-2017, VeriSilicon Inc. All rights reserved        --
 --         Copyright (c) 2011-2014, Google Inc. All rights reserved.          --
+--            Copyright (c) 2022, NXP Inc. All rights reserved.               --
 --                                                                            --
 -- This software is confidential and proprietary and may be used only as      --
 --   expressly authorized by VeriSilicon in a written licensing agreement.    --
@@ -352,7 +353,13 @@ void DWLFreeLinear(const void *instance, struct DWLLinearMem *info) {
 
     if (block.virtAddress != NULL)
     {
-        ioctl(dec_dwl->fd_memalloc, MEMALLOC_IOCSFREEBUFFER, (int *)&block);
+        if (ioctl(dec_dwl->fd_memalloc, MEMALLOC_IOCSFREEBUFFER, (int *)&block) < 0) {
+            DWL_DEBUG("Free buffer error! \n");
+        }
+    }
+    else {
+        DWL_DEBUG("Why is virtual address NULL?! \n");
+        assert(0);
     }
 }
 
@@ -413,7 +420,8 @@ i32 DWLMallocLinear(const void *instance, u32 size, struct DWLLinearMem *info) {
         // TODO: hack! indicate use write combined memory
         // Normally this would indicate it should be allocated out
         // of the secure world memory segment for content protection.
-        block.flags = VPU_MEM_WRITE_COMBINED;
+        block.flags = VPU_MEM_WC_REUSABLE;
+
         break;
 
     case DWL_MEM_TYPE_DPB:      /* VPU RW, Render R */
@@ -485,6 +493,12 @@ void *DWLmemcpy(void *d, const void *s, u32 n) {
 ------------------------------------------------------------------------------*/
 void *DWLmemset(void *d, i32 c, u32 n) {
   return memset(d, (int)c, (size_t)n);
+}
+
+void DWLSetSecureMode(const void *instance, u32 use_secure_mode)
+{
+    struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+    dec_dwl->use_secure_mode = use_secure_mode;
 }
 
 /*------------------------------------------------------------------------------
@@ -1221,6 +1235,47 @@ u32 DWLReadReg(const void *instance, i32 core_id, u32 offset) {
 #endif
     (void)dec_dwl;
     return val;
+}
+
+/*------------------------------------------------------------------------------
+    Function name   : DWLFlushCache
+    Description     : Flush the data in the cached buffer
+
+    Return type     : i32 - 0 for success or a negative error code
+
+    Argument        : const void * instance - DWL instance
+    Argument        : void *info - place cached buffer parameters
+    Note            : THIS IS LINUX IMPLEMENTATION - NOT APPLICABLE TO WINDOWS
+------------------------------------------------------------------------------*/
+
+i32 DWLFlushCache(const void *instance, struct DWLLinearMem *info) {
+    struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
+#ifdef USE_ION
+
+    struct dma_buf_sync dma_sync;
+
+    assert(dec_dwl != NULL);
+    assert(info != NULL);
+
+    if (info->ion_fd <= 0)
+        return DWL_OK;
+
+    dma_sync.flags = DMA_BUF_SYNC_RW | DMA_BUF_SYNC_START;
+
+    if (ioctl(info->ion_fd, DMA_BUF_IOCTL_SYNC, &dma_sync) < 0) {
+        DWL_DEBUG("%s DMA_BUF_IOCTL_SYNC DMA_BUF_SYNC_START failed", __FUNCTION__);
+        return DWL_ERROR;
+    }
+
+    dma_sync.flags = DMA_BUF_SYNC_RW | DMA_BUF_SYNC_END;
+
+    if (ioctl(info->ion_fd, DMA_BUF_IOCTL_SYNC, &dma_sync) < 0) {
+        DWL_DEBUG("%s DMA_BUF_IOCTL_SYNC DMA_BUF_SYNC_END failed", __FUNCTION__);
+        return DWL_ERROR;
+    }
+
+#endif
+    return DWL_OK;
 }
 
 /*------------------------------------------------------------------------------

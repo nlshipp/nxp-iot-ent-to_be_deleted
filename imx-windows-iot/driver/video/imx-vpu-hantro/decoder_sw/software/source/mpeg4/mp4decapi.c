@@ -55,11 +55,14 @@
 #include "tiledref.h"
 #include "errorhandling.h"
 #include "commonconfig.h"
+#include <basetsd.h>
 
 #include "mp4debug.h"
 #ifdef MP4_ASIC_TRACE
 #include "mpeg4asicdbgtrace.h"
 #endif
+
+#include "stdlib.h"
 
 #ifdef MP4DEC_TRACE
 #define MP4_API_TRC(str)    MP4DecTrace((str))
@@ -83,7 +86,7 @@
 
 #define MP4DEC_UPDATE_POUTPUT \
     dec_cont->MbSetDesc.out_data.data_left = \
-    DEC_STRM.p_strm_buff_start - dec_cont->MbSetDesc.out_data.strm_curr_pos; \
+    (u32)(DEC_STRM.p_strm_buff_start - dec_cont->MbSetDesc.out_data.strm_curr_pos); \
     (void) DWLmemcpy(output, &dec_cont->MbSetDesc.out_data, \
                              sizeof(MP4DecOutput))
 
@@ -341,8 +344,8 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
     output->strm_curr_pos = dec_cont->StrmDesc.strm_curr_pos;
     output->strm_curr_bus_address = input->stream_bus_address +
                                     (dec_cont->StrmDesc.strm_curr_pos - dec_cont->StrmDesc.p_strm_buff_start);
-    output->data_left = dec_cont->StrmDesc.strm_buff_size -
-                        (output->strm_curr_pos - DEC_STRM.p_strm_buff_start);
+    output->data_left = (u32)(dec_cont->StrmDesc.strm_buff_size -
+                        (output->strm_curr_pos - DEC_STRM.p_strm_buff_start));
 #ifdef USE_OUTPUT_RELEASE
     if(dec_cont->abort)
       return(MP4DEC_ABORTED);
@@ -805,7 +808,7 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
 #endif
           {
 #ifdef USE_OUTPUT_RELEASE
-            FifoPush(dec_cont->fifo_display, -2, FIFO_EXCEPTION_DISABLE);
+            FifoPush(dec_cont->fifo_display, (void*)-2, FIFO_EXCEPTION_DISABLE);
 #endif
             ret = MP4DEC_HDRS_RDY;
           }
@@ -823,7 +826,7 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
 #endif
           {
 #ifdef USE_OUTPUT_RELEASE
-            FifoPush(dec_cont->fifo_display, -2, FIFO_EXCEPTION_DISABLE);
+            FifoPush(dec_cont->fifo_display, (void *)-2, FIFO_EXCEPTION_DISABLE);
 #endif
             ret = MP4DEC_DP_HDRS_RDY;
           }
@@ -974,7 +977,7 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
             }
 
             if (dec_cont->pp_enabled)
-              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->virtual_address);
+              InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[dec_cont->StrmStorage.work_out].pp_data->bus_address);
             ret = HandleVlcModeError(dec_cont, input->pic_id);
             error_concealment = HANTRO_TRUE;
             MP4DEC_UPDATE_POUTPUT;
@@ -1146,8 +1149,8 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
   output->strm_curr_pos = dec_cont->StrmDesc.strm_curr_pos;
   output->strm_curr_bus_address = input->stream_bus_address +
                                   (dec_cont->StrmDesc.strm_curr_pos - dec_cont->StrmDesc.p_strm_buff_start);
-  output->data_left = dec_cont->StrmDesc.strm_buff_size -
-                      (output->strm_curr_pos - DEC_STRM.p_strm_buff_start);
+  output->data_left = (u32)(dec_cont->StrmDesc.strm_buff_size -
+                      (output->strm_curr_pos - DEC_STRM.p_strm_buff_start));
 
   if(dec_cont->Hdrs.data_partitioned)
     dec_cont->rlc_mode = 1;
@@ -1155,7 +1158,7 @@ MP4DecRet MP4DecDecode(MP4DecInst dec_inst,
 #ifdef USE_OUTPUT_RELEASE
   if(dec_cont->pp_instance == NULL) {
     u32 tmpret;
-    MP4DecPicture output;
+    MP4DecPicture output = { 0 };
     /*if(ret == MP4DEC_PIC_DECODED)*/ {
       do {
         tmpret = MP4DecNextPicture_INTERNAL(dec_cont, &output, 0);
@@ -1350,6 +1353,11 @@ MP4DecRet MP4DecInit(MP4DecInst * dec_inst,
 
   if(!config.addr64_support && sizeof(void *) == 8) {
     MP4_API_TRC("MPEG4DecInit# ERROR: HW not support 64bit address!\n");
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return (MP4DEC_PARAM_ERROR);
   }
 
@@ -1362,6 +1370,11 @@ MP4DecRet MP4DecInit(MP4DecInst * dec_inst,
   if(reference_frame_format == DEC_REF_FRM_TILED_DEFAULT) {
     /* Assert support in HW before enabling.. */
     if(!config.tiled_mode_support) {
+      pthread_mutex_destroy(&dec_cont->protect_mutex);
+      DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+      (void) DWLRelease(dwl);
+#endif
       return MP4DEC_FORMAT_NOT_SUPPORTED;
     }
     dec_cont->tiled_mode_support = config.tiled_mode_support;
@@ -1381,6 +1394,11 @@ MP4DecRet MP4DecInit(MP4DecInst * dec_inst,
               dscale_cfg->down_scale_y != 2 &&
               dscale_cfg->down_scale_y != 4 &&
               dscale_cfg->down_scale_y != 8 )) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return (MP4DEC_PARAM_ERROR);
   } else {
     u32 scale_table[9] = {0, 0, 1, 0, 2, 0, 0, 0, 3};
@@ -1394,6 +1412,11 @@ MP4DecRet MP4DecInit(MP4DecInst * dec_inst,
 
   dec_cont->pp_buffer_queue = InputQueueInit(0);
   if (dec_cont->pp_buffer_queue == NULL) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return (MP4DEC_MEMFAIL);
   }
   dec_cont->StrmStorage.release_buffer = 0;
@@ -1417,8 +1440,16 @@ MP4DecRet MP4DecInit(MP4DecInst * dec_inst,
 
 #ifdef USE_OUTPUT_RELEASE
   /* take top/botom fields into consideration */
-  if (FifoInit(MP4_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK)
+  if (FifoInit(MP4_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK) {
+    if (dec_cont->pp_buffer_queue)
+      free(dec_cont->pp_buffer_queue);
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return MP4DEC_MEMFAIL;
+  }
 #endif
 #ifdef USE_EXTERNAL_BUFFER
   dec_cont->no_reallocation = 1;
@@ -1626,9 +1657,11 @@ void MP4DecRelease(MP4DecInst dec_inst) {
 
 #ifndef USE_EXTERNAL_BUFFER
   for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++)
-    if(dec_cont->StrmStorage.data[i].virtual_address != NULL)
+    if(dec_cont->StrmStorage.data[i].bus_address != 0)
       DWLFreeRefFrm(dec_cont->dwl, &dec_cont->StrmStorage.data[i]);
 #endif
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
 
   DWLfree(dec_cont);
 #ifndef USE_EXTERNAL_BUFFER
@@ -2071,8 +2104,8 @@ void HandleVopEnd(DecContainer * dec_cont) {
   ProcessHwOutput( dec_cont );
 
   dec_cont->StrmDesc.strm_buff_read_bits =
-    8 * (dec_cont->StrmDesc.strm_curr_pos -
-         dec_cont->StrmDesc.p_strm_buff_start);
+    (u32)(8 * (dec_cont->StrmDesc.strm_curr_pos -
+         dec_cont->StrmDesc.p_strm_buff_start));
   dec_cont->StrmDesc.bit_pos_in_word = 0;
 
   /* If last MBs of BVOP were skipped using colocated MB status,
@@ -2127,9 +2160,14 @@ u32 RunDecoderAsic(DecContainer * dec_container, addr_t strm_bus_address) {
 
   i32 ret;
   addr_t tmp = 0;
+
   u32 asic_status = 0;
 
-  ASSERT(MP4DecResolveVirtual(dec_container,
+  if (dec_container->StrmStorage.work_out >= 
+      sizeof(dec_container->StrmStorage.p_pic_buf) / sizeof(dec_container->StrmStorage.p_pic_buf[0]))
+    return 0;
+
+  ASSERT(MP4DecResolveBus(dec_container,
                               dec_container->StrmStorage.work_out) != 0);
   ASSERT(dec_container->rlc_mode || strm_bus_address != 0);
   dec_container->pp_control.input_bus_luma = 0;
@@ -2193,7 +2231,7 @@ u32 RunDecoderAsic(DecContainer * dec_container, addr_t strm_bus_address) {
      * from previous 64-bit aligned boundary) */
     SetDecRegister(dec_container->mp4_regs, HWIF_STREAM_LEN,
                    dec_container->StrmDesc.strm_buff_size -
-                   ((tmp & ~0x7) - strm_bus_address));
+                   (u32)((tmp & ~0x7) - strm_bus_address));
     SetDecRegister(dec_container->mp4_regs, HWIF_STRM_START_BIT,
                    dec_container->StrmDesc.bit_pos_in_word + 8 * (tmp & 0x7));
 
@@ -2285,8 +2323,8 @@ u32 RunDecoderAsic(DecContainer * dec_container, addr_t strm_bus_address) {
     }
 
     dec_container->StrmDesc.strm_buff_read_bits =
-      8 * (dec_container->StrmDesc.strm_curr_pos -
-           dec_container->StrmDesc.p_strm_buff_start);
+      (u32)(8 * (dec_container->StrmDesc.strm_curr_pos -
+           dec_container->StrmDesc.p_strm_buff_start));
     dec_container->StrmDesc.bit_pos_in_word = 0;
   }
 
@@ -2945,7 +2983,7 @@ MP4DecRet MP4DecNextPicture_INTERNAL(MP4DecInst dec_inst, MP4DecPicture * pictur
       if (BqueueWaitBufNotInUse(&dec_cont->StrmStorage.bq, pic_index) != HANTRO_OK)
         return MP4DEC_ABORTED;
       if(dec_cont->pp_enabled) {
-        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+        InputQueueWaitBufNotUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 #endif
 
@@ -2955,11 +2993,11 @@ MP4DecRet MP4DecNextPicture_INTERNAL(MP4DecInst dec_inst, MP4DecPicture * pictur
         BqueueSetBufferAsUsed(&dec_cont->StrmStorage.bq, pic_index);
         dec_cont->StrmStorage.p_pic_buf[pic_index].first_show = 0;
         if(dec_cont->pp_enabled)
-          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->virtual_address);
+          InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue,dec_cont->StrmStorage.p_pic_buf[pic_index].pp_data->bus_address);
       }
 
       dec_cont->StrmStorage.picture_info[dec_cont->fifo_index] = *picture;
-      FifoPush(dec_cont->fifo_display, dec_cont->fifo_index, FIFO_EXCEPTION_DISABLE);
+      FifoPush(dec_cont->fifo_display, UIntToPtr(dec_cont->fifo_index), FIFO_EXCEPTION_DISABLE);
       dec_cont->fifo_index++;
       if(dec_cont->fifo_index == 32)
         dec_cont->fifo_index = 0;
@@ -3021,15 +3059,13 @@ MP4DecRet MP4DecPictureConsumed(MP4DecInst dec_inst, MP4DecPicture * picture) {
 
   if (!dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers; i++) {
-      if(picture->output_picture_bus_address == dec_cont->StrmStorage.data[i].bus_address
-          && (addr_t)picture->output_picture
-          == (addr_t)dec_cont->StrmStorage.data[i].virtual_address) {
+      if(picture->output_picture_bus_address == dec_cont->StrmStorage.data[i].bus_address) {
         BqueuePictureRelease(&dec_cont->StrmStorage.bq, i);
         return (MP4DEC_OK);
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue,(u32 *)picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
     return (MP4DEC_OK);
   }
   return (MP4DEC_PARAM_ERROR);
@@ -3039,7 +3075,7 @@ MP4DecRet MP4DecPictureConsumed(MP4DecInst dec_inst, MP4DecPicture * picture) {
 MP4DecRet MP4DecEndOfStream(MP4DecInst dec_inst, u32 strm_end_flag) {
   DecContainer *dec_cont = (DecContainer *) dec_inst;
   MP4DecRet ret;
-  MP4DecPicture output;
+  MP4DecPicture output = { 0 };
 
   MP4_API_TRC("MP4DecEndOfStream#\n");
 
@@ -3073,7 +3109,7 @@ MP4DecRet MP4DecEndOfStream(MP4DecInst dec_inst, u32 strm_end_flag) {
 
   if(strm_end_flag) {
     dec_cont->dec_stat = MP4DEC_END_OF_STREAM;
-    FifoPush(dec_cont->fifo_display, -1, FIFO_EXCEPTION_DISABLE);
+    FifoPush(dec_cont->fifo_display, (void *)-1, FIFO_EXCEPTION_DISABLE);
   }
 
   //if(dec_cont->pp_instance == NULL && !strm_end_flag)
@@ -3321,7 +3357,7 @@ static u32 MP4SetRegs(DecContainer * dec_container, addr_t strm_bus_address) {
      * number of bytes from previous 64-bit aligned boundary) */
     SetDecRegister(dec_container->mp4_regs, HWIF_STREAM_LEN,
                    dec_container->StrmDesc.strm_buff_size -
-                   ((tmp & ~0x7) - strm_bus_address));
+                   (u32)((tmp & ~0x7) - strm_bus_address));
     SetDecRegister(dec_container->mp4_regs, HWIF_STRM_START_BIT,
                    dec_container->StrmDesc.bit_pos_in_word + 8 * (tmp & 0x7));
 
@@ -3591,6 +3627,12 @@ static void MP4DecParallelPP(DecContainer * dec_container, u32 index_for_pp) {
 static void PPControl(DecContainer * dec_cont, u32 pipeline_off) {
   u32 index_for_pp = BUFFER_UNDEFINED;
   u32 next_buffer_index;
+
+  if (dec_cont->StrmStorage.work_out >= 
+      sizeof(dec_cont->StrmStorage.p_pic_buf) / sizeof(dec_cont->StrmStorage.p_pic_buf[0])) {
+    MP4DEC_API_DEBUG(("Access picture buffer error.# \n"));
+    return;
+  }
 
   DecPpInterface * pc = &dec_cont->pp_control;
   DecHdrs        * p_hdrs = &dec_cont->Hdrs;
@@ -4204,6 +4246,10 @@ static void MP4DecRunFullmode(DecContainer * dec_cont) {
   }
 
   index_for_pp = dec_cont->StrmStorage.work_out;
+  if (index_for_pp >= MP4_MAX_BUFFERS + 1) {
+    MP4DEC_API_DEBUG(("index_for_pp %d error\n", index_for_pp));
+    return;
+  }
   pc->tiled_input_mode = dec_cont->tiled_reference_enable;
   pc->progressive_sequence =
     !dec_cont->Hdrs.interlaced;
@@ -4427,6 +4473,7 @@ MP4DecRet MP4DecGetBufferInfo(MP4DecInst dec_inst, MP4DecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -4435,7 +4482,7 @@ MP4DecRet MP4DecGetBufferInfo(MP4DecInst dec_inst, MP4DecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return MP4DEC_OK;;
 }
@@ -4445,7 +4492,6 @@ MP4DecRet MP4DecAddBuffer(MP4DecInst dec_inst, struct DWLLinearMem *info) {
   MP4DecRet dec_ret = MP4DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return MP4DEC_PARAM_ERROR;
@@ -4580,7 +4626,8 @@ void MP4StateReset(DecContainer *dec_cont) {
   dec_cont->StrmStorage.gov_time_increment = 0;
 
   /* Clear internal parameters in DecApiStorage */
-  dec_cont->ApiStorage.DecStat = INITIALIZED;
+  if (dec_cont->ApiStorage.DecStat != HEADERSDECODED)
+    dec_cont->ApiStorage.DecStat = INITIALIZED;
   dec_cont->ApiStorage.output_other_field = 0;
 
   /* Clear internal parameters in DecVopDesc */
@@ -4643,8 +4690,58 @@ void MP4StateReset(DecContainer *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(MP4_MAX_BUFFERS*2, &dec_cont->fifo_display);
+  if (FifoInit(MP4_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
+}
+
+MP4DecRet MP4DecRemoveBuffer(MP4DecInst dec_inst) {
+  DecContainer *dec_cont = (DecContainer *) dec_inst;
+  MP4DecRet re = MP4DEC_OK;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+  FifoSetAbort(dec_cont->fifo_display);
+  BqueueRemove(&dec_cont->StrmStorage.bq);
+  dec_cont->VopDesc.vop_number_in_seq = 0;
+  dec_cont->StrmStorage.work_out_prev = 0;
+  dec_cont->StrmStorage.work_out = 0;
+  dec_cont->StrmStorage.work0 =
+    dec_cont->StrmStorage.work1 = INVALID_ANCHOR_PICTURE;
+
+  MP4StateReset(dec_cont);
+
+  u32 buffers = 3;
+
+  if( dec_cont->pp_instance ) { /* Combined mode used */
+    dec_cont->PPConfigQuery(dec_cont->pp_instance,
+                            &dec_cont->pp_config_query);
+    if(dec_cont->pp_config_query.multi_buffer)
+      buffers = 4;
+  } else { /* Dec only or separate PP */
+    buffers = dec_cont->StrmStorage.max_num_buffers;
+    if( buffers < 3 )
+      buffers = 3;
+  }
+  dec_cont->tot_buffers = buffers;
+  dec_cont->buffer_index = 0;
+  dec_cont->fifo_index = 0;
+  dec_cont->ext_buffer_num = 0;
+  dec_cont->StrmStorage.bq.queue_size = buffers;
+  dec_cont->StrmStorage.num_buffers = buffers;
+  (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf, 0, MP4_MAX_BUFFERS * sizeof(picture_t));
+  (void) DWLmemset(dec_cont->StrmStorage.picture_info, 0, MP4_MAX_BUFFERS * 2 * sizeof(MP4DecPicture));
+  if (dec_cont->fifo_display)
+    FifoRelease(dec_cont->fifo_display);
+  if (FifoInit(MP4_MAX_BUFFERS*2, &dec_cont->fifo_display) != FIFO_OK) {
+    re = MP4DEC_MEMFAIL;
+    goto end;
+  }
+
+  FifoClearAbort(dec_cont->fifo_display);
+end:
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return re;
 }
 
 MP4DecRet MP4DecAbort(MP4DecInst dec_inst) {

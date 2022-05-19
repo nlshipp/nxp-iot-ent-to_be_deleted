@@ -108,6 +108,18 @@ void WriteAsicCtrl(DecContainer * dec_container) {
   fdc_hex = fopen("dc_separate_coeffs.hex", "at");
   if(fctrl == NULL || fctrla == NULL ||
       fmv == NULL || fdc == NULL || hex_motion_vectors == NULL || fdc_hex == NULL) {
+    if(fctrl)
+      fclose(fctrl);
+    if(fctrla)
+      fclose(fctrla);
+    if(fmv)
+      fclose(fmv);
+    if(fdc)
+      fclose(fdc);
+    if(fdc_hex)
+      fclose(fdc_hex);
+    if(hex_motion_vectors)
+      fclose(hex_motion_vectors);
     return;
   }
 
@@ -121,10 +133,12 @@ void WriteAsicCtrl(DecContainer * dec_container) {
       p_mv = &dec_container->MbSetDesc.
              p_mv_data_addr[NBR_MV_WORDS_MB * j];
 
+#if 0
       for(tmp = 0; tmp > 1000; tmp++) {
         *(dec_container->MbSetDesc.
           p_dc_coeff_data_addr + tmp) = 0;
       }
+#endif
       /* HEX */
 
       /* invert bits for no RLC data */
@@ -314,6 +328,10 @@ void WriteAsicRlc(DecContainer * dec_container, u32 * phalves, u32 * pnum_addr) 
   frlca = fopen("rlc.trc", "at");
 
   if(frlc == NULL || frlca == NULL) {
+    if(frlc)
+      fclose(frlc);
+    if(frlca)
+      fclose(frlca);
     return;
   }
 

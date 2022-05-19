@@ -463,6 +463,7 @@ u32 StrmDec_DecodePartitionedPVop(DecContainer * dec_container) {
       control_bits |= ((u32) 0x1 << (ASICPOS_MBTYPE));
     }
 
+    (void)(pu32);
     pu32 = dec_container->MbSetDesc.p_ctrl_data_addr
            + NBR_OF_WORDS_MB * i;
     if(dec_container->StrmStorage.coded_bits[i] != MB_NOT_CODED) {
@@ -550,6 +551,7 @@ u32 StrmDec_DecodePartitionedPVop(DecContainer * dec_container) {
       }
       /* write asic control bits */
       *pu32 = control_bits;
+      (void)(pu32);
       pu32 += NBR_OF_WORDS_MB;
 
     }

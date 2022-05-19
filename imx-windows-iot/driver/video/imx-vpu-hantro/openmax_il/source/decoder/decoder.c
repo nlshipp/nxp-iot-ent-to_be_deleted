@@ -4796,9 +4796,14 @@ static OMX_ERRORTYPE transition_to_idle_from_loaded(OMX_DECODER * dec)
 #ifdef ENABLE_CODEC_RV
     case OMX_VIDEO_CodingRV:
         strcpy((char *) dec->role, "video_decoder.rv");
+        u32 imagesizes[18];
+        imagesizes[0] =
+        imagesizes[2] = dec->width;
+        imagesizes[1] =
+        imagesizes[3] = dec->height;
         dec->codec =
             HantroHwDecOmx_decoder_create_rv(dec->alloc.pdwl,
-                                             dec->bIsRV8, dec->imageSize,
+                                             dec->bIsRV8, dec->imageSize, imagesizes,
                                              dec->width, dec->height,
                                              &dec->g1Conf);
         DBGT_PDEBUG("ASYNC: created RV codec");
@@ -7332,12 +7337,12 @@ static
         switch (codec)
         {
         case CODEC_OK:
-        case CODEC_NEED_MORE:
         case CODEC_ERROR_FRAME:
             break;
         case CODEC_NO_DECODING_BUFFER:
             usleep(10);
             break;
+        case CODEC_NEED_MORE:
         case CODEC_BUFFER_EMPTY:
             if(!dec->propagateDataReceived)
             {

@@ -825,9 +825,15 @@ void RefbuMvStatistics( struct refBuffer *p_refbu, u32 *reg_base,
 
   p_refbu->coverage[2] = p_refbu->coverage[1];
   p_refbu->coverage[1] = p_refbu->coverage[0];
+  /* according line 791, direct_mvs_available is 0 */
+#if 0
   if(direct_mvs_available) {
     DirectMvStatistics( p_refbu, p_mv, num_intra_blk, big_endian );
   } else if(p_refbu->offset_support) {
+#else
+  (void)(p_mv);
+  if(p_refbu->offset_support) {
+#endif
     i32 inter_mvs;
     i32 sum;
     sum = GetDecRegister( reg_base, HWIF_REFBU_Y_MV_SUM );
@@ -1065,11 +1071,14 @@ void RefbuSetup( struct refBuffer *p_refbu, u32 *reg_base,
               use_adaptive_mode = 1;
               p_refbu->checkpoint /= p_refbu->thr_adj;
               thr2 = p_refbu->checkpoint ;
+              /* Coverity: multiple_ref_fields is 1 always */
+#if 0
             } else {
               /* Buffer both reference fields explicitly */
               use_double_mode = 1;
               p_refbu->checkpoint /= p_refbu->thr_adj;
               thr2 = p_refbu->checkpoint;
+#endif
             }
           } else if (force_adaptive_single) {
             use_adaptive_mode = 1;

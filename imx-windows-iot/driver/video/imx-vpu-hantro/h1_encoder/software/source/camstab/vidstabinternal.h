@@ -110,7 +110,8 @@ void VSSetCropping(VideoStb * pVidStab, u32 currentPictBus, u32 nextPictBus);
 
 void VSInitAsicCtrl(VideoStb * pVidStab);
 i32 VSCheckInput(const VideoStbParam * param);
-void VSSetupAsicAll(VideoStb * pVidStab);
+i32 VSSetupAsicAll(VideoStb * pVidStab);
+i32 VSTrySetupAsicAll(VideoStb * pVidStab);
 i32 VSWaitAsicReady(VideoStb * pVidStab);
 
 #endif /* __VIDSTBINTERNAL_H__ */

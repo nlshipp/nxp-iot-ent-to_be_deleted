@@ -63,7 +63,7 @@
 
 #define EOS_MARKER (-1)
 
-static i32 FindIndex(VP8DecContainer_t* dec_cont, const u32* address);
+static i32 FindIndex(VP8DecContainer_t* dec_cont, addr_t address);
 static i32 NextOutput(VP8DecContainer_t *dec_cont);
 
 /*------------------------------------------------------------------------------
@@ -213,7 +213,7 @@ VP8DecRet VP8DecMCPictureConsumed(VP8DecInst dec_inst,
   /* Remove the reference to the buffer. */
   VP8DecContainer_t *dec_cont = (VP8DecContainer_t *)dec_inst;
   VP8HwdBufferQueueRemoveRef(dec_cont->bq,
-                             FindIndex(dec_cont, picture->p_output_frame));
+                             FindIndex(dec_cont, picture->output_frame_bus_address));
   DEC_API_TRC("VP8DecMCPictureConsumed# VP8DEC_OK\n");
   return VP8DEC_OK;
 }
@@ -270,7 +270,7 @@ VP8DecRet VP8DecMCEndOfStream(VP8DecInst dec_inst) {
     Argument        : VP8DecContainer_t *
 ------------------------------------------------------------------------------*/
 i32 NextOutput(VP8DecContainer_t *dec_cont) {
-  i32 i;
+  addr_t i;
   u32 j;
   i32 output_i = -1;
   u32 size;
@@ -285,7 +285,7 @@ i32 NextOutput(VP8DecContainer_t *dec_cont) {
 
     if(dec_cont->asic_buff->display_index[i] == dec_cont->pic_number) {
       /*  fifo_display had the right output. */
-      output_i = i;
+      output_i = (i32)i;
       break;
     } else {
       FifoPush(dec_cont->fifo_display, (FifoObject)(addr_t)i, FIFO_EXCEPTION_DISABLE);
@@ -297,11 +297,11 @@ i32 NextOutput(VP8DecContainer_t *dec_cont) {
     /* Blocks until next output is available */
     FifoPop(dec_cont->fifo_out, (FifoObject *)&i, FIFO_EXCEPTION_DISABLE);
     if (i == EOS_MARKER)
-      return i;
+      return (i32)i;
 
     if(dec_cont->asic_buff->display_index[i] == dec_cont->pic_number) {
       /*  fifo_out had the right output. */
-      output_i = i;
+      output_i = (i32)i;
     } else {
       /* Until we get the next picture in display order, push the outputs
       * to the display reordering fifo */
@@ -428,10 +428,10 @@ void VP8MCSetHwRdyCallback(VP8DecContainer_t  *dec_cont) {
 }
 
 
-static i32 FindIndex(VP8DecContainer_t* dec_cont, const u32* address) {
+static i32 FindIndex(VP8DecContainer_t* dec_cont, addr_t address) {
   i32 i;
   for (i = 0; i < (i32)dec_cont->num_buffers; i++)
-    if (dec_cont->asic_buff->pictures[i].virtual_address == address)
+    if (dec_cont->asic_buff->pictures[i].bus_address == address)
       break;
   ASSERT((u32)i < dec_cont->num_buffers);
   return i;

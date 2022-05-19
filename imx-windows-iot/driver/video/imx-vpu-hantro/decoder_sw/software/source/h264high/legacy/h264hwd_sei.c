@@ -120,7 +120,7 @@ u32 h264bsdDecodeSeiParameters(seqParamSet_t **sps, strmData_t *p_strm_data,
     tmp_strm_data = *p_strm_data;
     switch (pay_load_type) {
     case SEI_BUFFERING_PERIOD:
-      h264bsdDecodeBufferingPeriodInfo(sps, &tmp_strm_data,
+      tmp = h264bsdDecodeBufferingPeriodInfo(sps, &tmp_strm_data,
                                        &p_sei_parameters->buffering_period_info);
       if(tmp == HANTRO_NOK) {
         p_sei_parameters->buffering_period_info.exist_flag = 0;
@@ -130,7 +130,7 @@ u32 h264bsdDecodeSeiParameters(seqParamSet_t **sps, strmData_t *p_strm_data,
       break;
 
     case SEI_PIC_TIMING:
-      h264bsdDecodePicTimingInfo(sps,
+      tmp = h264bsdDecodePicTimingInfo(sps,
                                  &tmp_strm_data, &p_sei_parameters->pic_timing_info,
                                  &p_sei_parameters->buffering_period_info);
       if(tmp == HANTRO_NOK) {
@@ -243,11 +243,13 @@ u32 h264bsdDecodeBufferingPeriodInfo(seqParamSet_t **sps,
   seqParamSet_t *p_seq_param_set;
   (void) DWLmemset(p_buffering_period_info, 0, sizeof(bufferingPeriodInfo_t));
 
-  p_buffering_period_info->seq_parameter_set_id =
-    tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data,
-                                         &p_buffering_period_info->seq_parameter_set_id);
+  tmp = h264bsdDecodeExpGolombUnsigned(p_strm_data,
+                                       &p_buffering_period_info->seq_parameter_set_id);
   if (tmp != HANTRO_OK)
     return(tmp);
+
+  if (p_buffering_period_info->seq_parameter_set_id >= MAX_NUM_SEQ_PARAM_SETS)
+    return HANTRO_NOK;
 
   p_seq_param_set = sps[p_buffering_period_info->seq_parameter_set_id];
   if (p_seq_param_set == NULL || p_seq_param_set->vui_parameters == NULL)
@@ -306,8 +308,8 @@ u32 h264bsdDecodePicTimingInfo(seqParamSet_t **sps, strmData_t *p_strm_data,
 
   u32 tmp, i;
   u32 CpbDpbDelaysPresentFlag;
-  u32 cpb_removal_len;
-  u32 dpb_output_len;
+  u32 cpb_removal_len = 0;
+  u32 dpb_output_len = 0;
   u32 pic_struct_present_flag;
   u32 NumClockTs = 0;
   u32 time_offset_length;
@@ -529,7 +531,8 @@ u32 h264bsdComputeTimes(seqParamSet_t *sps,
   u32 bit_rate_value = 0;
   u32 bit_rate_scale = 0;
   u32 bit_rate;
-
+  if (p_seq_param_set == NULL)
+    return HANTRO_NOK;
   // compute tc
   if(p_seq_param_set->vui_parameters == NULL)
     return(HANTRO_NOK);

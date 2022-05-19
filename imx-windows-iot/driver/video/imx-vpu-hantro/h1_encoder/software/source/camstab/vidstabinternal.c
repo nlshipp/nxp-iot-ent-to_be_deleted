@@ -130,10 +130,10 @@ void VSInitAsicCtrl(VideoStb * pVidStab)
 /*------------------------------------------------------------------------------
     Function name   : VSSetupAsicAll
     Description     : 
-    Return type     : void 
+    Return type     : i32
     Argument        : VideoStb * pVidStab
 ------------------------------------------------------------------------------*/
-void VSSetupAsicAll(VideoStb * pVidStab)
+i32 VSSetupAsicAll(VideoStb * pVidStab)
 {
 
     const void *ewl = pVidStab->ewl;
@@ -218,8 +218,25 @@ void VSSetupAsicAll(VideoStb * pVidStab)
 
     /* Register with enable bit is written last */
     EWLWriteReg(ewl, HSWREG(40), regMirror[40]);
-    regMirror[14] |= ASIC_STATUS_ENABLE;
-    EWLEnableHW(ewl, HSWREG(14), regMirror[14]);
+    return EWLEnableHW(ewl);
+}
+
+/*------------------------------------------------------------------------------
+    Function name   : VSTrySetupAsicAll
+    Description     :
+    Return type     : i32
+    Argument        : VideoStb * pVidStab
+------------------------------------------------------------------------------*/
+i32 VSTrySetupAsicAll(VideoStb * pVidStab)
+{
+    i32 waitTimes = 0;
+
+    do {
+        if (VSSetupAsicAll(pVidStab) == 0)
+            return VIDEOSTB_OK;
+    } while (++waitTimes < 100);
+
+    return VIDEOSTB_ERROR;
 }
 
 /*------------------------------------------------------------------------------

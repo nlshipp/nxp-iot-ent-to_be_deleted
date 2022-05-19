@@ -41,7 +41,7 @@ set TARGET_DRIVE=
  if /I "%~1" == "/?" goto USAGE
  if /I "%~1" == "/Help" goto USAGE
  if /I "%~1" == "/device" set DEVICE_TYPE=%2& shift
- if /I "%~1" == "/signed" set SIGNED_FW="signed_"& shift
+ if /I "%~1" == "/signed" set SIGNED_FW=signed_& shift
  if /I "%~1" == "/target_drive" set TARGET_DRIVE=%2& shift
  shift
 if not (%1)==() goto GETOPTS

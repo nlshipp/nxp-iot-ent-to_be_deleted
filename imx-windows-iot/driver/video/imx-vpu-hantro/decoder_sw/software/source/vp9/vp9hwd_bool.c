@@ -94,7 +94,7 @@ u32 Vp9DecodeBool(struct VpBoolCoder* br, i32 probability) {
           break;
         } else {
           count = 8;
-          value |= DWLPrivateAreaReadByte(br->buffer);
+          value |= (u32) DWLPrivateAreaReadByte(br->buffer);
           br->buffer++;
           br->read_len++;
           if(br->buffer >= (br->buffer_start + br->buffer_len))
@@ -171,7 +171,7 @@ u32 Vp9DecodeBool128(struct VpBoolCoder* br) {
       } else {
         count = 8;
 
-        value |= DWLPrivateAreaReadByte(br->buffer);
+        value |= (u32) DWLPrivateAreaReadByte(br->buffer);
         br->buffer++;
         br->read_len++;
         if(br->buffer >= (br->buffer_start + br->buffer_len))

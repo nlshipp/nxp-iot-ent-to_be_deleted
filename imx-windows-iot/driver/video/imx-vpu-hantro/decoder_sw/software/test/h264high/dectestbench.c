@@ -77,7 +77,20 @@
 
 /* Debug prints */
 #undef DEBUG_PRINT
-#define DEBUG_PRINT(argv) printf argv
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+
 
 #define NUM_RETRY   100 /* how many retries after HW timeout */
 #define MAX_BUFFERS 34
@@ -160,8 +173,8 @@ u32 convert_to_frame_dpb = 0;
 /* variables for indexing */
 u32 save_index = 0;
 u32 use_index = 0;
-off64_t cur_index = 0;
-off64_t next_index = 0;
+addr_t cur_index = 0;
+addr_t next_index = 0;
 /* indicate when we save index */
 u8 save_flag = 0;
 
@@ -444,7 +457,7 @@ static void* h264_output_thread(void* arg) {
       break;
     }
   }
-  return NULL;
+  return  NULL;
 }
 #endif
 
@@ -457,7 +470,7 @@ void SetMissingField2Const( u8 *output_picture,
   i32 i;
   /* TODO: Does not support tiled input */
   /* TODO: Fix reference data before enabling this */
-  return;
+  //return;
 
   if (dpb_mode != DEC_DPB_FRAME) {
     /* luma */
@@ -468,7 +481,7 @@ void SetMissingField2Const( u8 *output_picture,
       field_base += pic_width * pic_height / 2;
     }
 
-    memset(field_base, 128, pic_width * pic_height / 2);
+    memset(field_base, 0, pic_width * pic_height / 2);
 
     if (monochrome)
       return;
@@ -481,7 +494,7 @@ void SetMissingField2Const( u8 *output_picture,
       field_base += pic_width * pic_height / 4;
     }
 
-    memset(field_base, 128, pic_width * pic_height / 4);
+    memset(field_base, 0, pic_width * pic_height / 4);
 
     return;
   }
@@ -495,7 +508,7 @@ void SetMissingField2Const( u8 *output_picture,
   }
 
   for (i = 0; i < pic_height / 2; i++) {
-    memset(field_base, 128, pic_width);
+    memset(field_base, 0, pic_width);
     field_base += 2 * pic_width;
   }
 
@@ -511,7 +524,7 @@ void SetMissingField2Const( u8 *output_picture,
   }
 
   for (i = 0; i < (pic_height / 2 + 1) / 2; i++) {
-    memset(field_base, 128, pic_width);
+    memset(field_base, 0, pic_width);
     field_base += 2 * pic_width;
   }
 }
@@ -532,10 +545,11 @@ int main(int argc, char **argv) {
   u32 i, tmp;
   u32 max_num_pics = 0;
   u8 *image_data;
-  long int strm_len;
+  long int pos = 0;
+  u32 strm_len;
   H264DecRet ret;
-  H264DecInput dec_input;
-  H264DecOutput dec_output;
+  H264DecInput dec_input = { 0 };
+  H264DecOutput dec_output = { 0 };
   H264DecPicture dec_picture;
 #if defined(PP_PIPELINE_ENABLED) || !defined(USE_OUTPUT_RELEASE)
   u32 pic_size = 0;
@@ -621,6 +635,10 @@ int main(int argc, char **argv) {
     /* Check expiry date */
     time(&sys_time);
     tm = localtime(&sys_time);
+    if (tm == NULL) {
+      fprintf(stderr,"Get localtime failed!\n");
+      return -1;
+    }
     strftime(tm_buf, sizeof(tm_buf), "%y%m%d", tm);
     tmp1 = 1000000+atoi(tm_buf);
     if (tmp1 > (EXPIRY_DATE) && (EXPIRY_DATE) > 1 ) {
@@ -693,7 +711,13 @@ int main(int argc, char **argv) {
     if(strncmp(argv[i], "-N", 2) == 0) {
       max_num_pics = (u32) atoi(argv[i] + 2);
     } else if(strncmp(argv[i], "-O", 2) == 0) {
-      strcpy(out_file_name, argv[i] + 2);
+      /* -1 to accomodate for the null tern=minator */
+      if (sizeof(out_file_name) - 1 < strlen(argv[i] + 2)) {
+        DEBUG_PRINT(("The output file name size overflows buffer size(256)!\n"));
+        return 1;
+      } else {
+        strcpy(out_file_name, argv[i] + 2);
+      }
     } else if(strcmp(argv[i], "-X") == 0) {
       disable_output_writing = 1;
     } else if(strcmp(argv[i], "-C") == 0) {
@@ -742,10 +766,10 @@ int main(int argc, char **argv) {
     else if(strcmp(argv[i], "-F") == 0) {
       g_hw_ver = 8170;
       h264_high_support = 0;
-      printf("\n\nForce 8170 mode to HW model!!!\n\n");
+      PRINT(("\n\nForce 8170 mode to HW model!!!\n\n"));
     } else if(strcmp(argv[i], "-B") == 0) {
       h264_high_support = 0;
-      printf("\n\nForce Baseline configuration to 8190 HW model!!!\n\n");
+      PRINT(("\n\nForce Baseline configuration to 8190 HW model!!!\n\n"));
     }
 #endif
     else if(strcmp(argv[i], "-Z") == 0) {
@@ -868,10 +892,10 @@ int main(int argc, char **argv) {
     else if(strcmp(argv[i], "-F") == 0) {
       g_hw_ver = 8170;
       h264_high_support = 0;
-      printf("\n\nForce 8170 mode to HW model!!!\n\n");
+      PRINT(("\n\nForce 8170 mode to HW model!!!\n\n"));
     } else if(strcmp(argv[i], "-B") == 0) {
       h264_high_support = 0;
-      printf("\n\nForce Baseline configuration to 8190 HW model!!!\n\n");
+      PRINT(("\n\nForce Baseline configuration to 8190 HW model!!!\n\n"));
     }
 #endif
     else if(strcmp(argv[i], "-M") == 0) {
@@ -1003,14 +1027,22 @@ int main(int argc, char **argv) {
   DEBUG_PRINT(("TB Stream Packet Loss %d; odds %s\n", stream_packet_loss,
                tb_cfg.tb_params.stream_packet_loss));
 
+#ifdef ASIC_TRACE_SUPPORT
   {
-    remove("regdump.txt");
-    remove("mbcontrol.hex");
-    remove("intra4x4_modes.hex");
-    remove("motion_vectors.hex");
-    remove("rlc.hex");
-    remove("picture_ctrl_dec.trc");
+    if (remove("regdump.txt") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("mbcontrol.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("intra4x4_modes.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("motion_vectors.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("rlc.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("picture_ctrl_dec.trc") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
+#endif
 
 #ifdef ASIC_TRACE_SUPPORT
   /* open tracefiles */
@@ -1046,7 +1078,7 @@ int main(int argc, char **argv) {
                   dwl_inst,
 #endif
                   disable_output_reordering,
-                  TBGetDecErrorConcealment( &tb_cfg ),
+                  /*TBGetDecErrorConcealment( &tb_cfg )*/DEC_EC_NONE,
                   use_display_smoothing, flags, 0, 0, 0,
                   &dscale_cfg );
   }
@@ -1118,8 +1150,15 @@ int main(int argc, char **argv) {
   TBInitializeRandom(seed_rnd);
 
   /* check size of the input file -> length of the stream in bytes */
-  fseek(finput, 0L, SEEK_END);
-  strm_len = ftell(finput);
+  if (fseek(finput, 0L, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+  pos = ftell(finput);
+  if (pos == -1L) {
+    fprintf(stderr, "ftell() failed in file %s at line # %d\n", __FILE__, __LINE__-2);
+    goto end;
+  } else {
+    strm_len = (u32)pos;
+  }
   rewind(finput);
 
   dec_input.skip_non_reference = skip_non_reference;
@@ -1139,13 +1178,13 @@ int main(int argc, char **argv) {
 
     /* sets the stream length to random value */
     if(stream_truncate && !packetize && !nal_unit_stream) {
-      DEBUG_PRINT(("strm_len %ld\n", strm_len));
+      DEBUG_PRINT(("strm_len %d\n", strm_len));
       ret = TBRandomizeU32((u32 *)&strm_len);
       if(ret != 0) {
         DEBUG_PRINT(("RANDOM STREAM ERROR FAILED\n"));
         goto end;
       }
-      DEBUG_PRINT(("Randomized strm_len %ld\n", strm_len));
+      DEBUG_PRINT(("Randomized strm_len %d\n", strm_len));
     }
 
     /* NOTE: The DWL should not be used outside decoder SW.
@@ -1230,7 +1269,7 @@ int main(int argc, char **argv) {
 
       /* read index */
       /* off64_t defined differ between LP32 and LP64*/
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
       ra = fscanf(findex, "%lu", &next_index);
 #else
       ra = fscanf(findex, "%llu", &next_index);
@@ -1243,7 +1282,8 @@ int main(int argc, char **argv) {
           DEBUG_PRINT(("STREAM WILL END\n"));
           stream_will_end = 1;
         } else {
-          fseek(findex, -2, SEEK_CUR);
+          if (fseek(findex, -2, SEEK_CUR) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         }
       }
 
@@ -1266,7 +1306,7 @@ int main(int argc, char **argv) {
   else {
     if(use_index) {
       if(!nal_unit_stream)
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
         ra = fscanf(findex, "%lu", &cur_index);
 #else
         ra = fscanf(findex, "%llu", &cur_index);
@@ -1441,8 +1481,8 @@ int main(int argc, char **argv) {
       save_flag = 0;
       /* Set a flag to indicate that headers are ready */
       hdrs_rdy = 1;
-      printf("sizeof(dpb) = %ld\n", sizeof(dpbStorage_t));
-      printf("offset of dpbs = %ld\n", (u8 *)((decContainer_t *) dec_inst)->storage.dpbs-(u8 *)&(((decContainer_t *) dec_inst)->storage));
+      PRINT(("sizeof(dpb) = %ld\n", sizeof(dpbStorage_t)));
+      PRINT(("offset of dpbs = %ld\n", (long)((u8 *)((decContainer_t *) dec_inst)->storage.dpbs-(u8 *)&(((decContainer_t *) dec_inst)->storage))));
       TBSetRefbuMemModel( &tb_cfg,
                           ((decContainer_t *) dec_inst)->h264_regs,
                           &((decContainer_t *) dec_inst)->ref_buffer_ctrl );
@@ -1472,12 +1512,13 @@ int main(int argc, char **argv) {
       DEBUG_PRINT(("DPB mode   = %d\n", dec_info.dpb_mode));
       DEBUG_PRINT(("Pictures in DPB = %d\n", dec_info.pic_buff_size));
       DEBUG_PRINT(("Pictures in Multibuffer PP = %d\n", dec_info.multi_buff_pp_size));
-      if(dec_info.output_format == H264DEC_TILED_YUV420)
+      if(dec_info.output_format == H264DEC_TILED_YUV420) {
         DEBUG_PRINT(("Output format = H264DEC_TILED_YUV420\n"));
-      else if(dec_info.output_format == H264DEC_YUV400)
+      } else if(dec_info.output_format == H264DEC_YUV400) {
         DEBUG_PRINT(("Output format = H264DEC_YUV400\n"));
-      else
+      } else {
         DEBUG_PRINT(("Output format = H264DEC_SEMIPLANAR_YUV420\n"));
+      }
       H264DecConfig dec_cfg;
       dec_cfg.dpb_flags = 0;
       if( tiled_output )   dec_cfg.dpb_flags |= DEC_REF_FRM_TILED_DEFAULT;
@@ -1560,6 +1601,7 @@ int main(int argc, char **argv) {
     case H264DEC_PENDING_FLUSH:
       eos = 1;
     case H264DEC_PIC_DECODED:
+    case H264DEC_FIELD_DECODED:
       /* case H264DEC_FREEZED_PIC_RDY: */
       /* Picture is now ready */
       pic_rdy = 1;
@@ -1584,7 +1626,7 @@ int main(int argc, char **argv) {
       if(pic_decode_number == max_num_pics)
         dec_input.data_len = 0;
 
-      printf("DECODED PICTURE %d\n", pic_decode_number);
+      DEBUG_PRINT(("DECODED PICTURE %d\n", pic_decode_number));
       /* Increment decoding number for every decoded picture */
       pic_decode_number++;
 
@@ -1896,7 +1938,7 @@ int main(int argc, char **argv) {
 
         tmp = ftell(finput);
         dec_input.data_len = NextPacket((u8 **) (&dec_input.stream));
-        printf("NextPacket = %d at %d\n", dec_input.data_len, tmp);
+        PRINT(("NextPacket = %d at %d\n", dec_input.data_len, tmp));
 
         dec_input.stream_bus_address +=
           (addr_t) (dec_input.stream - ptmpstream);
@@ -2085,14 +2127,15 @@ end:
   if(NULL == foutput) {
     strm_len = 0;
   } else {
-    fseek(foutput, 0L, SEEK_END);
+    if (fseek(foutput, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     strm_len = (u32) ftell(foutput);
     fclose(foutput);
   }
 
   DEBUG_PRINT(("Output file: %s\n", out_file_name));
 
-  DEBUG_PRINT(("OUTPUT_SIZE %ld\n", strm_len));
+  DEBUG_PRINT(("OUTPUT_SIZE %d\n", strm_len));
 
   FINALIZE_SW_PERFORMANCE;
 
@@ -2146,7 +2189,16 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data, u32 pic_size,
   /* foutput is global file pointer */
   if(*fout == NULL) {
     if (view && mvc_separate_views) {
-      strcpy(alt_file_name, filename);
+      if (sizeof(alt_file_name) - 1 < strlen(filename)) {
+        DEBUG_PRINT(("TOO LONG FILE NAME!\n"));
+        return;
+      }  else {
+        strcpy(alt_file_name, filename);
+      }
+      if (strlen(alt_file_name) >= 256 - 12) {
+        DEBUG_PRINT(("TOO LONG FILE NAME!\n"));
+        return;
+      }
       sprintf(alt_file_name+strlen(alt_file_name)-4, "_%d.yuv", view);
       fn = alt_file_name;
     } else
@@ -2239,6 +2291,8 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data, u32 pic_size,
   }
 
   if(*fout == NULL || data == NULL) {
+    if(raster_scan)
+      free(raster_scan);
     return;
   }
 
@@ -2348,7 +2402,8 @@ void WriteOutput(char *filename, char *filename_tiled, u8 * data, u32 pic_size,
 
   if(raster_scan)
     free(raster_scan);
-
+  if(pic_big_endian)
+    free(pic_big_endian);
 
 }
 
@@ -2661,7 +2716,7 @@ u32 NextPacketFromFile(u8 ** p_strm) {
     u32 f_pos = 0;
 
     if(nal_unit_stream)
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
       ret = fscanf(findex, "%lu", &cur_index);
 #else
       ret = fscanf(findex, "%llu", &cur_index);
@@ -2670,13 +2725,14 @@ u32 NextPacketFromFile(u8 ** p_strm) {
     /* check position */
     f_pos = ftell(finput);
     if(f_pos != cur_index) {
-      fseeko64(finput, cur_index - f_pos, SEEK_CUR);
+      if (fseeko64(finput, cur_index - f_pos, SEEK_CUR) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     }
 
     if(nal_unit_stream) {
       ret = fscanf(findex, "%u", &amount);
     } else {
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
       ret = fscanf(findex, "%lu", &next_index);
 #else
       ret = fscanf(findex, "%llu", &next_index);
@@ -2684,7 +2740,10 @@ u32 NextPacketFromFile(u8 ** p_strm) {
       amount = next_index - cur_index;
       cur_index = next_index;
     }
-
+    if (amount > DEC_X170_MAX_STREAM) {
+      DEBUG_PRINT(("FILE ERROR\n"));
+      return 0;
+    }
     ret = fread(*p_strm, 1, amount, finput);
     index = amount;
   }
@@ -2850,53 +2909,71 @@ void H264DecTrace(const char *string) {
 ------------------------------------------------------------------------------*/
 static void printDecodeReturn(i32 retval) {
 
-  DEBUG_PRINT(("TB: H264DecDecode returned: "));
   switch (retval) {
 
   case H264DEC_OK:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_OK\n"));
     break;
   case H264DEC_NONREF_PIC_SKIPPED:
-    DEBUG_PRINT(("H264DEC_NONREF_PIC_SKIPPED\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_NONREF_PIC_SKIPPED\n"));
     break;
   case H264DEC_STRM_PROCESSED:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_STRM_PROCESSED\n"));
     break;
   case H264DEC_BUF_EMPTY:
-    DEBUG_PRINT(("H264DEC_BUF_EMPTY\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_BUF_EMPTY\n"));
     break;
   case H264DEC_NO_DECODING_BUFFER:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_NO_DECODING_BUFFER\n"));
     break;
   case H264DEC_PIC_RDY:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_PIC_RDY\n"));
     break;
   case H264DEC_PIC_DECODED:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_PIC_DECODED\n"));
     break;
   case H264DEC_PIC_CONSUMED:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_PIC_CONSUMED\n"));
     break;
   case H264DEC_ADVANCED_TOOLS:
-    DEBUG_PRINT(("H264DEC_ADVANCED_TOOLS\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_ADVANCED_TOOLS\n"));
     break;
   case H264DEC_HDRS_RDY:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_HDRS_RDY\n"));
     break;
   case H264DEC_STREAM_NOT_SUPPORTED:
-    DEBUG_PRINT(("H264DEC_STREAM_NOT_SUPPORTED\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_STREAM_NOT_SUPPORTED\n"));
     break;
   case H264DEC_DWL_ERROR:
-    DEBUG_PRINT(("H264DEC_DWL_ERROR\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_DWL_ERROR\n"));
     break;
   case H264DEC_HW_TIMEOUT:
-    DEBUG_PRINT(("H264DEC_HW_TIMEOUT\n"));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("H264DEC_HW_TIMEOUT\n"));
     break;
   case H264DEC_PENDING_FLUSH:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
     DEBUG_PRINT(("H264DEC_PENDING_FLUSH\n"));
     break;
+  case H264DEC_FIELD_DECODED:
+    DEBUG_PRINT(("TB: H264DecDecode returned: "));
+    DEBUG_PRINT(("H264DEC_FIELD_DECODED\n"));
+    break;
   default:
-    DEBUG_PRINT(("Other %d\n", retval));
+    PRINT(("TB: H264DecDecode returned: "));
+    PRINT(("Other %d\n", retval));
     break;
   }
 }
@@ -2909,34 +2986,34 @@ static void printDecodeReturn(i32 retval) {
 
 ------------------------------------------------------------------------------*/
 void printH264PicCodingType(u32 *pic_type) {
-  printf("Coding type ");
+  DEBUG_PRINT(("Coding type "));
   switch (pic_type[0]) {
   case DEC_PIC_TYPE_I:
-    printf("[I:");
+    DEBUG_PRINT(("[I:"));
     break;
   case DEC_PIC_TYPE_P:
-    printf("[P:");
+    DEBUG_PRINT(("[P:"));
     break;
   case DEC_PIC_TYPE_B:
-    printf("[B:");
+    DEBUG_PRINT(("[B:"));
     break;
   default:
-    printf("[Other %d:", pic_type[0]);
+    DEBUG_PRINT(("[Other %d:", pic_type[0]));
     break;
   }
 
   switch (pic_type[1]) {
   case DEC_PIC_TYPE_I:
-    printf("I]");
+    DEBUG_PRINT(("I]"));
     break;
   case DEC_PIC_TYPE_P:
-    printf("P]");
+    DEBUG_PRINT(("P]"));
     break;
   case DEC_PIC_TYPE_B:
-    printf("B]");
+    DEBUG_PRINT(("B]"));
     break;
   default:
-    printf("Other %d]", pic_type[1]);
+    DEBUG_PRINT(("Other %d]", pic_type[1]));
     break;
   }
 }
@@ -2946,11 +3023,12 @@ u32 fillBuffer(const u8 *stream) {
   u32 data_len = 0;
   int ret;
   if(cur_index != ftell(finput)) {
-    fseeko64(finput, cur_index, SEEK_SET);
+    if (fseeko64(finput, cur_index, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
 
   /* read next index */
-#ifdef USE_64BIT_ENV
+#ifndef _WIN64
   ret = fscanf(findex, "%lu", &next_index);
 #else
   ret = fscanf(findex, "%llu", &next_index);
@@ -2959,6 +3037,10 @@ u32 fillBuffer(const u8 *stream) {
   cur_index = next_index;
 
   /* read data */
+  if (amount > DEC_X170_MAX_STREAM) {
+    DEBUG_PRINT(("FILE ERROR\n"));
+    return 0;
+  }
   data_len = fread((u8 *)stream, 1, amount, finput);
 
   return data_len;

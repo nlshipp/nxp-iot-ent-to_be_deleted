@@ -454,6 +454,8 @@ VP8DecRet VP8DecPeek(VP8DecInst dec_inst, VP8DecPicture *picture);
 #ifdef USE_EXTERNAL_BUFFER
 VP8DecRet VP8DecGetBufferInfo(VP8DecInst dec_inst, VP8DecBufferInfo *mem_info);
 
+VP8DecRet VP8DecRemoveBuffer(VP8DecInst dec_inst);
+
 VP8DecRet VP8DecAddBuffer(VP8DecInst dec_inst, struct DWLLinearMem *info);
 #endif
 

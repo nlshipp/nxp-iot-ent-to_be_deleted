@@ -118,8 +118,11 @@ void FlushDecRegisters(const void* dwl, i32 core_id, u32* regs) {
 #endif
 
   GetDecRegNumbers(&reg_count, reg_offsets, /* Writable regs only */1);
-  for (u32 i = 0; i < reg_count; i++)
+  for (u32 i = 0; i < reg_count; i++) {
+    if (i >= MAX_REG_COUNT)
+      return;
     DWLWriteReg(dwl, core_id, reg_offsets[i] * 4, regs[reg_offsets[i]]);
+  }
 }
 
 void RefreshDecRegisters(const void* dwl, i32 core_id, u32* regs) {
@@ -127,6 +130,9 @@ void RefreshDecRegisters(const void* dwl, i32 core_id, u32* regs) {
   u32 reg_offsets[MAX_REG_COUNT] = {0};
 
   GetDecRegNumbers(&reg_count, reg_offsets, /* All regs */0);
-  for (u32 i = 0; i < reg_count; i++)
+  for (u32 i = 0; i < reg_count; i++) {
+    if (i >= MAX_REG_COUNT)
+      return;
     regs[reg_offsets[i]] = DWLReadReg(dwl, core_id, reg_offsets[i] * 4);
+  }
 }

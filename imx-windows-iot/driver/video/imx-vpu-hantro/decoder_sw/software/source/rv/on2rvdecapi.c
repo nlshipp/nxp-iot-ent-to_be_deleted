@@ -500,7 +500,7 @@ On2RvDecRet On2RvDecPictureConsumed(void *p_output_params, void *global) {
       }
     }
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[i].pp_data->virtual_address);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->StrmStorage.p_pic_buf[i].pp_data->bus_address);
     return (ON2RVDEC_OK);
   }
   return (ON2RVDEC_FAIL);

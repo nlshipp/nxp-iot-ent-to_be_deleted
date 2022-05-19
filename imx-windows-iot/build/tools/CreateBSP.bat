@@ -105,27 +105,24 @@ if errorlevel 1 (set FAILURE=OpteeTrEE & goto ERROR)
 copy %REPO_ROOT%\driver\TrEE\TrEE\OpteeTrEE.wm.xml %DRVR_ROOT%\OPTEE\ >NUL
 
 :: Copy VPU stuff
-mkdir %DRVR_ROOT%\imxvpukm >NUL 2>NUL
-copy %BUILD_ROOT%\imxvpukm\* %DRVR_ROOT%\imxvpukm\ >NUL
+mkdir %DRVR_ROOT%\VPU >NUL 2>NUL
+copy %BUILD_ROOT%\imxvpukm\* %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imxvpukm & goto ERROR)
-copy %REPO_ROOT%\driver\video\imxvpukm\imxvpukm.wm.xml %DRVR_ROOT%\imxvpukm\ >NUL
+copy %REPO_ROOT%\driver\video\imxvpukm\imxvpukm.wm.xml %DRVR_ROOT%\VPU\ >NUL
 
-mkdir %DRVR_ROOT%\imxvpumft >NUL 2>NUL
-copy %BUILD_ROOT%\imxvpumft\imxvpumft.dll %DRVR_ROOT%\imxvpumft\ >NUL
+copy %BUILD_ROOT%\imxvpumft\imxvpumft.dll %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imxvpumft & goto ERROR)
 
-mkdir %DRVR_ROOT%\imxomxg1 >NUL 2>NUL
-copy %BUILD_ROOT%\imxomxg1\imxomxg1.dll %DRVR_ROOT%\imxomxg1\ >NUL
+copy %BUILD_ROOT%\imxomxg1\imxomxg1.dll %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imxomxg1 & goto ERROR)
 
-mkdir %DRVR_ROOT%\imxomxg2 >NUL 2>NUL
-copy %BUILD_ROOT%\imxomxg2\imxomxg2.dll %DRVR_ROOT%\imxomxg2\ >NUL
+copy %BUILD_ROOT%\imxomxg2\imxomxg2.dll %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imxomxg2 & goto ERROR)
 
-mkdir %DRVR_ROOT%\imx-vpu-dwl >NUL 2>NUL
-copy %BUILD_ROOT%\imx-vpu-dwl\imx-vpu-dwl.dll %DRVR_ROOT%\imx-vpu-dwl\ >NUL
+copy %BUILD_ROOT%\imx-vpu-dwl\imx-vpu-dwl.dll %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imx-vpu-dwl & goto ERROR)
 
+:: Copy USB
 mkdir %DRVR_ROOT%\USB >NUL 2>NUL
 copy %BUILD_ROOT%\imxUcmTcpciCxClient\* %DRVR_ROOT%\USB\ >NUL
 if errorlevel 1 (set FAILURE=imxUcmTcpciCxClient & goto ERROR)

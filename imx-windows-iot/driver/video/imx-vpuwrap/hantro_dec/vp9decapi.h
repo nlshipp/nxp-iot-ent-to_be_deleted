@@ -146,6 +146,11 @@ struct Vp9DecConfig {
   u32 use_ringbuffer;
   u32 use_fetch_one_pic;
   u32 use_secure_mode;      /* Secure mode */
+  u32 use_cts_test;      /* all output buffers are reallocted in this mode if resolution change to bigger */
+#ifdef USE_EXTERNAL_BUFFER
+  u32 use_adaptive_buffers; // When sequence changes, if old output buffers (number/size) are sufficient for new sequence,
+                            // old buffers will be used instead of reallocating output buffer.
+#endif
   enum DecPictureFormat output_format;
   enum DecPicturePixelFormat pixel_format;
 };
@@ -174,6 +179,8 @@ enum DecRet Vp9DecEndOfStream(Vp9DecInst dec_inst);
 enum DecRet Vp9DecGetInfo(Vp9DecInst dec_inst, struct Vp9DecInfo *dec_info);
 
 #ifdef USE_EXTERNAL_BUFFER
+enum DecRet  Vp9DecRemoveBuffer(Vp9DecInst dec_inst);
+
 enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst, struct DWLLinearMem *info);
 
 enum DecRet Vp9DecGetBufferInfo(Vp9DecInst dec_inst, struct Vp9DecBufferInfo *mem_info);

@@ -84,6 +84,7 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
   u32 is_legacy = 0;
 
   (void)dec_cfg->dpb_flags;
+  enum DecRet ret=DEC_OK;
 
   /* check that right shift on negative numbers is performed signed */
 #if (((-1) >> 1) != (-1))
@@ -146,11 +147,14 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
 
   /* init struct DWL for the specified client */
   dwl_init.client_type = DWL_CLIENT_TYPE_VP9_DEC;
+  DWLSetSecureMode(dwl, dec_cfg->use_secure_mode);
 
   /* allocate instance */
   dec_cont =
     (struct Vp9DecContainer *)DWLmalloc(sizeof(struct Vp9DecContainer));
 
+  if (dec_cont == NULL)
+    return DEC_MEMFAIL;
   (void)DWLmemset(dec_cont, 0, sizeof(struct Vp9DecContainer));
   dec_cont->dwl = dwl;
 
@@ -169,6 +173,8 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
              (dec_cfg->dscale_cfg.down_scale_y != 2 &&
               dec_cfg->dscale_cfg.down_scale_y != 4 &&
               dec_cfg->dscale_cfg.down_scale_y != 8 )) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex);
+    DWLfree(dec_cont);
     return (DEC_PARAM_ERROR);
   } else {
     u32 scale_table[9] = {0, 0, 1, 0, 2, 0, 0, 0, 3};
@@ -185,6 +191,7 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
   dec_cont->use_p010_output = (dec_cfg->pixel_format == DEC_OUT_PIXEL_P010) ? 1 : 0;
   dec_cont->pixel_format = dec_cfg->pixel_format;
   dec_cont->secure_mode = dec_cfg->use_secure_mode;
+  dec_cont->cts_test = dec_cfg->use_cts_test;
 
   /* initial setup of instance */
 
@@ -211,20 +218,29 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
 #endif
   dec_cont->decoder.refbu_pred_hits = 0;
 
-  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK)
-    return DEC_MEMFAIL;
+  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_out) != FIFO_OK){
+    ret = DEC_MEMFAIL;
+    goto fail;
+  }
+  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_display) != FIFO_OK){
+    ret = DEC_MEMFAIL;
+    goto fail;
+  }
 
-  if (FifoInit(VP9DEC_MAX_PIC_BUFFERS, &dec_cont->fifo_display) != FIFO_OK)
-    return DEC_MEMFAIL;
-
-  if (pthread_mutex_init(&dec_cont->sync_out, NULL) ||
-      pthread_cond_init(&dec_cont->sync_out_cv, NULL))
-    return DEC_SYSTEM_ERROR;
+  if (pthread_mutex_init(&dec_cont->sync_out, NULL)){
+    ret = DEC_SYSTEM_ERROR;
+    goto fail;
+  }
+  if(pthread_cond_init(&dec_cont->sync_out_cv, NULL)) {
+    ret = DEC_SYSTEM_ERROR;
+    goto fail;
+  }
 
   DWLmemcpy(&dec_cont->hw_cfg, &hw_cfg, sizeof(DWLHwConfig));
 
   dec_cont->output_format = dec_cfg->output_format;
 #ifdef USE_EXTERNAL_BUFFER
+  dec_cont->use_adaptive_buffers = dec_cfg->use_adaptive_buffers;
   dec_cont->buffer_num_added = 0;
   dec_cont->ext_buffer_config  = 0;
   if (dec_cont->down_scale_enabled)
@@ -263,7 +279,8 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
 #ifdef USE_EXTERNAL_BUFFER
   dec_cont->bq = Vp9BufferQueueInitialize(dec_cont->num_buffers);
   if (dec_cont->bq == NULL) {
-    return DEC_MEMFAIL;
+    ret = DEC_MEMFAIL;
+    goto fail;
   }
 
   dec_cont->pp_bq = NULL;
@@ -271,8 +288,8 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
       IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
     dec_cont->pp_bq = Vp9BufferQueueInitialize(0);
     if (dec_cont->pp_bq == NULL) {
-      Vp9BufferQueueRelease(dec_cont->pp_bq, 1);
-      return DEC_MEMFAIL;
+      ret =  DEC_MEMFAIL;
+      goto fail;
     }
   }
 #endif
@@ -335,6 +352,16 @@ enum DecRet Vp9DecInit(Vp9DecInst *dec_inst, const void *dwl, struct Vp9DecConfi
   (void)dwl_init;
   (void)is_legacy;
   return DEC_OK;
+fail:
+  if (dec_cont->fifo_out) FifoRelease(dec_cont->fifo_out);
+  if (dec_cont->fifo_display) FifoRelease(dec_cont->fifo_display);
+  pthread_mutex_destroy(&dec_cont->sync_out);
+  pthread_cond_destroy(&dec_cont->sync_out_cv);
+  if (dec_cont->bq) Vp9BufferQueueRelease(dec_cont->bq, 1);
+  if (dec_cont->pp_bq) Vp9BufferQueueRelease(dec_cont->pp_bq, 1);
+  DWLfree(dec_cont);
+
+  return ret;
 }
 
 void Vp9DecRelease(Vp9DecInst dec_inst) {
@@ -785,6 +812,7 @@ i32 Vp9DecodeHeaders(struct Vp9DecContainer *dec_cont,
   i32 ret;
   struct DecAsicBuffers *asic_buff = dec_cont->asic_buff;
   struct Vp9Decoder *dec = &dec_cont->decoder;
+  i32 out_index, discard_picture = 0;
 
   dec_cont->prev_is_key = dec->key_frame;
   dec->prev_is_key_frame = dec->key_frame;
@@ -818,18 +846,38 @@ i32 Vp9DecodeHeaders(struct Vp9DecContainer *dec_cont,
     if(asic_buff->picture_info[asic_buff->out_buffer_i].nbr_of_err_mbs)
       return DEC_PIC_CONSUMED;
 #endif
+    if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER))
+      out_index = asic_buff->out_buffer_i;
+    else
+      out_index = dec_cont->asic_buff->pp_buffer_map[asic_buff->out_buffer_i];
+
+    pthread_mutex_lock(&dec_cont->sync_out);
+    if (dec_cont->asic_buff->display_index[out_index])
+      discard_picture = 1;
+    pthread_mutex_unlock(&dec_cont->sync_out);
+
+    /* If in secure mode and buffer is not returned yet, discard it */
+    if (dec_cont->secure_mode && discard_picture == 1)
+      return DEC_PIC_CONSUMED;
+
+    /* If USE_PICTURE_DISCARD enabled, discard it instead of memcpy */
+#ifdef USE_PICTURE_DISCARD
+    if (discard_picture == 1)
+      return DEC_PIC_CONSUMED;
+#endif
+
+    i32 tmp_ret = Vp9GetBuffer4ShowExisting(dec_cont);
+    if (tmp_ret != DEC_OK)
+      return tmp_ret;
     Vp9BufferQueueAddRef(dec_cont->bq, asic_buff->out_buffer_i);
 #ifdef USE_EXTERNAL_BUFFER
     Vp9BufferQueueAddRef(dec_cont->pp_bq, asic_buff->pp_buffer_map[asic_buff->out_buffer_i]);
 #endif
     Vp9SetupPicToOutput(dec_cont, input->pic_id);
-    asic_buff->out_buffer_i = -1;
+    asic_buff->out_buffer_i = VP9_UNDEFINED_BUFFER;
     Vp9PicToOutput(dec_cont);
-#ifdef USE_PICTURE_DISCARD
-    return DEC_PIC_CONSUMED;
-#else
+
     return DEC_PIC_DECODED;
-#endif
   }
   /* Decode frame header (now starts bool coder as well) */
   ret = Vp9DecodeFrameHeader(input->stream + dec->frame_tag_size,
@@ -877,6 +925,81 @@ i32 Vp9DecodeHeaders(struct Vp9DecContainer *dec_cont,
     return DEC_STREAM_NOT_SUPPORTED;
   }
 
+  if (dec_cont->cts_test) {
+    Vp9CalculateBufSize(dec_cont, -1);
+    u32 new_buff_size;
+    if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, REFERENCE_BUFFER)) {
+      new_buff_size = asic_buff->picture_size;
+    } else {
+      new_buff_size = asic_buff->pp_size;
+    }
+
+    if (((dec_cont->use_adaptive_buffers &&
+      dec_cont->ext_buffer_size < new_buff_size) ||
+      (!dec_cont->use_adaptive_buffers &&
+      ((NEXT_MULTIPLE(dec_cont->width, 8)) * (NEXT_MULTIPLE(dec_cont->height, 8)) !=
+      asic_buff->width * asic_buff->height))) &&
+      (Vp9CheckSupport(dec_cont) == HANTRO_OK) &&
+      dec->key_frame && dec->resolution_change == 0 &&
+      dec_cont->cts_test && dec_cont->dec_stat == VP9DEC_DECODING) {
+      u32 i = 0;
+      if (dec_cont->bq) {
+        if (dec_cont->asic_buff->out_buffer_i != VP9_UNDEFINED_BUFFER) {
+          /* Workaround for ref counting since this buffer is never used. */
+          Vp9BufferQueueRemoveRef(dec_cont->bq, dec_cont->asic_buff->out_buffer_i);
+          dec_cont->asic_buff->out_buffer_i = VP9_UNDEFINED_BUFFER;
+        }
+
+        for (i = 0; i < VP9_REF_LIST_SIZE; i++) {
+          i32 ref_buffer_i = Vp9BufferQueueGetRef(dec_cont->bq, i);
+          if (ref_buffer_i != VP9_UNDEFINED_BUFFER) {
+            Vp9BufferQueueRemoveRef(dec_cont->bq, ref_buffer_i);
+          }
+        }
+#ifndef USE_EXT_BUF_SAFE_RELEASE
+        if (dec_cont->output_format == DEC_OUT_FRM_TILED_4X4) {
+            for (i = 0; i < dec_cont->num_buffers; i++) {
+              Vp9BufferQueueEmptyRef(dec_cont->bq, i);
+            }
+        }
+#endif
+        Vp9BufferQueueWaitPending(dec_cont->bq);
+      }
+      //Vp9AsicReleaseMem(dec_cont);
+      //Vp9AsicReleaseFilterBlockMem(dec_cont);
+      Vp9AsicReleasePictures(dec_cont);
+#ifdef USE_EXTERNAL_BUFFER
+#if 0
+      for (i = 0; i < VP9DEC_MAX_PIC_BUFFERS; i++) {
+        //Vp9BufferQueueEmptyRef(dec_cont->bq, i);
+        dec_cont->asic_buff->display_index[i] = 0;
+      }
+#endif
+
+      dec_cont->buffer_num_added = 0;
+      dec_cont->buffer_index = 0;
+      dec_cont->num_buffers = dec_cont->num_buffers_reserved;
+      dec_cont->num_pp_buffers = 0;
+
+      dec_cont->bq = Vp9BufferQueueInitialize(dec_cont->num_buffers_reserved);
+      if (dec_cont->bq == NULL) {
+        return DEC_MEMFAIL;
+      }
+
+      dec_cont->pp_bq = NULL;
+      if (IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER) ||
+          IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
+        dec_cont->pp_bq = Vp9BufferQueueInitialize(0);
+        if (dec_cont->pp_bq == NULL) {
+          Vp9BufferQueueRelease(dec_cont->pp_bq, 1);
+          return DEC_MEMFAIL;
+        }
+      }
+#endif
+      dec_cont->dec_stat = VP9DEC_INITIALIZED;
+    }
+  }
+
   dec_cont->width = dec->width;
   dec_cont->height = dec->height;
 
@@ -917,7 +1040,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
   static struct DWLLinearMem old_segment_map;
 
   if (dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
+
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->logical_size < dec_cont->next_buf_size) {
     return DEC_PARAM_ERROR;
@@ -925,6 +1048,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
 
   //if (dec_cont->buf_num == 0)
   //  return DEC_EXT_BUFFER_REJECTED;
+  dec_cont->ext_buffer_size = info->size;
 
 #ifdef EXTERNAL_BUFFER_INFO
   printf(__FUNCTION__);
@@ -954,6 +1078,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
 
     ASSERT(dec_cont->buffer_index < dec_cont->num_buffers);
     asic_buff->pictures[dec_cont->buffer_index] = *info;
+    asic_buff->display_index[dec_cont->buffer_index] = 0;
     dec_cont->buffer_num_added++;
     if (dec_cont->buf_num)
       dec_cont->buf_num--;
@@ -975,7 +1100,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
           && IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, RASTERSCAN_OUT_BUFFER)) {
         dec_cont->buf_type = RASTERSCAN_OUT_BUFFER;
         dec_cont->next_buf_size = asic_buff->pp_size;
-        dec_cont->buf_to_free = asic_buff->realloc_out_buffer ? &asic_buff->pp_pictures[dec_cont->buffer_index] : NULL;
+        dec_cont->buf_to_free = asic_buff->realloc_out_buffer ? &asic_buff->pp_pictures[dec_cont->buffer_index - 1] : NULL;
         dec_cont->buf_num = 1;
 #ifdef ASIC_TRACE_SUPPORT
         dec_cont->is_frame_buffer = 0;
@@ -987,7 +1112,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
                && IS_EXTERNAL_BUFFER(dec_cont->ext_buffer_config, DOWNSCALE_OUT_BUFFER)) {
         dec_cont->buf_type = DOWNSCALE_OUT_BUFFER;
         dec_cont->next_buf_size = asic_buff->pp_size;
-        dec_cont->buf_to_free = asic_buff->realloc_out_buffer ? &asic_buff->pp_pictures[dec_cont->buffer_index] : NULL;
+        dec_cont->buf_to_free = asic_buff->realloc_out_buffer ? &asic_buff->pp_pictures[dec_cont->buffer_index - 1] : NULL;
         dec_cont->buf_num = 1;
 #ifdef ASIC_TRACE_SUPPORT
         dec_cont->is_frame_buffer = 0;
@@ -1020,6 +1145,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
 
     /* Check whether a new buffer is added, or an old buffer is reallocated. */
     asic_buff->pp_pictures[dec_cont->buffer_index] = *info;
+    asic_buff->display_index[dec_cont->buffer_index] = 0;
     if (!asic_buff->realloc_out_buffer) {
       dec_cont->buffer_index++;
       dec_cont->buffer_num_added++;
@@ -1068,6 +1194,7 @@ enum DecRet Vp9DecAddBuffer(Vp9DecInst dec_inst,
     ASSERT(dec_cont->buffer_index < dec_cont->num_buffers);
 
     asic_buff->pp_pictures[dec_cont->buffer_index] = *info;
+    asic_buff->display_index[dec_cont->buffer_index] = 0;
     if (!asic_buff->realloc_out_buffer) {
       dec_cont->buffer_index++;
       dec_cont->buffer_num_added++;
@@ -1147,6 +1274,7 @@ enum DecRet Vp9DecGetBufferInfo(Vp9DecInst dec_inst, struct Vp9DecBufferInfo *me
 
     // TODO(min): here we assume that the buffer should be freed externally.
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
     dec_cont->buf_not_added = 1;
   } else

@@ -31,6 +31,8 @@ NTSTATUS ClientTypeToCoreId(ULONG ClientType, ULONG * CoreId)
     {
     case DWL_CLIENT_TYPE_H264_DEC:
     case DWL_CLIENT_TYPE_VP8_DEC:
+    case DWL_CLIENT_TYPE_MPEG2_DEC:
+    case DWL_CLIENT_TYPE_MPEG4_DEC:
         *CoreId = 0;
         break;
 
@@ -47,12 +49,107 @@ NTSTATUS ClientTypeToCoreId(ULONG ClientType, ULONG * CoreId)
     return Status;
 }
 
+
+NTSTATUS AllocEntry(VpuAlloc **alloc) {
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    /* Allocate internal memory for mem     * This is used only localy in km driver to keep info about granted memory.
+     * VpuAlloc is an elist.alloc entry!
+ntry in memList.
+     */
+    (*alloc) = (VpuAlloc *)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(VpuAlloc), VPU_KM_ALLOC_TAG_WDF);
+    if ((*alloc) == NULL) // check alloc status
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, IMXVPU_DRIVER_TRACE, "Out of memory");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        return Status;
+    }
+
+    memset(*alloc, 0, sizeof(VpuAlloc));
+
+    return Status;
+}
+
+NTSTATUS AllocMDL(VpuAlloc **alloc, ULONG size, ULONG cacheType) {
+
+    NTSTATUS Status = STATUS_SUCCESS;
+    static const PHYSICAL_ADDRESS zero = { 0,0 };           // this is required by MmAllocatePagesForMdlEx
+    static const PHYSICAL_ADDRESS high = { 0xffffffff, 0 }; // this is required by MmAllocatePagesForMdlEx
+
+    // Allocate
+    // Memory Description List
+    (*alloc)->mdl = MmAllocatePagesForMdlEx(zero, high, zero, size, cacheType, MM_ALLOCATE_FULLY_REQUIRED | MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS);
+    if ((*alloc)->mdl == NULL) {
+        TraceEvents(TRACE_LEVEL_ERROR, IMXVPU_DRIVER_TRACE, "Out of memory");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+    return Status;
+}
+
+NTSTATUS MapMDL(VpuAlloc **alloc, ULONG cacheType) {
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    try {
+        (*alloc)->virtAddr = MmMapLockedPagesSpecifyCache((*alloc)->mdl, UserMode, cacheType, NULL, FALSE, NormalPagePriority | MdlMappingNoExecute);
+    } except(EXCEPTION_EXECUTE_HANDLER) {
+        IMXVPU_LOG_LOW_MEMORY("MmMapLockedPagesSpecifyCache(...) failed. (vpuRam = 0x%p)", (*alloc)->virtAddr);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        return Status;
+    }
+    return Status;
+}
+
+
+NTSTATUS PrepareVpuBuffer(VpuAlloc **alloc, ULONG size, ULONG cacheType)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    Status = AllocEntry(alloc);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    Status = AllocMDL(alloc, size, cacheType);
+    if (!NT_SUCCESS(Status)) {
+        ExFreePoolWithTag(*alloc, VPU_KM_ALLOC_TAG_WDF); //Free entry
+        *alloc = NULL;
+        return Status;
+    }
+    return Status;
+}
+
+NTSTATUS AllocVpuBuffer(VpuAlloc **alloc, ULONG size, ULONG cacheType, WDFFILEOBJECT file)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+     Status = MapMDL(alloc, cacheType);
+    if (!NT_SUCCESS(Status)) {
+        return Status;
+    }
+
+    // TODO; perhaps reuse devContextPtr->memList head to hold vpu information.
+    PHYSICAL_ADDRESS physAddr = MmGetPhysicalAddress((*alloc)->virtAddr); // get PHY memory
+    (*alloc)->physAddr = physAddr.QuadPart;
+
+    (*alloc)->file = file;
+    (void)size;
+    (*alloc)->occupied = ONE_TIME_MEM;
+
+    return Status;
+}
+
 void FreeVpuBuffer(VpuAlloc *buffer)
 {
+    if (buffer == NULL) {
+        return;
+    }
     // free allocated resources
-    MmUnmapLockedPages(buffer->virtAddr, buffer->mdl);
-    if (buffer->physAddr != 0)
-    {
+    if (buffer->mdl != NULL) {
+        if (buffer->virtAddr != NULL) {
+            MmUnmapLockedPages(buffer->virtAddr, buffer->mdl);
+        }
+    }
+
+    if (buffer->physAddr != 0) {
         MmFreePagesFromMdl(buffer->mdl);
         ExFreePool(buffer->mdl);
     }
@@ -197,16 +294,31 @@ VpuCacheOperation(
 
     // search for allocated memory block
     VpuAlloc *ptr;
+    int found = FALSE;
 
     ExAcquireFastMutex(&deviceContextPtr->Mutex);
-    ptr = deviceContextPtr->memList.next;
-    while (ptr != NULL) {
+
+    // search in preallocated memory
+    for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+        ptr = deviceContextPtr->preallocated_mem[i];
         if ((ptr->virtAddr == *ppInputMemory) && (ptr->mdl != NULL)) {
             // flush/invalidate data cache for entry (DMA = TRUE)
             KeFlushIoBuffers(ptr->mdl, ReadOperation, TRUE);
+            found = TRUE;
             break;
         }
-        ptr = ptr->next;
+    }
+
+    if (!found) {
+        ptr = deviceContextPtr->memList.next;
+        while (ptr != NULL) {
+            if ((ptr->virtAddr == *ppInputMemory) && (ptr->mdl != NULL)) {
+                // flush/invalidate data cache for entry (DMA = TRUE)
+                KeFlushIoBuffers(ptr->mdl, ReadOperation, TRUE);
+                break;
+            }
+            ptr = ptr->next;
+        }
     }
     ExReleaseFastMutex(&deviceContextPtr->Mutex);
 
@@ -619,7 +731,6 @@ Return Value:
     NTSTATUS Status;
     ULONG CoreId;
     VpuAlloc *alloc = NULL;
-    PMDL vpuMdl = NULL;
 
     PAGED_CODE();
 
@@ -812,60 +923,58 @@ Return Value:
         break;
 
     case IOCTL_VPU_ALLOC_MEM:
+        /* S - Check if input-output structure has size */
         if (InputBufferLength != sizeof(IMXVPU_MEMORY) || OutputBufferLength != sizeof(IMXVPU_MEMORY))
         {
             Status = STATUS_INVALID_PARAMETER;
             goto end;
         }
-
+        /* E - Check if input-output structure has size */
+        /* S - Main body of allocation */
         {
-            IMXVPU_MEMORY * pInputSize;
-            IMXVPU_MEMORY * pOutputMemory;
-            static const PHYSICAL_ADDRESS zero = { 0,0 };
-            static const PHYSICAL_ADDRESS high = { 0xffffffff, 0 };
-            WDFFILEOBJECT file;
-            MEMORY_CACHING_TYPE cacheType = MmNonCached;
+            IMXVPU_MEMORY * pInputSize;      // pointer to input structure
+            IMXVPU_MEMORY * pOutputMemory;   // output structure
+            WDFFILEOBJECT file;                             // file object - for memlist alloc entry
+            MEMORY_CACHING_TYPE cacheType = MmNonCached;    // cache type
 
+            // get file object from WDFREQUEST
             file = WdfRequestGetFileObject(Request);
+            // get InputBuffer from WDFREQUEST
             Status = WdfRequestRetrieveInputBuffer(Request,
                 0,
                 (PVOID*)&pInputSize,
                 &BufferSize);
+            // Check status of previous call
             if (!NT_SUCCESS(Status)) {
                 goto end;
             }
+            // Check if received size from previous call is correct
             if (BufferSize != sizeof(IMXVPU_MEMORY))
             {
                 Status = STATUS_INVALID_PARAMETER;
                 goto end;
             }
 
+            // Check if input PHY and VIRT addresses are NULL!
             if (pInputSize->physAddress != 0 || pInputSize->virtAddress != NULL)
             {
                 Status = STATUS_INVALID_ADDRESS;
                 goto end;
             }
 
+            // get OutputBuffer from WDFREQUEST
             Status = WdfRequestRetrieveOutputBuffer(Request,
                 sizeof(IMXVPU_MEMORY),
                 (PVOID*)&pOutputMemory,
                 0);
 
+            // Check status of previous call
             if (!NT_SUCCESS(Status)) {
                 goto end;
             }
 
-            pOutputMemory->size = pInputSize->size;
-
-            alloc = (VpuAlloc *)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(VpuAlloc), VPU_KM_ALLOC_TAG_WDF);
-            if (alloc == NULL)
-            {
-                TraceEvents(TRACE_LEVEL_ERROR, IMXVPU_DRIVER_TRACE, "Out of memory");
-                Status = STATUS_INSUFFICIENT_RESOURCES;
-                goto end;
-            }
-
-            // allocate contiguous memory for use in user space and also retrieve physical address 
+            /* S - allocation of requested memory */
+            // allocate contiguous memory for use in user space and also retrieve physical address
             switch (pInputSize->flags)
             {
             case VPU_MEM_CACHED:
@@ -877,82 +986,143 @@ Return Value:
             case VPU_MEM_WRITE_COMBINED:
                 cacheType = MmWriteCombined;
                 break;
+            case VPU_MEM_WC_REUSABLE:
+                cacheType = MmWriteCombined;
+                break;
             default:
                 Status = STATUS_INVALID_PARAMETER;
                 goto end;
             }
 
-            vpuMdl = MmAllocatePagesForMdlEx(zero, high, zero, pInputSize->size, cacheType, MM_ALLOCATE_FULLY_REQUIRED | MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS);
+            ExAcquireFastMutex(&deviceContextPtr->Mutex); // Lock Mutex
 
-            try {
-                pOutputMemory->virtAddress = MmMapLockedPagesSpecifyCache(vpuMdl, UserMode, cacheType, NULL, FALSE, NormalPagePriority | MdlMappingNoExecute);
-            } except(EXCEPTION_EXECUTE_HANDLER) {
-                IMXVPU_LOG_LOW_MEMORY(
-                    "MmMapLockedPagesSpecifyCache(...) failed. "
-                    "(vpuRam = 0x%p)",
-                    pOutputMemory->virtAddress);
-
-                Status = STATUS_INSUFFICIENT_RESOURCES;
-                goto end;
+            int index = -1;
+            /* Find free block if is*/
+            for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+                if (deviceContextPtr->preallocated_mem[i]->occupied != OCCUPIED) {
+                    index = i;
+                    break;
+                }
             }
+            if ((pInputSize->flags == VPU_MEM_WC_REUSABLE)
+              && (index != -1)
+              && (deviceContextPtr->memCounter < REUSABLE_MEM_BLOCKS_MAX)
+              && (pInputSize->size <= (VPU_BITS_BUF_SIZE + VPU_MEM_ALIGN)))
+            {
+                Status = AllocVpuBuffer(&deviceContextPtr->preallocated_mem[index], pInputSize->size, cacheType, file);
+                if (Status != STATUS_SUCCESS) {
+                    ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock Mutex
+                    goto end;
+                }
 
-            // TODO; perhaps reuse devContextPtr->memList head to hold vpu information.
-            PHYSICAL_ADDRESS physAddr = MmGetPhysicalAddress(pOutputMemory->virtAddress);
-            pOutputMemory->physAddress = physAddr.QuadPart;
+                pOutputMemory->physAddress = deviceContextPtr->preallocated_mem[index]->physAddr;
+                pOutputMemory->virtAddress = deviceContextPtr->preallocated_mem[index]->virtAddr;
+                pOutputMemory->size = pInputSize->size;
+                deviceContextPtr->preallocated_mem[index]->occupied = OCCUPIED;
+                deviceContextPtr->memCounter++;
+                ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock Mutex
+            }
+            else {
+                ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock Mutex
+                /* S - allocation of requested memory */
+                Status = PrepareVpuBuffer(&alloc, pInputSize->size, cacheType);
+                if (!NT_SUCCESS(Status)) {
+                    goto end;
+                }
+                Status = AllocVpuBuffer(&alloc, pInputSize->size, cacheType, file);
+                if (!NT_SUCCESS(Status)) {
+                    if (alloc->virtAddr == NULL) {
+                        MmFreePagesFromMdl(alloc->mdl);
+                        (alloc)->mdl = NULL;
+                    }
+                    ExFreePoolWithTag(alloc, VPU_KM_ALLOC_TAG_WDF); //Free entry
+                    goto end;
+                }
+                /* E - allocation of requested memory */
 
-            alloc->mdl = vpuMdl;
-            alloc->file = file;
-            alloc->physAddr = pOutputMemory->physAddress;
-            alloc->virtAddr = pOutputMemory->virtAddress;
+                /* S - Fill structure for a client */
+                pOutputMemory->physAddress = alloc->physAddr;
+                pOutputMemory->virtAddress = alloc->virtAddr;
+                pOutputMemory->size = pInputSize->size;
+                /* E - Fill structure for a client */
 
-            ExAcquireFastMutex(&deviceContextPtr->Mutex);
-            alloc->next = deviceContextPtr->memList.next;
-            deviceContextPtr->memList.next = alloc;
-            ExReleaseFastMutex(&deviceContextPtr->Mutex);
+                /* S - Insert entry to MemList*/
+                ExAcquireFastMutex(&deviceContextPtr->Mutex); // Lock Mutex
+                alloc->next = deviceContextPtr->memList.next;
+                deviceContextPtr->memList.next = alloc; // Copy alloc structure to memlist
+                ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock Mutex
+                /* E - Insert entry to MemList*/
 
-            alloc = NULL;
-            vpuMdl = NULL;
-
+                alloc = NULL;
+            }
             BytesWritten = sizeof(IMXVPU_MEMORY);
         }
+        /* E - Main body of allocation */
         break;
 
     case IOCTL_VPU_FREE_MEM:
+
+
+        /* S - Check if input-output structure has correct size */
         if (InputBufferLength != sizeof(IMXVPU_MEMORY) || OutputBufferLength != 0)
         {
             Status = STATUS_INVALID_PARAMETER;
             goto end;
         }
+        /* E - Check if input-output structure has correct size */
 
+        /* S - Main body of free */
         {
-            IMXVPU_MEMORY * pInputMemory;
-
+            IMXVPU_MEMORY * pInputMemory; // pointer to input structure
+            // get InputBuffer from WDFREQUEST
             Status = WdfRequestRetrieveInputBuffer(Request,
                 0,
                 (PVOID*)&pInputMemory,
                 &BufferSize);
+            // Check status of previous call
             if (!NT_SUCCESS(Status)) {
                 goto end;
             }
+            // Check if received size from previous call is correct
+
             if (BufferSize != sizeof(IMXVPU_MEMORY))
             {
                 Status = STATUS_INVALID_PARAMETER;
                 goto end;
             }
 
+            // Check if input PHY and VIRT addresses are NOT NULL!
             if (pInputMemory->physAddress == 0 || pInputMemory->virtAddress == NULL)
             {
                 Status = STATUS_INVALID_ADDRESS;
                 goto end;
             }
 
-            // search for allocated memory block
-            VpuAlloc *ptr;
-            VpuAlloc *prev;
+            // Check if memory is _preallocated
+            ExAcquireFastMutex(&deviceContextPtr->Mutex); // Lock MemList Mutex
+            for (int i = 0; i < REUSABLE_MEM_BLOCKS_MAX; i++) {
+                if ((pInputMemory->virtAddress == deviceContextPtr->preallocated_mem[i]->virtAddr)
+                    && (pInputMemory->physAddress == deviceContextPtr->preallocated_mem[i]->physAddr)
+                    )
+                {
+                    deviceContextPtr->preallocated_mem[i]->file = NULL;
+                    deviceContextPtr->preallocated_mem[i]->occupied = REUSABLE;
+                    deviceContextPtr->memCounter--;
+                    MmUnmapLockedPages(deviceContextPtr->preallocated_mem[i]->virtAddr, deviceContextPtr->preallocated_mem[i]->mdl);
+                    deviceContextPtr->preallocated_mem[i]->virtAddr = NULL;
 
-            ExAcquireFastMutex(&deviceContextPtr->Mutex);
-            prev = &deviceContextPtr->memList;
-            ptr = prev->next;
+                    ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock MemList Mutex
+                    Status = STATUS_SUCCESS;
+                    goto end;
+                }
+            }
+
+            // search for allocated memory block
+            VpuAlloc *ptr;   // Entry pointer
+            VpuAlloc *prev;  // Previous entry pointer
+
+            prev = &deviceContextPtr->memList;            // assign beggining pointer
+            ptr = prev->next;                             // assign next pointe
             while (ptr != NULL) {
                 if ((ptr->virtAddr == pInputMemory->virtAddress) && (ptr->physAddr == pInputMemory->physAddress)) {
                     // unlink entry
@@ -963,7 +1133,7 @@ Return Value:
                 prev = ptr;
                 ptr = ptr->next;
             }
-            ExReleaseFastMutex(&deviceContextPtr->Mutex);
+            ExReleaseFastMutex(&deviceContextPtr->Mutex); // Unlock MemList Mutex
 
             if (ptr == NULL)
             {
@@ -972,10 +1142,11 @@ Return Value:
                 goto end;
             }
 
-            FreeVpuBuffer(ptr);
+            FreeVpuBuffer(ptr); //Free
 
             Status = STATUS_SUCCESS;
         }
+        /* E - Main body of free */
         break;
 
     case IOCTL_VPU_DEC_PULL_REG:
@@ -1133,18 +1304,6 @@ Return Value:
     }
 
 end:
-    if (vpuMdl != NULL)
-    {
-        MmFreePagesFromMdl(vpuMdl);
-        vpuMdl = NULL;
-    }
-
-    if (alloc != NULL)
-    {
-        ExFreePool(alloc);
-        alloc = NULL;
-    }
-
     WdfRequestCompleteWithInformation(Request, Status, BytesWritten);
     return;
 }

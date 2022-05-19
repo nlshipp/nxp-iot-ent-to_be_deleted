@@ -43,6 +43,7 @@
 #include "mpeg2hwd_utils.h"
 #include "mpeg2decapi_internal.h"
 #include "regdrv_g1.h"
+#include <basetsd.h>
 #ifdef MPEG2_ASIC_TRACE
 #include "mpeg2asicdbgtrace.h"
 #endif
@@ -146,9 +147,9 @@ Mpeg2DecRet mpeg2AllocateBuffers(DecContainer * dec_cont) {
   if(ret)
     return (MPEG2DEC_MEMFAIL);
 
-  MPEG2DEC_DEBUG(("Q-table: %x, %x\n",
-                  (u32) dec_cont->ApiStorage.p_qtable_base.virtual_address,
-                  dec_cont->ApiStorage.p_qtable_base.bus_address));
+  MPEG2DEC_DEBUG(("Q-table: %x, %llx\n",
+                  PtrToUint(dec_cont->ApiStorage.p_qtable_base.virtual_address),
+                  (u64)(dec_cont->ApiStorage.p_qtable_base.bus_address) ));
 
   /* Reference images */
   if(!dec_cont->ApiStorage.external_buffers) {
@@ -234,30 +235,33 @@ Mpeg2DecRet mpeg2AllocateBuffers(DecContainer * dec_cont) {
         InputQueueAddBuffer(dec_cont->pp_buffer_queue, &pp_buffer);
       }
     }
+#if 0
     /* initialize first picture buffer (work_out is 1 for the first picture)
      * grey, may be used as reference in certain error cases */
     (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf[1].data.virtual_address,
                      128, 384 * dec_cont->FrameDesc.total_mb_in_frame);
+#endif
 #else
     if (dec_cont->pp_enabled) {
       for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
         ret |= DWLMallocRefFrm(dec_cont->dwl, size_tmp,
                                &dec_cont->StrmStorage.p_pic_buf[i].data);
 
-        MPEG2DEC_DEBUG(("PicBuffer[%d]: %x, %x\n",
+        MPEG2DEC_DEBUG(("PicBuffer[%d]: %x, %llx\n",
                         i,
-                        (u32) dec_cont->StrmStorage.p_pic_buf[i].data.
-                        virtual_address,
+                        PtrToUint(dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address),
                         dec_cont->StrmStorage.p_pic_buf[i].data.bus_address));
 
         if(dec_cont->StrmStorage.p_pic_buf[i].data.bus_address == 0) {
           return (MPEG2DEC_MEMFAIL);
         }
       }
+#if 0
       /* initialize first picture buffer (work_out is 1 for the first picture)
        * grey, may be used as reference in certain error cases */
       (void) DWLmemset(dec_cont->StrmStorage.p_pic_buf[1].data.virtual_address,
                        128, 384 * dec_cont->FrameDesc.total_mb_in_frame);
+#endif
     }
 #endif
   }
@@ -330,6 +334,7 @@ Mpeg2DecRet mpeg2DecAllocExtraBPic(DecContainer * dec_cont) {
   if (dec_cont->pp_enabled) {
     /* Add PP output buffers. */
     struct DWLLinearMem pp_buffer;
+    pp_buffer.mem_type = DWL_MEM_TYPE_DPB;
     u32 pp_width, pp_height, pp_stride, pp_buff_size;
 
     pp_width = (dec_cont->FrameDesc.frame_width * 16) >> dec_cont->dscale_shift_x;
@@ -353,6 +358,8 @@ Mpeg2DecRet mpeg2DecAllocExtraBPic(DecContainer * dec_cont) {
     if (dec_cont->pp_enabled) {
       /* Add PP output buffers. */
       struct DWLLinearMem pp_buffer;
+      pp_buffer.mem_type = DWL_MEM_TYPE_DPB;
+
       u32 pp_width, pp_height, pp_stride, pp_buff_size;
 
       pp_width = (dec_cont->FrameDesc.frame_width * 16) >> dec_cont->dscale_shift_x;
@@ -736,7 +743,7 @@ void mpeg2FreeBuffers(DecContainer * dec_cont) {
   }
 #ifndef USE_EXTERNAL_BUFFER
   for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-    if(dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address != NULL) {
+    if(dec_cont->StrmStorage.p_pic_buf[i].data.bus_address != 0) {
       DWLFreeRefFrm(dec_cont->dwl,
                     &dec_cont->StrmStorage.p_pic_buf[i].data);
       dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address = NULL;
@@ -745,7 +752,7 @@ void mpeg2FreeBuffers(DecContainer * dec_cont) {
   }
   if (dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-      if(dec_cont->StrmStorage.pp_buffer[i].virtual_address != NULL) {
+      if(dec_cont->StrmStorage.pp_buffer[i].bus_address != 0) {
         DWLFreeLinear(dec_cont->dwl,
                       &dec_cont->StrmStorage.pp_buffer[i]);
         dec_cont->StrmStorage.pp_buffer[i].virtual_address = NULL;
@@ -761,7 +768,7 @@ void mpeg2FreeBuffers(DecContainer * dec_cont) {
 #else
   if (dec_cont->pp_enabled) {
     for(i = 0; i < dec_cont->StrmStorage.num_buffers ; i++) {
-      if(dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address != NULL) {
+      if(dec_cont->StrmStorage.p_pic_buf[i].data.bus_address != 0) {
         DWLFreeRefFrm(dec_cont->dwl,
                       &dec_cont->StrmStorage.p_pic_buf[i].data);
         dec_cont->StrmStorage.p_pic_buf[i].data.virtual_address = NULL;

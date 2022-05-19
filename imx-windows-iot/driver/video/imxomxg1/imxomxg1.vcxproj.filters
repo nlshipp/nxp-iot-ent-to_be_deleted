@@ -10,12 +10,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="imxomxg1.cpp" />
     <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_h264.c">
       <Filter>OpenMax</Filter>
     </ClCompile>
-    <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="imxomxg1.cpp" />
     <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_vp8.c">
+      <Filter>OpenMax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg2.c">
+      <Filter>OpenMax</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg4.c">
       <Filter>OpenMax</Filter>
     </ClCompile>
   </ItemGroup>
@@ -27,12 +34,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_jpeg.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg4.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_pp.h">
@@ -51,6 +52,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_vp8.h">
+      <Filter>OpenMax</Filter>
+    </ClInclude>
+    <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg4.h">
+      <Filter>OpenMax</Filter>
+    </ClInclude>
+    <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg2.h">
       <Filter>OpenMax</Filter>
     </ClInclude>
   </ItemGroup>

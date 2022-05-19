@@ -905,8 +905,11 @@ u32 StrmDec_DecodeVlcBlock(DecContainer * dec_container, u32 mb_num,
                   MP4DEC_DEBUG(("NOK5\n"));
                   return (HANTRO_NOK);
                 }
-              } else
+              } else {
+                if (run >= 27)
+                  return (HANTRO_NOK);
                 lmax = lmax_inter_table[run];
+              }
             } else if(escape_type == 1 && intra) {
               if(last == 1) {
                 if(run == 0)
@@ -921,13 +924,22 @@ u32 StrmDec_DecodeVlcBlock(DecContainer * dec_container, u32 mb_num,
                   MP4DEC_DEBUG(("NOK6\n"));
                   return (HANTRO_NOK);
                 }
-              } else
+              } else {
+                if (run >= 15)
+                  return (HANTRO_NOK);
                 lmax = lmax_intra_table[run];
+              }
             } else if(escape_type == 2 && intra) {
-              if(last == 1)
+              if(last == 1) {
+                if (level < 1 || level >= 10)
+                  return (HANTRO_NOK);
                 rmax = rmax_intra_table_last[level - 1];
-              else    /* Last == 0 */
+              }
+              else {   /* Last == 0 */
+                if (level < 1 || level >= 29)
+                  return (HANTRO_NOK);
                 rmax = rmax_intra_table[level - 1];
+              }
             } else {
               /* inter mb and escape type 2 */
               if(last == 1) {
@@ -941,8 +953,11 @@ u32 StrmDec_DecodeVlcBlock(DecContainer * dec_container, u32 mb_num,
                   MP4DEC_DEBUG(("NOK7\n"));
                   return (HANTRO_NOK);
                 }
-              } else  /* Last == 0 */
+              } else { /* Last == 0 */
+                if (level < 1 || level >= 14)
+                  return (HANTRO_NOK);
                 rmax = rmax_inter_table[level - 1];
+              }
             }
 
             if(escape_type == 1) {
@@ -1175,12 +1190,22 @@ u32 StrmDec_DecodeMv(DecContainer * dec_container, u32 mb_num) {
       tmp = buffer >> (32 - rsize);
 
       if(hor_mv > 0) {
-        hor_mv = ((hor_mv - 1) << rsize) + tmp + 1;
+        /* add this judgement to avoid bad bit shift operation */
+        if(rsize > 31)
+          hor_mv = 0 + tmp + 1;
+        else
+          hor_mv = ((hor_mv - 1) << rsize) + tmp + 1;
       } else {
-        hor_mv = -((-hor_mv - 1) << rsize) - tmp - 1;
+        if(rsize > 31)
+          hor_mv = 0 - tmp - 1;
+        else
+          hor_mv = -((-hor_mv - 1) << rsize) - tmp - 1;
       }
       len -= rsize;
-      buffer <<= rsize;
+      if(rsize > 31)
+        buffer = 0;
+      else
+        buffer <<= rsize;
     }
     if(len < 13) {
       if(StrmDec_FlushBits(dec_container, 32 - len) == END_OF_STREAM)
@@ -1207,12 +1232,22 @@ u32 StrmDec_DecodeMv(DecContainer * dec_container, u32 mb_num) {
       tmp = buffer >> (32 - rsize);
 
       if(ver_mv > 0) {
-        ver_mv = ((ver_mv - 1) << rsize) + tmp + 1;
+        /* add this judgement to avoid bad bit shift operation */
+        if(rsize > 31)
+          ver_mv = 0 + tmp + 1;
+        else
+          ver_mv = ((ver_mv - 1) << rsize) + tmp + 1;
       } else {
-        ver_mv = -((-ver_mv - 1) << rsize) - tmp - 1;
+        if(rsize > 31)
+          ver_mv = 0 - tmp - 1;
+        else
+          ver_mv = -((-ver_mv - 1) << rsize) - tmp - 1;
       }
       len -= rsize;
-      buffer <<= rsize;
+      if(rsize > 31)
+        buffer = 0;
+      else
+        buffer <<= rsize;
     }
 
     /* limit motion vectors to range [-992,992] before writing to asic */

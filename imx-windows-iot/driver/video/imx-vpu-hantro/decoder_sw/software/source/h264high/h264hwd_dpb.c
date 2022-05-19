@@ -51,18 +51,19 @@
 --------------------------------------------------------------------------------
     3. Module defines
 ------------------------------------------------------------------------------*/
+#define MAX_DPB_SIZE 16
 
 /* Function style implementation for IS_REFERENCE() macro to fix compiler
  * warnings */
-static u32 IsReference( const dpbPicture_t a, const u32 f ) {
+static u32 IsReference( const dpbPicture_t* a, const u32 f ) {
   switch(f) {
   case TOPFIELD:
-    return a.status[0] && a.status[0] != EMPTY;
+    return a->status[0] && a->status[0] != EMPTY;
   case BOTFIELD:
-    return a.status[1] && a.status[1] != EMPTY;
+    return a->status[1] && a->status[1] != EMPTY;
   default:
-    return a.status[0] && a.status[0] != EMPTY &&
-           a.status[1] && a.status[1] != EMPTY;
+    return a->status[0] && a->status[0] != EMPTY &&
+           a->status[1] && a->status[1] != EMPTY;
   }
 }
 
@@ -234,7 +235,7 @@ i32 ComparePictures(const void *ptr1, const void *ptr2) {
   pic2 = (dpbPicture_t *) ptr2;
 
   /* both are non-reference pictures, check if needed for display */
-  if(!IS_REFERENCE(*pic1, FRAME) && !IS_REFERENCE(*pic2, FRAME)) {
+  if(!IS_REFERENCE(pic1, FRAME) && !IS_REFERENCE(pic2, FRAME)) {
     if(pic1->to_be_displayed && !pic2->to_be_displayed)
       return (-1);
     else if(!pic1->to_be_displayed && pic2->to_be_displayed)
@@ -243,10 +244,10 @@ i32 ComparePictures(const void *ptr1, const void *ptr2) {
       return (0);
   }
   /* only pic 1 needed for reference -> greater */
-  else if(!IS_REFERENCE(*pic2, FRAME))
+  else if(!IS_REFERENCE(pic2, FRAME))
     return (-1);
   /* only pic 2 needed for reference -> greater */
-  else if(!IS_REFERENCE(*pic1, FRAME))
+  else if(!IS_REFERENCE(pic1, FRAME))
     return (1);
   /* both are short term reference pictures -> check pic_num */
   else if(IS_SHORT_TERM(*pic1, FRAME) && IS_SHORT_TERM(*pic2, FRAME)) {
@@ -362,13 +363,13 @@ i32 ComparePicturesB(const void *ptr1, const void *ptr2, i32 curr_poc) {
   pic2 = (dpbPicture_t *) ptr2;
 
   /* both are non-reference pictures */
-  if(!IS_REFERENCE(*pic1, FRAME) && !IS_REFERENCE(*pic2, FRAME))
+  if(!IS_REFERENCE(pic1, FRAME) && !IS_REFERENCE(pic2, FRAME))
     return (0);
   /* only pic 1 needed for reference -> greater */
-  else if(!IS_REFERENCE(*pic2, FRAME))
+  else if(!IS_REFERENCE(pic2, FRAME))
     return (-1);
   /* only pic 2 needed for reference -> greater */
-  else if(!IS_REFERENCE(*pic1, FRAME))
+  else if(!IS_REFERENCE(pic1, FRAME))
     return (1);
   /* both are short term reference pictures -> check pic_order_cnt */
   else if(IS_SHORT_TERM(*pic1, FRAME) && IS_SHORT_TERM(*pic2, FRAME)) {
@@ -550,9 +551,11 @@ u32 h264bsdReorderRefPicList(dpbStorage_t * dpb,
     dpb->list[ref_idx++] = (u32)index;
     /* remove later references to the same picture */
     for(j = k = ref_idx; j <= num_ref_idx_active; j++)
-      if(dpb->list[j] != (u32)index)
+      if(dpb->list[j] != (u32)index) {
+        if(k >= MAX_DPB_SIZE + 1)
+          break;
         dpb->list[k++] = dpb->list[j];
-
+      }
     i++;
   }
 
@@ -1252,7 +1255,7 @@ u32 h264bsdMarkDecRefPic(dpbStorage_t * dpb,
               (dpb->buffer[i].status[0] == UNUSED && dpb->buffer[i].status[1] == UNUSED)) {
             SET_STATUS(dpb->buffer[i], UNUSED, FRAME);
             if(storage->pp_enabled && dpb->buffer[i].to_be_displayed) {
-              InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->virtual_address);
+              InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->bus_address);
             }
             dpb->buffer[i].to_be_displayed = 0;
             DpbBufFree(dpb, i);
@@ -1261,7 +1264,7 @@ u32 h264bsdMarkDecRefPic(dpbStorage_t * dpb,
           if (dpb->buffer[i].pic_num < 0 && dpb->buffer[i].to_be_displayed) {
             SET_STATUS(dpb->buffer[i], UNUSED, FRAME);
             if(storage->pp_enabled && dpb->buffer[i].to_be_displayed) {
-              InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->virtual_address);
+              InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->bus_address);
             }
             dpb->buffer[i].to_be_displayed = 0;
             DpbBufFree(dpb, i);
@@ -1331,13 +1334,13 @@ u32 h264bsdMarkDecRefPic(dpbStorage_t * dpb,
           DEBUG_PRINT(("Same frame num in DPB buf %d and DBP buf %d -> flush\n", i, j));
           SET_STATUS(dpb->buffer[i], UNUSED, FRAME);
           if(storage->pp_enabled && dpb->buffer[i].to_be_displayed) {
-            InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->virtual_address);
+            InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->bus_address);
           }
           dpb->buffer[i].to_be_displayed = 0;
           DpbBufFree(dpb, i);
           SET_STATUS(dpb->buffer[j], UNUSED, FRAME);
           if(storage->pp_enabled && dpb->buffer[j].to_be_displayed) {
-            InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[j].ds_data->virtual_address);
+            InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[j].ds_data->bus_address);
           }
           dpb->buffer[j].to_be_displayed = 0;
           DpbBufFree(dpb, j);
@@ -1425,8 +1428,8 @@ void h264DpbUpdateOutputList(dpbStorage_t * dpb) {
   if(dpb->current_out == dpb->buffer + dpb->dpb_size) {
     for(i = 0; i < dpb->dpb_size; i++) {
       if(!dpb->buffer[i].to_be_displayed &&
-          !IS_REFERENCE(dpb->buffer[i], 0) &&
-          !IS_REFERENCE(dpb->buffer[i], 1)) {
+          !IS_REFERENCE(&(dpb->buffer[i]), 0) &&
+          !IS_REFERENCE(&(dpb->buffer[i]), 1)) {
         dpbPicture_t tmp_pic = *dpb->current_out;
 
         *dpb->current_out = dpb->buffer[i];
@@ -1481,28 +1484,30 @@ i32 h264bsdGetRefPicData(const dpbStorage_t * dpb, u32 index) {
 
 ------------------------------------------------------------------------------*/
 
-u8 *h264bsdGetRefPicDataVlcMode(const dpbStorage_t * dpb, u32 index,
+struct DWLLinearMem h264bsdGetRefPicDataVlcMode(const dpbStorage_t * dpb, u32 index,
                                 u32 field_mode) {
 
   /* Variables */
+  struct DWLLinearMem empty;
+  (void)DWLmemset(&empty, 0, sizeof(struct DWLLinearMem));
 
   /* Code */
 
   if(!field_mode) {
     if(index >= dpb->dpb_size)
-      return (NULL);
+      return empty;
     else if(!IS_EXISTING(dpb->buffer[index], FRAME))
-      return (NULL);
+      return empty;
     else
-      return (u8 *) (dpb->buffer[index].data->virtual_address);
+      return *(dpb->buffer[index].data);
   } else {
     const u32 field = (index & 1) ? BOTFIELD : TOPFIELD;
     if(index / 2 >= dpb->dpb_size)
-      return (NULL);
+      return empty;
     else if(!IS_EXISTING(dpb->buffer[index / 2], field))
-      return (NULL);
+      return empty;
     else
-      return (u8 *) (dpb->buffer[index / 2].data->virtual_address);
+      return  *(dpb->buffer[index / 2].data);
   }
 
 }
@@ -1533,7 +1538,7 @@ void *h264bsdAllocateDpbImage(dpbStorage_t * dpb) {
 
   /*
    * ASSERT(!dpb->buffer[dpb->dpb_size].to_be_displayed &&
-   * !IS_REFERENCE(dpb->buffer[dpb->dpb_size]));
+   * !IS_REFERENCE(&(dpb->buffer[dpb->dpb_size])));
    * ASSERT(dpb->fullness <= dpb->dpb_size);
    */
 
@@ -1918,6 +1923,7 @@ u32 h264bsdInitDpb(
       dpb->pic_buff_id[i] = id;
     }
 
+#ifdef SET_EMPTY_PICTURE_DATA
     if(p_dpb_params->is_high_supported) {
       /* reset direct motion vectors */
       void * base = (char *) (dpb->pic_buffers[i].virtual_address) +
@@ -1929,6 +1935,7 @@ u32 h264bsdInitDpb(
              dpb->sync_mc_offset;
       (void)DWLmemset(base, ~0, 32);
     }
+#endif
 
     if (((storage_t *)(dpb->storage))->pp_enabled) {
       /* Add PP output buffers. */
@@ -1944,7 +1951,7 @@ u32 h264bsdInitDpb(
     }
 #else
     if (!((storage_t *)(dpb->storage))->pp_enabled) {
-      if (dpb->pic_buffers[i].virtual_address == NULL)
+      if (dpb->pic_buffers[i].bus_address == 0)
         return H264DEC_WAITING_FOR_BUFFER;
     } else {
       dpb->pic_buffers[i].mem_type = DWL_MEM_TYPE_DPB;
@@ -1970,6 +1977,7 @@ u32 h264bsdInitDpb(
         dpb->pic_buff_id[i] = id;
       }
 
+#ifdef SET_EMPTY_PICTURE_DATA
       if(p_dpb_params->is_high_supported) {
         /* reset direct motion vectors */
         void * base = (char *) (dpb->pic_buffers[i].virtual_address) +
@@ -1981,6 +1989,7 @@ u32 h264bsdInitDpb(
                dpb->sync_mc_offset;
         (void)DWLmemset(base, ~0, 32);
       }
+#endif
 
     }
 #endif
@@ -2350,7 +2359,7 @@ u32 h264bsdCheckGapsInFrameNum(dpbStorage_t * dpb, u32 frame_num, u32 is_ref_pic
       /* add to end of list */
       /*
        * ASSERT(!dpb->buffer[dpb->dpb_size].to_be_displayed &&
-       * !IS_REFERENCE(dpb->buffer[dpb->dpb_size])); */
+       * !IS_REFERENCE(&(dpb->buffer[dpb->dpb_size]))); */
 #if 0
       (void)h264bsdAllocateDpbImage(dpb);
 #else
@@ -2711,14 +2720,19 @@ void h264bsdFreeDpb(
   (void)dwl;
 
   for(i = 0; i < dpb->tot_buffers; i++) {
-#ifdef USE_EXTERNAL_BUFFER
-    if (((storage_t *)(dpb->storage))->pp_enabled)
+#ifdef USE_NULL_POINTER_PROTECT
+    if(dpb->pic_buffers[i].bus_address)
 #endif
     {
-      DWLFreeRefFrm(dwl, dpb->pic_buffers+i);
+#ifdef USE_EXTERNAL_BUFFER
+      if (((storage_t *)(dpb->storage))->pp_enabled)
+#endif
+      {
+        DWLFreeRefFrm(dwl, dpb->pic_buffers+i);
+      }
+      if(dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
+        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
     }
-    if(dpb->pic_buff_id[i] != FB_NOT_VALID_ID)
-      ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
   }
 
   if(dpb->out_buf != NULL) {
@@ -3029,26 +3043,29 @@ void h264EmptyDpb(dpbStorage_t *dpb) {
 #endif
   }
 
-  if(dpb->fb_list) {
 #ifndef USE_OMXIL_BUFFER
-    /* Remove pictures in dpb->out_buf */
-    u32 tmp_idx, id;
-    for (i = 0; i < dpb->num_out; i++) {
-      tmp_idx = dpb->out_index_r++;
-      if (dpb->out_index_r == dpb->dpb_size + 1)
-        dpb->out_index_r = 0;
-      id = dpb->out_buf[tmp_idx].mem_idx;
-      ClearOutput(dpb->fb_list, id);
-    }
-#endif
-    RemoveTempOutputAll(dpb->fb_list);
-    RemoveOutputAll(dpb->fb_list);
+  /* Remove pictures in dpb->out_buf */
+  u32 tmp_idx, id;
+  for (i = 0; i < dpb->num_out; i++) {
+    tmp_idx = dpb->out_index_r++;
+    if (dpb->out_index_r == dpb->dpb_size + 1)
+      dpb->out_index_r = 0;
+    id = dpb->out_buf[tmp_idx].mem_idx;
+    ClearOutput(dpb->fb_list, id);
   }
+#endif
+  RemoveTempOutputAll(dpb->fb_list);
+  RemoveOutputAll(dpb->fb_list);
 
 #ifdef USE_OMXIL_BUFFER
   for (i = 0; i < dpb->tot_buffers; i++) {
-    if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
-      ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+#ifdef USE_NULL_POINTER_PROTECT
+    if (dpb->pic_buffers[i].bus_address)
+#endif
+    {
+      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
+        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+      }
     }
   }
   dpb->fb_list->free_buffers = 0;
@@ -3116,7 +3133,7 @@ void h264DpbRecover(dpbStorage_t *dpb, u32 curr_frame_num, i32 curr_poc) {
       buffer[i].status[0] = UNUSED;
       buffer[i].status[1] = UNUSED;
       if(storage->pp_enabled && dpb->buffer[i].to_be_displayed) {
-        InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->virtual_address);
+        InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->bus_address);
       }
       buffer[i].to_be_displayed = 0;
       DpbBufFree(dpb, i);
@@ -3129,7 +3146,7 @@ void h264DpbRecover(dpbStorage_t *dpb, u32 curr_frame_num, i32 curr_poc) {
 
       if(buffer[i].to_be_displayed && diff_poc >= 64) {
         if(storage->pp_enabled && dpb->buffer[i].to_be_displayed) {
-          InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->virtual_address);
+          InputQueueReturnBuffer(storage->pp_buffer_queue, dpb->buffer[i].ds_data->bus_address);
         }
         buffer[i].to_be_displayed = 0;
         DpbBufFree(dpb, i);

@@ -107,7 +107,7 @@ INCLUDE = -I. -I$(COMMON_SOURCE_DIR)/inc \
 
 
 # extra compiler switches
-CFLAGS += -Wall -std=c99 -pedantic -fPIC
+CFLAGS += -Wall -std=c99 -pedantic $(M32) -fPIC
 
 ifeq ($(ASIC_TRACE_SUPPORT), y)
 	CFLAGS += -DASIC_TRACE_SUPPORT

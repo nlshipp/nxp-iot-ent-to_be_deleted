@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Copyright 2020 NXP
+// Copyright 2020, 2022 NXP
 // Licensed under the MIT License.
 //
 // Module Name:
@@ -33,10 +33,6 @@ typedef struct _FDO_DATA_ {
     PHYSICAL_ADDRESS RegistersPhysicalAddress;
     ULONG RegistersIoSize;
     IMXTMU_REGISTERS *RegistersPtr;
-
-    struct {
-        WDFWAITLOCK Lock;
-    } Sensor;
 } FDO_DATA, *PFDO_DATA;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(FDO_DATA, GetDeviceExtension);

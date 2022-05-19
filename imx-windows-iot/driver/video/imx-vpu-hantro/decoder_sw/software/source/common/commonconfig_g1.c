@@ -86,8 +86,9 @@ void SetCommonConfigRegs(u32 *regs,u32 client_type) {
     else
       apf_tmp_threshold = DEC_X170_REFBU_NONSEQ;
 
-    if( apf_tmp_threshold > 63 )
-      apf_tmp_threshold = 63;
+    /* above code always set apf_tmp_threshold = 8, below code cannot reach.*/
+    //if( apf_tmp_threshold > 63 )
+    //  apf_tmp_threshold = 63;
 
     SetDecRegister(regs, HWIF_APF_THRESHOLD, apf_tmp_threshold);
   }

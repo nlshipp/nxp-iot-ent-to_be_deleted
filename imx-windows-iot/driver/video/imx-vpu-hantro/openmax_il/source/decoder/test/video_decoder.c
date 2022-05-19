@@ -1467,7 +1467,8 @@ int decode_file(const char* input_file, const char* yuv_file,  VIDEOPROPS* props
             goto FAIL;
         }
         /* Seek back to the beginning */
-        fseek(video, 0, SEEK_SET);
+        if (fseek(video, 0, SEEK_SET) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
         if (!rm_parser_is_rm_file(ucBuf, RM2YUV_INITIAL_READ_SIZE))
         {
@@ -1527,9 +1528,11 @@ int decode_file(const char* input_file, const char* yuv_file,  VIDEOPROPS* props
             goto FAIL;
         }
         // read the whole thing into the buffer
-        fseek(mask, 0, SEEK_END);
+        if (fseek(mask, 0, SEEK_END) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         int size = ftell(mask);
-        fseek(mask, 0, SEEK_SET);
+        if (fseek(mask, 0, SEEK_SET) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         if (size > (int)alpha_mask_buffer->nAllocLen)
         {
             DBGT_CRITICAL("Alpha mask data size greater than buffer size. Mask ignored");
@@ -1811,8 +1814,10 @@ int compare_output(const char* reference, const char* temp)
         DBGT_CRITICAL("Failed to open reference file");
         goto FAIL;
     }
-    fseek(file_tmp, 0, SEEK_END);
-    fseek(file_ref, 0, SEEK_END);
+    if (fseek(file_tmp, 0, SEEK_END) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (fseek(file_ref, 0, SEEK_END) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     int tmp_size = ftell(file_tmp);
     int ref_size = ftell(file_ref);
     int min_size = tmp_size;
@@ -1833,8 +1838,10 @@ int compare_output(const char* reference, const char* temp)
     }
     else
     {
-        fseek(file_tmp, 0, SEEK_SET);
-        fseek(file_ref, 0, SEEK_SET);
+        if (fseek(file_tmp, 0, SEEK_SET) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+        if (fseek(file_ref, 0, SEEK_SET) != 0)
+            fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
         buff_tmp = (char*)malloc(CMP_BUFF_SIZE);
         buff_ref = (char*)malloc(CMP_BUFF_SIZE);

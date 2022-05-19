@@ -213,11 +213,11 @@ $(OBJDIR):
 
 pclinux: CFLAGS += $(M32)
 pclinux: $(DECLIB)
-#	make -C ../../../system/models/g1hw
+	make -C ../../../system/models/g1hw
 	
 arm_pclinux: CROSS = aarch64-linux-gnu-
 arm_pclinux: $(DECLIB)
-#	make -C ../../../system/models/g1hw arm_pclinux
+	make -C ../../../system/models/g1hw arm_pclinux
 
 pclinux_eval: CFLAGS += $(M32)
 pclinux_eval: DEBFLAGS = -O3 -DNDEBUG
@@ -262,7 +262,7 @@ clean:
 	$(RM) $(DECLIB)
 	$(RM) .depend
 	$(RM) -r $(OBJDIR)
-#	@-make -C ../../../system/models/g1hw/ clean 2>/dev/null
+	@-make -C ../../../system/models/g1hw/ clean 2>/dev/null
 
 depend .depend: $(SRCS)
 	$(CC) $(CFLAGS) $(ENVSET) -M  $^ > .depend

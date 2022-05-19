@@ -59,13 +59,16 @@ INCLUDE = -I../../source/inc -I../../source/avs/ -I../../source/config \
           -I../../source/common  -I../common/swhw -I../common/utils
 
 DECLIBDIR = -L../../linux/avs -L../../linux/dwl -L../common/swhw \
-            -L../../../lib -L../common/utils
+            -L../../../system/models/g1hw -L../common/utils
 DECLIB =  libdecx170a.a
 DWLLIB = libdwlx170.a
 TBLIB = libtbcommon.a
 MODLIB = lib8170hw.a
 
 TARGET_ENV=
+
+# Enable TestBench debug info
+#CFLAGS += -D_TB_DEBUG_PRINT
 
 ifeq ($(USE_MD5SUM), y)
         MD5SUM = -DMD5SUM
@@ -222,7 +225,7 @@ pclinux_eval: test
 
 export SYSTEM_VERIFICATION_TEST
 
-test:  $(OBJS)
+test: $(OBJS)
 	$(CC) $(LDFLAGS) $(CFLAGS) $(OBJS) $(LIBS) -o $(TESTDEC)
 
 lib:

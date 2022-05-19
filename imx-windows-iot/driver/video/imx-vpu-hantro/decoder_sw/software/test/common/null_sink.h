@@ -41,7 +41,7 @@
 
 /* NULL yuv sink for g2 decoder testbench. */
 const void* NullsinkOpen(const char* fname);
-void NullsinkWrite(const void* inst, struct DecPicture pic);
+void NullsinkWrite(const void* inst, const struct DecPicture* pic);
 void NullsinkClose(const void* inst);
 
 #endif /* __NULL_SINK_H__ */

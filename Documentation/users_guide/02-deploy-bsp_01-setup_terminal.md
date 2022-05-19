@@ -1,18 +1,15 @@
-﻿Basic Terminal Setup {#terminal-setup}
+﻿Serial Logging Setup {#terminal-setup}
 ----
-During the boot, you can check the U-Boot and UEFI firmware output on the host PC by using the serial interface console.
-In the case you don't see any output on the connected display, for example, this might be helpful to confirm that the board is booting.
-Common serial communication applications such as HyperTerminal, Tera Term, or PuTTY can be used on the host PC side.
-The i.MX boards connect the host driver using the micro-B USB connector.
+To help troubleshoot issues during boot, you can use the USB micro-B port on the i.MX EVK boards to output U-Boot and UEFI firmware serial debug logs to a host PC. The USB micro-B port on the EVK presents a virtual serial port to the host PC, which can be read by common Windows serial terminal applications such as HyperTerminal, Tera Term, or PuTTY.
 
 1. Connect the target and the PC using a cable mentioned above.
-2. Open terminal on the PC. Configure serial to 921600 baud/s, 8 bit, one stop bit.
+2. Open Device Manager on the PC and locate the Enhanced Virtual serial device and note the COM port number.
+3. Open terminal on the PC. Configure the Enhanced Virtual serial/COM port to 921600 baud/s, 8 bit, one stop bit.
 
-You may need to download drivers for USB to serial converter.
-The USB to serial driver for FTDI chip can be found under [http://www.ftdichip.com/Drivers/VCP.htm](http://www.ftdichip.com/Drivers/VCP.htm).
-The FTDI USB to serial converters provide up to four serial ports.
-The USB to serial VCP (Virtual COM Port) driver for CP210x chip can be found under [https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers). 
-The CP210x USB to serial converters provide up to two serial ports.
+In order for the Host PC to recognize the i.MX device's virtual serial port, you might need to download and install drivers for the i.MX's USB to serial converter.
 
-The order of serial ports differ between boards sometimes even Windows hosts differ in COM port order.
-For MCIMX8M-EVK board user need to select the first port (COM) in terminal to read bootloader messages or debug kernel with WinDbg.
+The i.MX 8M EVK uses the CP210x USB to serial bridge. The CP210x driver can be found here: [https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers). 
+
+The i.MX 8M Mini EVK uses the FT2232D USB to serial bridge. The FT2232D driver can be found under [http://www.ftdichip.com/Drivers/VCP.htm](http://www.ftdichip.com/Drivers/VCP.htm).
+
+Note that the order that the serial/COM ports appear in Windows can differ between boards and between Windows hosts.

@@ -55,6 +55,8 @@ u32 buffering_period(int layerid, struct StrmData *stream,
 
   tmp = HevcDecodeExpGolombUnsigned(stream, &value);
   if (tmp == END_OF_STREAM) return (END_OF_STREAM);
+  if (value >= MAX_NUM_SEQ_PARAM_SETS)
+    return HANTRO_NOK;
   buf_parameter->bp_seq_parameter_set_id = value;
   if (sps[value] == NULL)
     return HANTRO_NOK;

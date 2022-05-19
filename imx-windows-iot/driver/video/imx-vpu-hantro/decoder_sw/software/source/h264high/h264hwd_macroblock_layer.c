@@ -868,9 +868,9 @@ void WritePCMToAsic(const u8 * lev, DecAsicBuffers_t * p_asic_buff) {
     u32 tmp;
 
     tmp = (*lev++) << 24;
-    tmp |= (*lev++) << 16;
-    tmp |= (*lev++) << 8;
-    tmp |= (*lev++);
+    tmp |= (u32) ((*lev++) << 16);
+    tmp |= (u32) ((*lev++) << 8);
+    tmp |= (u32) (*lev++);
 
     *p_res++ = tmp;
   }
@@ -1026,7 +1026,7 @@ void WriteSubBlock(const u16 * rlc, u32 * p_wrt_buff, u32 ** res,
     words = rlc_ctrl >> 11;
 
     if((word_count++) & 0x01) {
-      wrt_buff |= rlc_ctrl;
+      wrt_buff |= (u32) rlc_ctrl;
       *p_res++ = wrt_buff;
     } else {
       wrt_buff = rlc_ctrl << 16;
@@ -1041,7 +1041,7 @@ void WriteSubBlock(const u16 * rlc, u32 * p_wrt_buff, u32 ** res,
 
   for(; words > 0; words--) {
     if((word_count++) & 0x01) {
-      wrt_buff |= *p_tmp++;
+      wrt_buff |= (u32) (*p_tmp++);
       *p_res++ = wrt_buff;
     } else {
       wrt_buff = (*p_tmp++) << 16;

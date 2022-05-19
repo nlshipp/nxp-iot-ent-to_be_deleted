@@ -426,6 +426,7 @@ u32 H264RunAsic(decContainer_t * dec_cont, DecAsicBuffers_t * p_asic_buff) {
         SetDecRegister(dec_cont->h264_regs, HWIF_WRITE_MVS_E, 0);
 
       /* make sure that output pic sync memory is cleared */
+      if (dec_cont->b_mc)
       {
         char *sync_base =
           (char *) (p_asic_buff->out_buffer->virtual_address) +
@@ -489,8 +490,9 @@ skipped_high_profile:
       u32 pic_id0 = 0;
       u32 pic_id1 = 0;
       u32 flags = dec_cont->b_mc ? REFBU_DONT_USE_STATS : 0;
-      const u8 *pic_id0_valid = NULL;
-      const u8 *pic_id1_valid = NULL;
+      addr_t pic_id0_valid = 0;
+      addr_t pic_id1_valid = 0;
+      struct DWLLinearMem buf;
       u32 is_intra_frame = IS_I_SLICE(p_slice_header->slice_type);
       refbuMode_e ref_buff_mode;
 
@@ -508,27 +510,29 @@ skipped_high_profile:
       /* Find first valid reference picture for pic_id0 */
       for (i = 0 ; i < 16 ; ++i) {
         pic_id0 = i;
-        pic_id0_valid = h264bsdGetRefPicDataVlcMode(dpb + 1, pic_id0, 0);
-        if(pic_id0_valid != NULL)
+	buf =  h264bsdGetRefPicDataVlcMode(dpb + 1, pic_id0, 0);
+	pic_id0_valid = buf.bus_address;
+        if(pic_id0_valid)
           break;
       }
       /* Find 2nd valid reference picture for pic_id1 */
       for (++i ; i < 16 ; ++i) {
         pic_id1 = i;
-        pic_id1_valid = h264bsdGetRefPicDataVlcMode(dpb + 1, pic_id1, 0);
-        if(pic_id1_valid != NULL)
+        buf = h264bsdGetRefPicDataVlcMode(dpb + 1, pic_id1, 0);
+	pic_id1_valid = buf.bus_address;
+        if(pic_id1_valid)
           break;
       }
 
       /* If pic_id0 is not valid, just tell reference buffer that this is
          an Intra frame, which will implicitly disable buffering. */
-      if(pic_id0_valid == NULL) {
+      if(pic_id0_valid == 0) {
         is_intra_frame = 1;
-      } else if ((p_pps->num_ref_idx_l0_active > 1) && (pic_id1_valid != NULL)) {
+      } else if ((p_pps->num_ref_idx_l0_active > 1) && (pic_id1_valid != 0)) {
         flags |= REFBU_MULTIPLE_REF_FRAMES;
       }
 
-      if(pic_id1_valid == NULL) {
+      if(pic_id1_valid == 0) {
         /* make sure that double buffer uses valid picId */
         pic_id1 = pic_id0;
       }
@@ -1079,20 +1083,20 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
     case P_L0_16x16:
       tmp = ((u32) (mv[0].hor & ASIC_HOR_MV_MASK)) << ASIC_HOR_MV_OFFSET;
       tmp |= ((u32) (mv[0].ver & ASIC_VER_MV_MASK)) << ASIC_VER_MV_OFFSET;
-      tmp |= p_mb->ref_id[0];
+      tmp |= (u32) p_mb->ref_id[0];
       *p_mv_ctrl++ = tmp;
 
       break;
     case P_L0_L0_16x8:
       tmp = ((u32) (mv[0].hor & ASIC_HOR_MV_MASK)) << ASIC_HOR_MV_OFFSET;
       tmp |= ((u32) (mv[0].ver & ASIC_VER_MV_MASK)) << ASIC_VER_MV_OFFSET;
-      tmp |= p_mb->ref_id[0];
+      tmp |= (u32) p_mb->ref_id[0];
 
       *p_mv_ctrl++ = tmp;
 
       tmp = ((u32) (mv[8].hor & ASIC_HOR_MV_MASK)) << ASIC_HOR_MV_OFFSET;
       tmp |= ((u32) (mv[8].ver & ASIC_VER_MV_MASK)) << ASIC_VER_MV_OFFSET;
-      tmp |= p_mb->ref_id[1];
+      tmp |= (u32) p_mb->ref_id[1];
 
       *p_mv_ctrl++ = tmp;
 
@@ -1100,13 +1104,13 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
     case P_L0_L0_8x16:
       tmp = ((u32) (mv[0].hor & ASIC_HOR_MV_MASK)) << ASIC_HOR_MV_OFFSET;
       tmp |= ((u32) (mv[0].ver & ASIC_VER_MV_MASK)) << ASIC_VER_MV_OFFSET;
-      tmp |= p_mb->ref_id[0];
+      tmp |= (u32) p_mb->ref_id[0];
 
       *p_mv_ctrl++ = tmp;
 
       tmp = ((u32) (mv[4].hor & ASIC_HOR_MV_MASK)) << ASIC_HOR_MV_OFFSET;
       tmp |= ((u32) (mv[4].ver & ASIC_VER_MV_MASK)) << ASIC_VER_MV_OFFSET;
-      tmp |= p_mb->ref_id[1];
+      tmp |= (u32) p_mb->ref_id[1];
 
       *p_mv_ctrl++ = tmp;
 
@@ -1125,7 +1129,7 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
           tmp |=
             ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
             ASIC_VER_MV_OFFSET;
-          tmp |= p_mb->ref_id[i];
+          tmp |= (u32) p_mb->ref_id[i];
           *p_mv_ctrl++ = tmp;
           mv += 4;
           break;
@@ -1137,7 +1141,7 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
           tmp |=
             ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
             ASIC_VER_MV_OFFSET;
-          tmp |= p_mb->ref_id[i];
+          tmp |= (u32) p_mb->ref_id[i];
           *p_mv_ctrl++ = tmp;
           mv += 2;
 
@@ -1147,7 +1151,7 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
           tmp |=
             ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
             ASIC_VER_MV_OFFSET;
-          tmp |= p_mb->ref_id[i];
+          tmp |= (u32) p_mb->ref_id[i];
           *p_mv_ctrl++ = tmp;
           mv += 2;
           break;
@@ -1159,7 +1163,7 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
           tmp |=
             ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
             ASIC_VER_MV_OFFSET;
-          tmp |= p_mb->ref_id[i];
+          tmp |= (u32) p_mb->ref_id[i];
           *p_mv_ctrl++ = tmp;
           mv++;
           tmp =
@@ -1168,7 +1172,7 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
           tmp |=
             ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
             ASIC_VER_MV_OFFSET;
-          tmp |= p_mb->ref_id[i];
+          tmp |= (u32) p_mb->ref_id[i];
           *p_mv_ctrl++ = tmp;
           mv += 3;
 
@@ -1184,14 +1188,12 @@ void PrepareMvData(storage_t * storage, DecAsicBuffers_t * p_asic_buff) {
             tmp |=
               ((u32) ((*mv).ver & ASIC_VER_MV_MASK)) <<
               ASIC_VER_MV_OFFSET;
-            tmp |= p_mb->ref_id[i];
+            tmp |= (u32) p_mb->ref_id[i];
             *p_mv_ctrl++ = tmp;
             mv++;
           }
         }
         break;
-        default:
-          ASSERT(0);
         }
       }
     }
@@ -1234,7 +1236,7 @@ void PrepareIntra4x4ModeData(storage_t * storage, DecAsicBuffers_t * p_asic_buff
       u8 mode = p_mb->intra4x4_pred_mode_asic[block];
 
       tmp <<= 4;
-      tmp |= mode;
+      tmp |= (u32) mode;
 
       if(block == 7) {
         *p_intra_pred++ = tmp;
@@ -1411,6 +1413,7 @@ void H264SetupVlcRegs(decContainer_t * dec_cont) {
 
   /* reference picture flags */
 
+  struct DWLLinearMem buf;
   /* TODO separate fields */
   if(p_slice_header->field_pic_flag) {
     ASSERT(dec_cont->h264_profile_support != H264_BASELINE_PROFILE);
@@ -1426,10 +1429,13 @@ void H264SetupVlcRegs(decContainer_t * dec_cont) {
           (p_dpb->current_out->pic_code_type[0] == DEC_PIC_TYPE_I
            && p_dpb->current_out->is_idr[0] == 0) &&
           IS_P_SLICE(p_slice_header->slice_type) &&
-          (i & 1) && dec_cont->pic_number == 1)
-        tmp = h264bsdGetRefPicDataVlcMode(p_dpb, i-1, 1) != NULL;
-      else
-        tmp = h264bsdGetRefPicDataVlcMode(p_dpb, i, 1) != NULL;
+          (i & 1) && dec_cont->pic_number == 1) {
+        buf = h264bsdGetRefPicDataVlcMode(p_dpb, i-1, 1);
+        tmp = (buf.bus_address != 0);
+      } else {
+        buf = h264bsdGetRefPicDataVlcMode(p_dpb, i, 1);
+        tmp = (buf.bus_address != 0);
+      }
 
       valid_flags = valid_flags << 1 | tmp;
     }
@@ -1443,7 +1449,8 @@ void H264SetupVlcRegs(decContainer_t * dec_cont) {
                       p_dpb->buffer[n].status[1] == 3;
       long_termflags = long_termflags << 1 | long_term_tmp;
 
-      tmp = h264bsdGetRefPicDataVlcMode(p_dpb, n, 0) != NULL;
+      buf = h264bsdGetRefPicDataVlcMode(p_dpb, n, 0);
+      tmp = (buf.bus_address != 0);
       valid_flags = valid_flags << 1 | tmp;
     }
     valid_flags <<= 16;
@@ -1506,7 +1513,7 @@ void H264SetupVlcRegs(decContainer_t * dec_cont) {
 
     if(dec_cont->asic_buff->ref_pic_list[i])
       dec_cont->asic_buff->ref_pic_list[i] |=
-        (diff_poc < itmp ? 0x1 : 0) | (p_dpb->buffer[i].is_field_pic ? 0x2 : 0);
+        (addr_t)(diff_poc < itmp ? 0x1 : 0) | (p_dpb->buffer[i].is_field_pic ? 0x2 : 0);
   }
 
   SetDecRegister(dec_cont->h264_regs, HWIF_REFER_VALID_E, valid_flags);
@@ -1769,7 +1776,7 @@ void h264StreamPosUpdate(decContainer_t * dec_cont) {
   dec_cont->hw_bit_pos = (u32)(tmp);
 
   tmp = dec_cont->hw_stream_start_bus;   /* unaligned base */
-  tmp &= (~DEC_X170_ALIGN_MASK);  /* align the base */
+  tmp &= (addr_t)(~DEC_X170_ALIGN_MASK);  /* align the base */
 
   DEBUG_PRINT(("\tStream base   %08x\n", tmp));
   SET_ADDR_REG(dec_cont->h264_regs, HWIF_RLC_VLC_BASE, tmp);
@@ -1914,10 +1921,10 @@ void H264ErrorRecover(decContainer_t *dec_cont)
   dpbStorage_t *dpb = dec_cont->storage.dpb;
   dpbPicture_t *buffer = dpb->buffer;
   u32 i;
+  i32 idx = 0;
 
-  if (!dec_cont->rlc_mode) {
+  if (!dec_cont->rlc_mode && !dec_cont->storage.no_freeze) {
     u32 k = dpb->dpb_size + 1;
-    i32 idx = 0x7FFFFFFF;
 
     /* find the buffer index of current image */
     while((k--) > 0) {

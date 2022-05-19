@@ -93,6 +93,7 @@ H264DecRet H264DecMCInit(H264DecInst *dec_inst, H264DecMCConfig *p_mcinit_cfg) {
 
   if(dwl == NULL) {
     DEC_API_TRC("H264DecInit# ERROR: DWL Init failed\n");
+    DWLRelease(dwl);
     return (H264DEC_DWL_ERROR);
   }
 #endif
@@ -101,6 +102,7 @@ H264DecRet H264DecMCInit(H264DecInst *dec_inst, H264DecMCConfig *p_mcinit_cfg) {
 
   if(dec_inst == NULL || p_mcinit_cfg == NULL) {
     DEC_API_TRC("H264DecMCInit# ERROR: dec_inst or p_mcinit_cfg is NULL\n");
+    DWLRelease(dwl);
     return (H264DEC_PARAM_ERROR);
   }
 
@@ -205,8 +207,7 @@ H264DecRet H264DecMCPictureConsumed(H264DecInst dec_inst,
   /* find the mem descriptor for this specific buffer, base view first */
   dpb = dec_cont->storage.dpbs[0];
   for(i = 0; i < dpb->tot_buffers; i++) {
-    if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address &&
-        picture->output_picture == dpb->pic_buffers[i].virtual_address) {
+    if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address) {
       id = i;
       break;
     }
@@ -217,8 +218,7 @@ H264DecRet H264DecMCPictureConsumed(H264DecInst dec_inst,
     dpb = dec_cont->storage.dpbs[1];
     /* find the mem descriptor for this specific buffer */
     for(i = 0; i < dpb->tot_buffers; i++) {
-      if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address &&
-          picture->output_picture == dpb->pic_buffers[i].virtual_address) {
+      if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address) {
         id = i;
         break;
       }

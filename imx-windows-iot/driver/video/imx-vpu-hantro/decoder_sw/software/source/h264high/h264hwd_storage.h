@@ -170,6 +170,7 @@ typedef struct {
 
   u32 intra_freeze;
   u32 partial_freeze;
+  u32 no_freeze;
   u32 picture_broken;
 
   u32 enable2nd_chroma;     /* by default set according to ENABLE_2ND_CHROMA

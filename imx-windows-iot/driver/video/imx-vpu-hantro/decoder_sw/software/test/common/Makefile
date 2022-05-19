@@ -103,7 +103,7 @@ OMX_LIB_G2_DWL          = libdwlg2.a
 OMX_LIB_G2_COMMON       = libg2common.a
 OMX_LIB_G2_HEVC         = libg2hevc.a
 OMX_LIB_G2_VP9          = libg2vp9.a
-OMX_LIB_G2_HW           = lib/libg2hw.a
+OMX_LIB_G2_HW           = libg2hw.a
 OMX_LIB_G2_TBCOMMON     = libg2tbcommon.a
 
 libdwlg2.a: $(sort $(patsubst %,$(OBJDIR)/%,$(DWL_SRCS:.c=.o)))
@@ -152,7 +152,7 @@ endif
 
 g2dec: env depend $(LIBS) $(G2_OBJS) $(DEC_OBJS) $(OMX_LIB_G2_DWL) $(OMX_LIB_G2_COMMON)  $(OMX_LIB_G2_HEVC) $(OMX_LIB_G2_VP9) $(OMX_LIB_G2_HW) $(OMX_LIB_G2_TBCOMMON)
 	@echo -e "[LINK]\t$(OBJDIR)/$@"
-	$(CC) $(filter %.o, $^) $(LDFLAGS) -o $(OBJDIR)/$@
+	$(CC) $(LDFLAGS) $(filter %.o, $^) $(LIBS) -o $(OBJDIR)/$@
 ifeq ($(strip $(SYMLINKS)),y)
 	@ln -fs $@ $(OBJDIR)/hevcdec_tb
 	@ln -fs $@ $(OBJDIR)/vp9dec

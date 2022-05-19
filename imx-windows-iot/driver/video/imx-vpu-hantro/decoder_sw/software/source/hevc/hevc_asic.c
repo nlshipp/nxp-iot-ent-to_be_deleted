@@ -192,7 +192,8 @@ void GenerateFakeRFCTable(u8 *cmp_tble_addr,
   u8 cbs_sizes_10bit[14] = {0xa1, 0x42, 0x85, 10, 20, 40, 80, 0xa1, 0x42, 0x85, 10, 20, 40, 80};
 #endif
   u32 i, j, offset;
-  u8 *pcbs, *ptbl = NULL;
+  u8 *pcbs;
+  u8 *ptbl = cbs_sizes_8bit;
   if (bit_depth == 8) {
     cbs_size_y = cbs_size_c = 64;
     ptbl = cbs_sizes_8bit;
@@ -1171,7 +1172,7 @@ void HevcStreamPosUpdate(struct HevcDecContainer *dec_cont) {
   if(is_rb) {
     /* stream buffer base address */
     tmp_addr = dec_cont->hw_buffer_start_bus; /* aligned base */
-    ASSERT((tmp_addr & 0xF) == 0);
+    ASSERT((tmp_addr & (addr_t)0xF) == 0);
 
     SET_ADDR_REG(dec_cont->hevc_regs, HWIF_STREAM_BASE, tmp_addr);
 
@@ -1196,8 +1197,8 @@ void HevcStreamPosUpdate(struct HevcDecContainer *dec_cont) {
   } else {
     /* stream data base address */
     tmp_addr = dec_cont->hw_stream_start_bus; /* unaligned base */
-    tmp_addr &= (~DEC_HW_ALIGN_MASK);         /* align the base */
-    ASSERT((tmp_addr & 0xF) == 0);
+    tmp_addr &= (addr_t) (~DEC_HW_ALIGN_MASK);         /* align the base */
+    ASSERT((tmp_addr & (addr_t)0xF) == 0);
 
     SET_ADDR_REG(dec_cont->hevc_regs, HWIF_STREAM_BASE, tmp_addr);
 

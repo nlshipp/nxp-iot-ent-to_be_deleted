@@ -267,6 +267,10 @@ int main(int argc, char *argv[]) {
     /* Check expiry date */
     time(&sys_time);
     tm = localtime(&sys_time);
+    if (tm == NULL) {
+      fprintf(stderr,"Get localtime failed!\n");
+      return -1;
+    }
     strftime(tm_buf, sizeof(tm_buf), "%y%m%d", tm);
     tmp1 = 1000000 + atoi(tm_buf);
     if(tmp1 > (EXPIRY_DATE) && (EXPIRY_DATE) > 1) {
@@ -357,7 +361,7 @@ int main(int argc, char *argv[]) {
     if(strncmp(argv[i], "-X", 2) == 0) {
       write_output = 0;
     } else if(strncmp(argv[i], "-S", 2) == 0) {
-      f_stream_trace = fopen((argv[i] + 2), "r");
+      if (!f_stream_trace) f_stream_trace = fopen((argv[i] + 2), "r");
     } else if(strncmp(argv[i], "-P", 2) == 0) {
       planar_output = 1;
     } else if(strncmp(argv[i], "-M", 2) == 0) {
@@ -480,17 +484,28 @@ int main(int argc, char *argv[]) {
   printf("TB Stream Bit Swap %d; odds %s\n", stream_bit_swap,
          tb_cfg.tb_params.stream_bit_swap);
 
+#ifdef ASIC_TRACE_SUPPORT
   {
-    remove("output.hex");
-    remove("registers.hex");
-    remove("picture_ctrl.hex");
-    remove("picture_ctrl.trc");
-    remove("jpeg_tables.hex");
-    remove("out.yuv");
-    remove("out_chroma.yuv");
-    remove("out_tn.yuv");
-    remove("out_chroma_tn.yuv");
+    if (remove("output.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("registers.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("picture_ctrl.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("picture_ctrl.trc") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("jpeg_tables.hex") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("out.yuv") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("out_chroma.yuv") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("out_tn.yuv") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    if (remove("out_chroma_tn.yuv") != 0)
+      fprintf(stderr, "remove() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   }
+#endif
 
   /* after thumnails done ==> decode full images */
 start_full_decode:
@@ -503,6 +518,11 @@ start_full_decode:
   decsw_performance();
   jpeg_ret = JpegDecInit(&jpeg);
   END_SW_PERFORMANCE;
+  if (jpeg == NULL) {
+    if (f_in)
+      fclose(f_in);
+    return -1;
+  }
   decsw_performance();
   if(jpeg_ret != JPEGDEC_OK) {
     /* Handle here the error situation */
@@ -562,6 +582,8 @@ reallocate_input_buffer:
 
 #ifndef PP_PIPELINE_ENABLED
   /* Reading input file */
+  if (f_in)
+    fclose (f_in);
   f_in = fopen(argv[argc - 1], "rb");
   if(f_in == NULL) {
     fprintf(stdout, "Unable to open input file\n");
@@ -569,6 +591,8 @@ reallocate_input_buffer:
   }
 #else
   /* Reading input file */
+  if (f_in)
+    fclose (f_in);
   f_in = fopen(argv[argc - 2], "rb");
   if(f_in == NULL) {
     fprintf(stdout, "Unable to open input file\n");
@@ -577,7 +601,8 @@ reallocate_input_buffer:
 #endif
 
   /* file i/o pointer to full */
-  fseek(f_in, 0L, SEEK_END);
+  if (fseek(f_in, 0L, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   len = ftell(f_in);
   rewind(f_in);
 
@@ -612,6 +637,7 @@ reallocate_input_buffer:
     ret = fread(byte_strm_start, sizeof(u8), len, f_in);
 
     fclose(f_in);
+    f_in = NULL;
 
     jpeg_ret = FindImageEnd(byte_strm_start, len, &image_info_length);
 
@@ -630,6 +656,8 @@ reallocate_input_buffer:
 
 #ifndef PP_PIPELINE_ENABLED
   /* Reading input file */
+  if (f_in)
+    fclose (f_in);
   f_in = fopen(argv[argc - 1], "rb");
   if(f_in == NULL) {
     fprintf(stdout, "Unable to open input file\n");
@@ -637,6 +665,8 @@ reallocate_input_buffer:
   }
 #else
   /* Reading input file */
+  if (f_in)
+    fclose (f_in);
   f_in = fopen(argv[argc - 2], "rb");
   if(f_in == NULL) {
     fprintf(stdout, "Unable to open input file\n");
@@ -645,7 +675,8 @@ reallocate_input_buffer:
 #endif
 
   /* file i/o pointer to full */
-  fseek(f_in, 0L, SEEK_END);
+  if (fseek(f_in, 0L, SEEK_END) != 0)
+    fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
   len = ftell(f_in);
   rewind(f_in);
 
@@ -708,12 +739,14 @@ reallocate_input_buffer:
 
   /* file i/o pointer to full */
   if(prev_ret == JPEGDEC_FRAME_READY)
-    fseek(f_in, stream_seek_len, SEEK_SET);
+    if (fseek(f_in, stream_seek_len, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
 
   /* read input stream from file to buffer and close input file */
   ret = fread(byte_strm_start, sizeof(u8), len, f_in);
 
   fclose(f_in);
+  f_in = NULL;
 
   /* initialize JpegDecDecode input structure */
   jpeg_in.stream_buffer.virtual_address = (u32 *) byte_strm_start;
@@ -1097,6 +1130,7 @@ decode:
       stream_in_file -= len;
       stream_seek_len += len;
 
+#if 0
       if(stream_in_file < 0) {
         fprintf(stdout, "\t\t==> Unable to load input buffer\n");
         fprintf(stdout,
@@ -1104,6 +1138,7 @@ decode:
         jpeg_ret = JPEGDEC_STRM_ERROR;
         goto strm_error;
       }
+#endif
 
       if(stream_in_file < len) {
         len = stream_in_file;
@@ -1132,10 +1167,12 @@ decode:
 #endif
 
       /* file i/o pointer to full */
-      fseek(f_in, stream_seek_len, SEEK_SET);
+      if (fseek(f_in, stream_seek_len, SEEK_SET) != 0)
+        fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
       /* read input stream from file to buffer and close input file */
       ret = fread(byte_strm_start, sizeof(u8), len, f_in);
       fclose(f_in);
+      f_in = NULL;
 
       /* update */
       jpeg_in.stream_buffer.virtual_address = (u32 *) byte_strm_start;
@@ -1258,7 +1295,10 @@ error:
         calcSize(&image_info, mode);
 
         printf("size_luma %d and size_chroma %d\n", size_luma, size_chroma);
-
+        if(jpeg_out.output_picture_y.virtual_address == NULL) {
+          printf("No output buffer!\n");
+          goto end;
+        }
         WriteProgressiveOutput(size_luma, size_chroma, mode,
                                (u8*)jpeg_out.output_picture_y.virtual_address,
                                (u8*)jpeg_out.output_picture_cb_cr.
@@ -1268,6 +1308,10 @@ error:
 
     }
 
+    if(jpeg_out.output_picture_y.virtual_address == NULL) {
+      printf("No output buffer!\n");
+      goto end;
+    }
     if(crop)
       WriteCroppedOutput(&image_info,
                          (u8*)jpeg_out.output_picture_y.virtual_address,
@@ -1362,10 +1406,12 @@ error:
 #endif
 
         /* file i/o pointer to full */
-        fseek(f_in, stream_seek_len, SEEK_SET);
+        if (fseek(f_in, stream_seek_len, SEEK_SET) != 0)
+          fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
         /* read input stream from file to buffer and close input file */
         ret = fread(byte_strm_start, sizeof(u8), len, f_in);
         fclose(f_in);
+        f_in = NULL;
       } while(jpeg_ret != 0);
     } else {
       /* Find next image */
@@ -1416,10 +1462,12 @@ error:
 #endif
 
     /* file i/o pointer to full */
-    fseek(f_in, stream_seek_len, SEEK_SET);
+    if (fseek(f_in, stream_seek_len, SEEK_SET) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
     /* read input stream from file to buffer and close input file */
     ret = fread(byte_strm_start, sizeof(u8), len, f_in);
     fclose(f_in);
+    f_in = NULL;
 
     /* update */
     jpeg_in.stream_buffer.virtual_address = (u32 *) byte_strm_start;
@@ -1442,8 +1490,10 @@ end:
   pp_close();
 #endif
 
-  if(stream_mem.virtual_address != NULL)
+  if(stream_mem.virtual_address != NULL) {
     DWLFreeLinear(((JpegDecContainer *) jpeg)->dwl, &stream_mem);
+    stream_mem.virtual_address = NULL;
+  }
 
   if(user_alloc_luma.virtual_address != NULL)
     DWLFreeRefFrm(((JpegDecContainer *) jpeg)->dwl, &user_alloc_luma);
@@ -1469,10 +1519,8 @@ end:
     goto start_full_decode;
   }
 
-  if(input_read_type) {
-    if(f_in) {
-      fclose(f_in);
-    }
+  if(f_in) {
+    fclose(f_in);
   }
 
   if(fout) {
@@ -1844,6 +1892,7 @@ void WriteFullOutput(u32 pic_mode) {
   FILE *foutput = NULL;
   u8 *p_yuv_out_chroma = NULL;
   FILE *f_input_chroma = NULL;
+  long int pos = 0;
   u32 length = 0;
   u32 chroma_len = 0;
   int ret;
@@ -1870,8 +1919,15 @@ void WriteFullOutput(u32 pic_mode) {
     }
 
     /* file i/o pointer to full */
-    fseek(f_input_chroma, 0L, SEEK_END);
-    length = ftell(f_input_chroma);
+    if (fseek(f_input_chroma, 0L, SEEK_END) != 0)
+      fprintf(stderr, "fseek() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    pos = ftell(f_input_chroma);
+    if (pos == -1L) {
+      fprintf(stderr, "ftell() failed in file %s at line # %d\n", __FILE__, __LINE__-2);
+      exit(-1);
+    } else {
+      length = (u32)pos;
+    }
     rewind(f_input_chroma);
 
     /* check length */
@@ -1879,6 +1935,11 @@ void WriteFullOutput(u32 pic_mode) {
 
     p_yuv_out_chroma = JpegDecMalloc(sizeof(u8) * (chroma_len));
 
+    if (!p_yuv_out_chroma) {
+      fprintf(stdout, "UNABLE TO MALLOC OUTPUT BUFFER\n");
+      fclose(f_input_chroma);
+      return;
+    }
     /* read output stream from file to buffer and close input file */
     ret = fread(p_yuv_out_chroma, sizeof(u8), chroma_len, f_input_chroma);
 
@@ -1892,6 +1953,8 @@ void WriteFullOutput(u32 pic_mode) {
 
     if(foutput == NULL) {
       fprintf(stdout, "UNABLE TO OPEN OUTPUT FILE\n");
+      if (p_yuv_out_chroma)
+        JpegDecFree(p_yuv_out_chroma);
       return;
     }
 

@@ -141,7 +141,14 @@ void YuvfilterTiled2Planar(struct DecPicture* pic) {
   u32 num_pixels = pic->sequence_info.pic_width * pic->sequence_info.pic_height;
   u16* cbcr_src = (u16*)pic->chroma.virtual_address;
   u16* luma_dst = malloc(num_pixels * sizeof(u16));
+  if (luma_dst == NULL)
+    return;
   u16* cbcr_dst = malloc(num_pixels / 2 * sizeof(u16));
+  if (cbcr_dst == NULL) {
+    free(luma_dst);
+    return;
+  }
+
   /* luma */
   Tiled4x4picToRaster(luma_dst, luma_src, pic->sequence_info.pic_width,
                       pic->sequence_info.pic_height);
@@ -186,6 +193,8 @@ void YuvfilterTiledcrop(struct DecPicture* pic) {
    * 1. tile-to-semiplanar conversion. */
   u16* luma_src = (u16*)pic->luma.virtual_address;
   u16* luma_tmp = malloc(num_pixels * sizeof(u16));
+  if (luma_tmp == NULL)
+    return;
   u16* cbcr_src;
   u16* cbcr_tmp = 0;
   for (int y = 0; y < pic->sequence_info.pic_height / tile_h; y++) {
@@ -199,6 +208,10 @@ void YuvfilterTiledcrop(struct DecPicture* pic) {
   if (!pic->sequence_info.is_mono_chrome) {
     cbcr_src = (u16*)pic->chroma.virtual_address;
     cbcr_tmp = malloc(num_pixels / 2 * sizeof(u16));
+    if (cbcr_tmp == NULL) {
+      free(luma_tmp);
+      return;
+    }
     for (int y = 0; y < pic->sequence_info.pic_height / (tile_h * 2); y++) {
       for (int x = 0; x < pic->sequence_info.pic_width / tile_w; x++) {
         Tile4x4ToRaster(
@@ -286,7 +299,9 @@ void YuvfilterSemiplanar2Planar(struct DecPicture* pic) {
   if (h & 1) h += 1;
   u32 num_pixels = w * h;
   u16* cbcr_tmp = malloc(num_pixels / 2 * sizeof(u16));
-
+  if (cbcr_tmp == NULL)
+    return;
+  memset(cbcr_tmp, 0, num_pixels / 2 * sizeof(u16));
   /* nothing to do for luma */
 
   /* chroma */

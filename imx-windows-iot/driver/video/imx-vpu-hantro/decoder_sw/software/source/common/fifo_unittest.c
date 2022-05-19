@@ -174,8 +174,10 @@ int main(int argc, char* argv[]) {
   if (GetParams(argc, argv, &params) != 0) return 1;
 
   /* Initialize the fifo queue. */
-  FifoInit(params.queue_size, &params.fifo);
-
+  if (FifoInit(params.queue_size, &params.fifo) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return -1;
+  }
   /* Create the exit timer if one is wanted. */
   if (CreateTimer(params.time_to_forced_exit.tv_nsec, &timerid)) {
     printf("Failed to create timer\n");

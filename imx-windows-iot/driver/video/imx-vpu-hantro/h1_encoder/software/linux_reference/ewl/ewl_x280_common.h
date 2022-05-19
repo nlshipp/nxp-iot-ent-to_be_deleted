@@ -42,6 +42,8 @@
 
 #include <stdio.h>
 #include <signal.h>
+#include <linux/types.h>
+#include "linux/hx280enc.h"
 
 extern FILE *fEwl;
 
@@ -52,6 +54,21 @@ extern FILE *fEwl;
 #   define PTRACE(...) if (fEwl) {fprintf(fEwl,"%s:%d:",__FILE__,__LINE__);fprintf(fEwl,__VA_ARGS__);}
 #else
 #   define PTRACE(...)  /* no trace */
+#endif
+
+#ifdef USE_ION
+#include <linux/version.h>
+#undef MEMALLOC_MODULE_PATH
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+#define MEMALLOC_MODULE_PATH        "/dev/ion"
+#else
+#define MEMALLOC_MODULE_PATH        "/dev/dma_heap/linux,cma-uncached"
+#endif
+#endif
+
+#ifdef ENABLE_DMABUF_HEAP
+#undef MEMALLOC_MODULE_PATH
+#define MEMALLOC_MODULE_PATH "/dev/dma_heap/reserved-uncached"
 #endif
 
 /* the encoder device driver nod */
@@ -77,6 +94,7 @@ typedef struct
     u32 regSize;             /* IO mem size */
     size_t regBase;
     volatile u32 *pRegBase;  /* IO mem base */
+    u32 regMirror[512];      /* mirror register value when wait ready */
     int semid;
     int sigio_needed;
  #ifdef PCIE_FPGA_VERIFICATION
@@ -86,6 +104,27 @@ typedef struct
     volatile u32 *psrame;    /* srame mem base */ 
 #endif
 } hx280ewl_t;
+
+#ifndef HX280ENC_IOC_WRITE_REGS
+struct enc_regs_buffer
+{
+  u32 core_id;
+  u32 *regs;
+  u32 offset;
+  u32 size;
+  u32 *reserved;
+};
+#endif
+
+#ifndef HX280ENC_IOC_WRITE_REGS
+#define HX280ENC_IOC_WRITE_REGS     _IOW(HX280ENC_IOC_MAGIC, 14, struct enc_regs_buffer *)
+#endif
+#ifndef HX280ENC_IOC_READ_REGS
+#define HX280ENC_IOC_READ_REGS      _IOR(HX280ENC_IOC_MAGIC, 15, struct enc_regs_buffer *)
+#endif
+#ifndef HX280ENC_IOCG_EN_CORE
+#define HX280ENC_IOCG_EN_CORE      _IO(HX280ENC_IOC_MAGIC, 16)
+#endif
 
 void HandleSIGIO(hx280ewl_t * enc);
 

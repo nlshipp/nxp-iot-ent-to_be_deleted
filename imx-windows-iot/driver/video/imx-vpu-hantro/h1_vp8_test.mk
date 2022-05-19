@@ -33,6 +33,6 @@ LOCAL_SHARED_LIBRARIES  += libhantro_h1
 
 LOCAL_32_BIT_ONLY := true
 LOCAL_MODULE:= vp8_testenc
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
 include $(BUILD_EXECUTABLE)

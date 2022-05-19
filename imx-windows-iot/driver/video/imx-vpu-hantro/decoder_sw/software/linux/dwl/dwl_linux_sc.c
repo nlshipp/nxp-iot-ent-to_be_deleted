@@ -39,7 +39,11 @@
 #include "dwl_linux.h"
 #include "dwl.h"
 #include "dwlthread.h"
+#ifdef USE_VSI_ENV
+#include "hantrodec.h"
+#else
 #include <linux/hantrodec.h>
+#endif
 #include "memalloc.h"
 
 #include <assert.h>
@@ -61,10 +65,15 @@ const char *dec_dev = DEC_MODULE_PATH;
 /* the memalloc device driver nod */
 const char *mem_dev = MEMALLOC_MODULE_PATH;
 
+#ifdef ENABLE_SEC_DMABUF_HEAP
+/* the secure memalloc device driver nod */
+const char *mem_sec_dev = MEMALLOC_SECURE_MODULE_PATH;
+#endif
+
 /* a mutex protecting the wrapper init */
 static pthread_mutex_t x170_init_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* counters for Core usage statistics */
+/* counters for core usage statistics */
 u32 core_usage_counts[MAX_ASIC_CORES] = {0};
 
 /*------------------------------------------------------------------------------
@@ -76,16 +85,16 @@ u32 core_usage_counts[MAX_ASIC_CORES] = {0};
     Argument        : void * param - not in use, application passes NULL
 ------------------------------------------------------------------------------*/
 const void *DWLInit(struct DWLInitParam * param) {
-  struct HX170DWL *dec_dwl;
+  struct HANTRODWL *dec_dwl;
   
   int core_id;
   
   DWL_DEBUG("%s","INITIALIZE\n");
 
-  dec_dwl = (struct HX170DWL *)calloc(1, sizeof(struct HX170DWL));
+  dec_dwl = (struct HANTRODWL *)calloc(1, sizeof(struct HANTRODWL));
 
   if (dec_dwl == NULL) {
-	DWL_DEBUG("%s","failed to alloc struct HX170DWL struct\n");
+	DWL_DEBUG("%s","failed to alloc struct HANTRODWL struct\n");
 	return NULL;
   }
 
@@ -100,6 +109,7 @@ const void *DWLInit(struct DWLInitParam * param) {
   dec_dwl->fd = -1;
   dec_dwl->fd_mem = -1;
   dec_dwl->fd_memalloc = -1;
+  dec_dwl->fd_mem_sec = -1;
 
   /* open the device */
   dec_dwl->fd = open(dec_dev, O_RDWR);
@@ -110,22 +120,28 @@ const void *DWLInit(struct DWLInitParam * param) {
 
   /* Linear memories not needed in pp */
   if(dec_dwl->client_type != DWL_CLIENT_TYPE_PP) {
-	/* open memalloc for linear memory allocation */
-	dec_dwl->fd_memalloc = open(mem_dev, O_RDWR | O_SYNC);
-
-	if(dec_dwl->fd_memalloc == -1) {
-	  DWL_DEBUG("failed to open: %s\n", mem_dev);
-	  goto err;
-	}
+    /* open memalloc for linear memory allocation */
+    dec_dwl->fd_memalloc = open(mem_dev, O_RDWR | O_SYNC);
+    if(dec_dwl->fd_memalloc == -1) {
+      DWL_DEBUG("failed to open: %s\n", mem_dev);
+      goto err;
+    }
+#ifdef ENABLE_SEC_DMABUF_HEAP
+    dec_dwl->fd_mem_sec = open(mem_sec_dev, O_RDWR | O_SYNC);
+    if (dec_dwl->fd_mem_sec == -1) {
+      DWL_DEBUG("failed to open: %s\n", mem_sec_dev);
+      goto err;
+    }
+#endif
   }
+#ifdef USE_VSI_ENV
+  dec_dwl->fd_mem = open("/dev/mem", O_RDWR | O_SYNC);
 
-  //dec_dwl->fd_mem = open("/dev/mem", O_RDWR | O_SYNC);
-
-  //if(dec_dwl->fd_mem == -1) {
-  //	DWL_DEBUG("failed to open: %s\n", "/dev/mem");
-  //	goto err;
-  //}
-
+  if(dec_dwl->fd_mem == -1) {
+	DWL_DEBUG("failed to open: %s\n", "/dev/mem");
+	goto err;
+  }
+#endif
   switch (dec_dwl->client_type) {
   case DWL_CLIENT_TYPE_H264_DEC:
   case DWL_CLIENT_TYPE_MPEG4_DEC:
@@ -201,7 +217,7 @@ err:
     Argument        : const void * instance - instance to be released
 ------------------------------------------------------------------------------*/
 i32 DWLRelease(const void *instance) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *)instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *)instance;
   unsigned int i = 0;
 
   DWL_DEBUG("%s","RELEASE\n");
@@ -218,8 +234,9 @@ i32 DWLRelease(const void *instance) {
 
   /* linear memory allocator */
   if (dec_dwl->fd_memalloc != -1) close(dec_dwl->fd_memalloc);
+  if (dec_dwl->fd_mem_sec != -1) close(dec_dwl->fd_mem_sec);
 
-  /* print Core usage stats */
+  /* print core usage stats */
   if (dec_dwl->client_type != DWL_CLIENT_TYPE_PP) {
 	u32 total_usage = 0;
 	u32 cores = dec_dwl->num_cores;
@@ -256,11 +273,11 @@ i32 DWLRelease(const void *instance) {
     Description     :
     Return type     : i32
     Argument        : const void *instance
-    Argument        : i32 *core_id - ID of the reserved HW Core
+    Argument        : i32 *core_id - ID of the reserved HW core
 ------------------------------------------------------------------------------*/
 i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
   i32 ret;
-  struct HX170DWL *dec_dwl = (struct HX170DWL *) instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *) instance;
 
   assert(dec_dwl != NULL);
   assert(dec_dwl->client_type != DWL_CLIENT_TYPE_PP);
@@ -287,7 +304,7 @@ i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
 
   dec_dwl->b_ppreserved = 1;
 
-  DWL_DEBUG("Reserved DEC+PP Core %d\n", *core_id);
+  DWL_DEBUG("Reserved DEC+PP core %d\n", *core_id);
 
   return DWL_OK;
 }
@@ -297,10 +314,10 @@ i32 DWLReserveHwPipe(const void *instance, i32 *core_id) {
     Description     :
     Return type     : i32
     Argument        : const void *instance
-    Argument        : i32 *core_id - ID of the reserved HW Core
+    Argument        : i32 *core_id - ID of the reserved HW core
 ------------------------------------------------------------------------------*/
 i32 DWLReserveHw(const void *instance, i32 *core_id) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *) instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *) instance;
   int is_pp;
 
   assert(dec_dwl != NULL);
@@ -312,7 +329,7 @@ i32 DWLReserveHw(const void *instance, i32 *core_id) {
   if (is_pp) {
     *core_id = ioctl(dec_dwl->fd, HANTRODEC_IOCQ_PP_RESERVE);
 
-    /* PP is single Core so we expect a zero return value */
+    /* PP is single core so we expect a zero return value */
     if (*core_id != 0) {
       return DWL_ERROR;
     }
@@ -323,12 +340,12 @@ i32 DWLReserveHw(const void *instance, i32 *core_id) {
 
   /* negative value signals an error */
   if (*core_id < 0) {
-    DWL_DEBUG("ioctl HANTRODEC_IOCS_%s_reserve failed\n",
+    DWL_DEBUG("ioctl HANTRODEC_IOCS_%s_RESERVE failed\n",
               is_pp ? "PP" : "DEC");
     return DWL_ERROR;
   }
 
-  DWL_DEBUG("Reserved %s Core %d\n", is_pp ? "PP" : "DEC", *core_id);
+  DWL_DEBUG("Reserved %s core %d\n", is_pp ? "PP" : "DEC", *core_id);
 
   return DWL_OK;
 }
@@ -340,7 +357,7 @@ i32 DWLReserveHw(const void *instance, i32 *core_id) {
     Argument        : const void *instance
 ------------------------------------------------------------------------------*/
 void DWLReleaseHw(const void *instance, i32 core_id) {
-  struct HX170DWL *dec_dwl = (struct HX170DWL *) instance;
+  struct HANTRODWL *dec_dwl = (struct HANTRODWL *) instance;
   int is_pp;
 
   assert((u32)core_id < dec_dwl->num_cores);
@@ -351,7 +368,7 @@ void DWLReleaseHw(const void *instance, i32 core_id) {
   if ((u32) core_id >= dec_dwl->num_cores)
     return;
 
-  DWL_DEBUG(" %s Core %d\n", is_pp ? "PP" : "DEC", core_id);
+  DWL_DEBUG(" %s core %d\n", is_pp ? "PP" : "DEC", core_id);
 
   if (is_pp) {
     assert(core_id == 0);
@@ -360,7 +377,7 @@ void DWLReleaseHw(const void *instance, i32 core_id) {
   } else {
     if (dec_dwl->b_ppreserved) {
       /* decoder has reserved PP also => release it */
-      DWL_DEBUG("DEC released PP Core %d\n", core_id);
+      DWL_DEBUG("DEC released PP core %d\n", core_id);
 
       dec_dwl->b_ppreserved = 0;
 
@@ -375,7 +392,7 @@ void DWLReleaseHw(const void *instance, i32 core_id) {
 
 void DWLSetIRQCallback(const void *instance, i32 core_id,
                        DWLIRQCallbackFn *callback_fn, void* arg) {
-  /* not in use with single Core only control code */
+  /* not in use with single core only control code */
   UNUSED(instance);
   UNUSED(core_id);
   UNUSED(callback_fn);

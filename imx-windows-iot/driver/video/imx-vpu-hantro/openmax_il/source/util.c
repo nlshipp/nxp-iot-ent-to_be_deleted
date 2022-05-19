@@ -34,7 +34,7 @@
 ------------------------------------------------------------------------------*/
 
 #include "util.h"
-#include "android_ext.h"
+//#include "android_ext.h"
 #include "dbgtrace.h"
 #include "vsi_vendor_ext.h"
 

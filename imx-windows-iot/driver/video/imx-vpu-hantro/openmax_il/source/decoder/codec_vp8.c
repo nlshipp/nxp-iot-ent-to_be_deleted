@@ -852,7 +852,7 @@ CODEC_STATE decoder_setframebuffer_vp8(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX_
     UNUSED_PARAMETER(available_buffers);
     CODEC_VP8 *this = (CODEC_VP8 *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     VP8DecBufferInfo info;
     VP8DecRet ret;
 

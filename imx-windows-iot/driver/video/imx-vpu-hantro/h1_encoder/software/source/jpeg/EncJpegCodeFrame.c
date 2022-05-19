@@ -83,7 +83,9 @@ jpegEncodeFrame_e EncJpegCodeFrame(jpegInstance_s * inst)
     jpegSetNewFrame(inst);
 
     /* start hw encoding */
-    EncAsicFrameStart(inst->asic.ewl, &inst->asic.regs);
+    if (EncTryAsicFrameStart(inst->asic.ewl, &inst->asic.regs) != 0)
+        return JPEGENCODE_HW_ERROR;
+
     do {
         /* Encode one frame */
         i32 ewl_ret;

@@ -50,10 +50,10 @@ CLEAR_HDRINFO_IN_SEEK = n
 DEBUG = y
 # Add your debugging flag (or not) to CFLAGS
 ifeq ($(DEBUG),y)
-  CFLAGS   = -g -O0
+  CFLAGS   = $(M32) -g -O0
   DEBFLAGS = -DDEBUG -D_ASSERT_USED -D_RANGE_CHECK -D_ERROR_PRINT
 else
-  CFLAGS   = -O3
+  CFLAGS   = $(M32) -O3
   DEBFLAGS = -DNDEBUG
 endif
 
@@ -86,6 +86,8 @@ DEBFLAGS += -DENABLE_DPB_RECOVER
 
 # Enable WaitListNotInUse so that buffer can be released safely.
 #DEBFLAGS += -DUSE_EXT_BUF_SAFE_RELEASE
+# Enable null pointer judgement for picture buffer in VSI environment.
+#DEBFLAGS += -DUSE_NULL_POINTER_PROTECT
 
 # Discard the picture if vicious pic is found in ref pic list
 #DEBFLAGS += -DDISCARD_ERROR_PICTURE

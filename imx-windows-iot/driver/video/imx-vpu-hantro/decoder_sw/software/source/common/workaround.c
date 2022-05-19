@@ -198,6 +198,9 @@ void PrepareStuffingWorkaround( u8 *p_dec_out, u32 vop_width, u32 vop_height ) {
   u32 i;
   u8 * p_base;
 
+  if (p_dec_out == NULL)
+    return;
+
   p_base = p_dec_out + GetMbOffset(vop_width*vop_height - (MB_OFFSET + vop_width * vop_height / 6), vop_width);
 
   for( i = 0 ; i < MAGIC_WORD_LENGTH ; ++i )
@@ -230,6 +233,9 @@ u32  ProcessStuffingWorkaround( u8 * p_dec_out, u8 * p_ref_pic, u32 vop_width,
   u8 * p_base;
   u32 num_mbs;
   u32 match = HANTRO_TRUE;
+
+  if (p_dec_out == NULL)
+    return  HANTRO_FALSE;
 
   num_mbs = vop_width*vop_height;
 
@@ -320,8 +326,10 @@ void InitWorkarounds(u32 dec_mode, workaround_t *p_workarounds) {
   }
 
 
+#ifndef DISABLE_CPU_ACCESS
   if (dec_mode == 5 /*MPEG2*/ )
     p_workarounds->mpeg.start_code = HANTRO_TRUE;
+#endif
 
 }
 

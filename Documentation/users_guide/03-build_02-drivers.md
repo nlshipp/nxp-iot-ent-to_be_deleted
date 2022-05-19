@@ -58,19 +58,10 @@ Some tools may not work correctly if LongPath is not enabled, therefore run foll
  
     > Note Microsoft pkggen requires launching Visual Studio 2017 as Administrator. Although driver projects are configured not to generate packages BSP might contain miscellaneous projects that require launching Visual Studio as Administrator to build successfully.
  2. Choose `Debug` or `Release` build type.
- 3. If secure boot feature is enabled it is required to use signed drivers. For details see [How to use the signed prebuilt HAL drivers with the BSP][] section.
+ 3. If secure boot feature is enabled it is required to use signed drivers.
  4. To build press Ctrl-Shift-B or choose Build -> Build Solution from menu. This will compile all driver packages then `imx-windows-iot\BSP\IoTEntOnNXP\drivers` for deployment.
  5. The updated drivers could now be injected into the installation image or manually  installed to running development board.
       - To manually install drivers it has to be copied to development board via USB drive, network share, scp, remote desktop.
         Driver can be installed either by clicking `install` in right click menu of 'inf' file or by devcon command-line utility.
       - For debug use the `.kdfiles` of WinDBG. Then to initiate driver reload either use devcon or reset the board.
       - To create new installation SD card follow [Deploy Windows IoT image to development board][]
-
-### How to use the signed prebuilt HAL drivers with the BSP
-
-The Secure Boot feature of Windows 10 requires use of OEM signed drivers. Certificates are then validated with certification authority.
-
-HAL drivers however has to be signed by Microsoft certification authority. HAL is therefore provided prebuilt and signed with the BSP sources inside `imx-windows-iot\components\NXP.SignedDrivers\BootDrivers.<ARCHITECTURE>` directory.
-
-  1. To use these prebuilt signed drivers in BSP project modify the `imx-windows-iot\build\tools\CreateBSP` to copy HAL drivers from `imx-windows-iot\components\NXP.SignedDrivers` instead of the build results.
-  2. After building the driver project as described in step 4 of [Building the drivers][] the signed hal will be ready for deployment into the installer using `make-winpe-enterprise.cmd` (see [Deploy Windows IoT image to development board][]).

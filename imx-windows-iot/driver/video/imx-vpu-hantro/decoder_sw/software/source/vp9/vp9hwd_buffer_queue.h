@@ -94,4 +94,5 @@ void Vp9BufferQueueClearAbort(BufferQueue queue);
 void Vp9BufferQueueEmptyRef(BufferQueue queue, i32 buffer);
 
 void Vp9BufferQueueReset(BufferQueue queue);
+void vp9BufferQueueReset2(BufferQueue queue);
 #endif /* VP9HWD_PICTURE_BUFFER_QUEUE_H_ */

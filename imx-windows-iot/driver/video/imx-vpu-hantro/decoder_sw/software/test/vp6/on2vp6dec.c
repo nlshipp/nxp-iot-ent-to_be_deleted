@@ -91,7 +91,20 @@ extern u32 g_hw_ver;
 u32 b_frames=0;
 void printVp6PicCodingType(u32 pic_type);
 
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#undef DEBUG_PRINT
+#ifdef _TB_DEBUG_PRINT
+#define DEBUG_PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
+#else
+#define DEBUG_PRINT(argv)
+#endif
+
+#define PRINT(argv) { \
+  printf argv ; \
+  fflush(stdout); \
+  }
 
 #define MAX_BUFFERS 16
 
@@ -156,6 +169,7 @@ static void *AddBufferThread(void *arg) {
     pthread_mutex_lock(&ext_buffer_contro);
     if(add_extra_flag && (external_buf_num < MAX_BUFFERS)) {
       struct DWLLinearMem mem;
+      mem.mem_type = DWL_MEM_TYPE_DPB;
       i32 dwl_ret;
       if (pp_enabled)
         dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -180,10 +194,10 @@ static void *AddBufferThread(void *arg) {
 }
 void ReleaseExtBuffers() {
   int i;
-  printf("Releasing %d external frame buffers\n", external_buf_num);
+  PRINT(("Releasing %d external frame buffers\n", external_buf_num));
   pthread_mutex_lock(&ext_buffer_contro);
   for(i=0; i<external_buf_num; i++) {
-    printf("Freeing buffer %p\n", ext_buffers[i].virtual_address);
+    PRINT(("Freeing buffer %p\n", ext_buffers[i].virtual_address));
     if (pp_enabled)
       DWLFreeLinear(dwl_inst, &ext_buffers[i]);
     else
@@ -258,6 +272,7 @@ static void* buf_release_thread(void* arg) {
         pthread_mutex_lock(&ext_buffer_contro);
         if(add_extra_flag && (external_buf_num < MAX_BUFFERS)) {
           struct DWLLinearMem mem;
+          mem.mem_type = DWL_MEM_TYPE_DPB;
           i32 dwl_ret;
           if (pp_enabled)
             dwl_ret = DWLMallocLinear(dwl_inst, buffer_size, &mem);
@@ -566,7 +581,7 @@ void writeRawFrame(FILE * fp, unsigned char *buffer, int frame_size, int md5,
 
       pic_big_endian = (u8 *) malloc(frame_size);
       if(pic_big_endian == NULL) {
-        DEBUG_PRINT("MALLOC FAILED @ %s %d", __FILE__, __LINE__);
+        PRINT(("MALLOC FAILED @ %s %d", __FILE__, __LINE__));
         if(raster_scan)
           free(raster_scan);
         return;
@@ -595,6 +610,8 @@ void writeRawFrame(FILE * fp, unsigned char *buffer, int frame_size, int md5,
     fprintf(fp, "\n");
     if(raster_scan)
       free(raster_scan);
+    if(pic_big_endian)
+      free(pic_big_endian);
     return;
   } else {
   }
@@ -627,6 +644,8 @@ void writeRawFrame(FILE * fp, unsigned char *buffer, int frame_size, int md5,
 
   if(raster_scan)
     free(raster_scan);
+  if(pic_big_endian)
+    free(pic_big_endian);
 }
 
 /*
@@ -635,8 +654,8 @@ void writeRawFrame(FILE * fp, unsigned char *buffer, int frame_size, int md5,
 */
 
 int decode_file(const options_s * opts) {
-  VP6DecInput input;
-  VP6DecOutput output;
+  VP6DecInput input = { 0 };
+  VP6DecOutput output = { 0 };
   VP6DecPicture dec_pic, tmp_pic;
   VP6DecRet ret;
   u32 tmp;
@@ -669,6 +688,7 @@ int decode_file(const options_s * opts) {
 
   if(out_file == NULL) {
     perror(opts->output);
+    fclose(input_file);
     return -1;
   }
 #endif
@@ -676,14 +696,14 @@ int decode_file(const options_s * opts) {
 #ifdef ASIC_TRACE_SUPPORT
   tmp = openTraceFiles();
   if (!tmp) {
-    DEBUG_PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
+    PRINT(("UNABLE TO OPEN TRACE FILE(S)\n"));
   }
 #endif
 
 #ifdef USE_EXTERNAL_BUFFER
   dwl_inst = DWLInit(&dwl_init);
   if(dwl_inst == NULL) {
-    DEBUG_PRINT(("H264DecInit# ERROR: DWL Init failed\n"));
+    PRINT(("H264DecInit# ERROR: DWL Init failed\n"));
     goto end;
   }
 #endif
@@ -696,7 +716,7 @@ int decode_file(const options_s * opts) {
                    num_buffers,
                    tiled_output, 0, 0);
   if (ret != VP6DEC_OK) {
-    printf("DECODER INITIALIZATION FAILED\n");
+    PRINT(("DECODER INITIALIZATION FAILED\n"));
     goto end;
   }
 
@@ -745,7 +765,7 @@ int decode_file(const options_s * opts) {
 
   if(DWLMallocLinear(((VP6DecContainer_t *) dec_inst)->dwl,
                      STREAMBUFFER_BLOCKSIZE, &stream_mem) != DWL_OK) {
-    printf(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
+    PRINT(("UNABLE TO ALLOCATE STREAM BUFFER MEMORY\n"));
     exit(-1);
   }
 
@@ -773,7 +793,7 @@ int decode_file(const options_s * opts) {
 
       ret = TBRandomizeU32(&input.data_len);
       if(ret != 0) {
-        DEBUG_PRINT("RANDOM STREAM ERROR FAILED\n");
+        PRINT(("RANDOM STREAM ERROR FAILED\n"));
         return 0;
       }
     }
@@ -789,7 +809,7 @@ int decode_file(const options_s * opts) {
                                        tb_cfg.tb_params.
                                        stream_bit_swap);
           if(ret != 0) {
-            DEBUG_PRINT("RANDOM STREAM ERROR FAILED\n");
+            PRINT(("RANDOM STREAM ERROR FAILED\n"));
             goto end;
           }
 
@@ -805,9 +825,9 @@ int decode_file(const options_s * opts) {
       if(ret == VP6DEC_HDRS_RDY) {
 #ifdef USE_EXTERNAL_BUFFER
         rv = VP6DecGetBufferInfo(dec_inst, &hbuf);
-        printf("VP6DecGetBufferInfo ret %d\n", rv);
-        printf("buf_to_free %p, next_buf_size %d, buf_num %d\n",
-               (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num);
+        PRINT(("VP6DecGetBufferInfo ret %d\n", rv));
+        PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+               (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
 #endif
         VP6DecInfo dec_info;
 
@@ -819,7 +839,7 @@ int decode_file(const options_s * opts) {
 
         ret = VP6DecGetInfo(dec_inst, &dec_info);
         if (ret != VP6DEC_OK) {
-          DEBUG_PRINT("ERROR in getting stream info!\n");
+          PRINT(("ERROR in getting stream info!\n"));
           goto end;
         }
 
@@ -855,11 +875,12 @@ int decode_file(const options_s * opts) {
       if (ret == VP6DEC_WAITING_FOR_BUFFER) {
         DEBUG_PRINT(("Waiting for frame buffers\n"));
         struct DWLLinearMem mem;
+        mem.mem_type = DWL_MEM_TYPE_DPB;
 
         rv = VP6DecGetBufferInfo(dec_inst, &hbuf);
-        printf("VP6DecGetBufferInfo ret %d\n", rv);
-        printf("buf_to_free %p, next_buf_size %d, buf_num %d\n",
-               (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num);
+        PRINT(("VP6DecGetBufferInfo ret %d\n", rv));
+        PRINT(("buf_to_free %p, next_buf_size %d, buf_num %d\n",
+               (void *)hbuf.buf_to_free.virtual_address, hbuf.next_buf_size, hbuf.buf_num));
 
         if (hbuf.buf_to_free.virtual_address != NULL && res_changed) {
           add_extra_flag = 0;
@@ -880,7 +901,7 @@ int decode_file(const options_s * opts) {
               DWLMallocRefFrm(dwl_inst, hbuf.next_buf_size, &mem);
             rv = VP6DecAddBuffer(dec_inst, &mem);
 
-            printf("VP6DecAddBuffer ret %d\n", rv);
+            PRINT(("VP6DecAddBuffer ret %d\n", rv));
             if(rv != VP6DEC_OK && rv != VP6DEC_WAITING_FOR_BUFFER) {
               if (pp_enabled)
                 DWLFreeLinear(dwl_inst, &mem);
@@ -957,7 +978,7 @@ int decode_file(const options_s * opts) {
       }
 #endif
 
-      fprintf(stdout, "Picture %d,", current_video_frame);
+      DEBUG_PRINT(("Picture %d,", current_video_frame));
 
 #if defined(PP_PIPELINE_ENABLED) || !defined(USE_OUTPUT_RELEASE)
       /* pic coding type */
@@ -1002,13 +1023,13 @@ end:
   add_buffer_thread_run = 0;
 #endif
 
-  printf("Pictures decoded: %d\n", current_video_frame);
+  PRINT(("Pictures decoded: %d\n", current_video_frame));
 
 #ifdef PP_PIPELINE_ENABLED
   pp_close();
 #endif
 
-  if(stream_mem.virtual_address)
+  if(stream_mem.virtual_address && dec_inst != NULL)
     DWLFreeLinear(((VP6DecContainer_t *) dec_inst)->dwl, &stream_mem);
 #ifdef USE_EXTERNAL_BUFFER
   ReleaseExtBuffers();
@@ -1066,6 +1087,10 @@ int main(int argc, char *argv[]) {
     /* Check expiry date */
     time(&sys_time);
     tm = localtime(&sys_time);
+    if (tm == NULL) {
+      fprintf(stderr,"Get localtime failed!\n");
+      return -1;
+    }
     strftime(tm_buf, sizeof(tm_buf), "%y%m%d", tm);
     tmp1 = 1000000+atoi(tm_buf);
     if (tmp1 > (EXPIRY_DATE) && (EXPIRY_DATE) > 1 ) {
@@ -1096,8 +1121,8 @@ int main(int argc, char *argv[]) {
       exit(0);
     } else if(strcmp(argv[i], "-O") == 0) {
       options.output = optarg;
-    } else if(strcmp(argv[i], "-N") == 0) {
-      options.last_frame = atoi(optarg);
+    } else if(strncmp(argv[i], "-N", 2) == 0) {
+      options.last_frame = atoi(argv[i] + 2);
     } else if(strcmp(argv[i], "-m") == 0) {
       options.md5 = 1;
     } else if(strcmp(argv[i], "-M") == 0) {
@@ -1139,14 +1164,14 @@ int main(int argc, char *argv[]) {
 #endif
 #else
   if(argc < 3) {
-    printf("\nVp6 Decoder PP Pipelined Testbench\n\n");
-    printf("USAGE:\n%s [options] stream.vp6 pp.cfg\n", argv[0]);
-    printf("-Nn to decode only first n vops of the stream\n");
-    printf("-A  stream contains alpha channel\n");
+    PRINT(("\nVp6 Decoder PP Pipelined Testbench\n\n"));
+    PRINT(("USAGE:\n%s [options] stream.vp6 pp.cfg\n", argv[0]));
+    PRINT(("-Nn to decode only first n vops of the stream\n"));
+    PRINT(("-A  stream contains alpha channel\n"));
 #ifdef USE_EXTERNAL_BUFFER
-    printf("--AddBuffer add extra external buffer randomly\n");
+    PRINT(("--AddBuffer add extra external buffer randomly\n"));
 #ifdef USE_OUTPUT_RELEASE
-    printf("--addbuffer add extra external buffer in output thread\n");
+    PRINT(("--addbuffer add extra external buffer in output thread\n"));
 #endif
 #endif
     exit(100);
@@ -1218,8 +1243,8 @@ int main(int argc, char *argv[]) {
   TBSetDefaultCfg(&tb_cfg);
   f_tbcfg = fopen("tb.cfg", "r");
   if(f_tbcfg == NULL) {
-    printf("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n");
-    printf("USING DEFAULT CONFIGURATION\n");
+    PRINT(("UNABLE TO OPEN INPUT FILE: \"tb.cfg\"\n"));
+    PRINT(("USING DEFAULT CONFIGURATION\n"));
   } else {
     fclose(f_tbcfg);
     if(TBParseConfig("tb.cfg", TBReadParam, &tb_cfg) == TB_FALSE)
@@ -1289,9 +1314,9 @@ int main(int argc, char *argv[]) {
     /* Print API version number */
     dec_api = VP6DecGetAPIVersion();
     dec_build = VP6DecGetBuild();
-    DEBUG_PRINT
-    ("\nG1 VP6 Decoder API v%d.%d - SW build: %d - HW build: %x\n\n",
-     dec_api.major, dec_api.minor, dec_build.sw_build, dec_build.hw_build);
+    PRINT
+    (("\nG1 VP6 Decoder API v%d.%d - SW build: %d - HW build: %x\n\n",
+     dec_api.major, dec_api.minor, dec_build.sw_build, dec_build.hw_build));
   }
 
   ret = decode_file(&options);
@@ -1337,13 +1362,13 @@ void HandlePpOutput(u32 vop_number, VP6DecPicture DecPicture, VP6DecInst decoder
 void printVp6PicCodingType(u32 pic_type) {
   switch (pic_type) {
   case DEC_PIC_TYPE_I:
-    printf(" DEC_PIC_TYPE_I\n");
+    DEBUG_PRINT((" DEC_PIC_TYPE_I\n"));
     break;
   case DEC_PIC_TYPE_P:
-    printf(" DEC_PIC_TYPE_P\n");
+    DEBUG_PRINT((" DEC_PIC_TYPE_P\n"));
     break;
   default:
-    printf("Other %d\n", pic_type);
+    DEBUG_PRINT(("Other %d\n", pic_type));
     break;
   }
 }

@@ -89,7 +89,7 @@ u32 VP6HWDecodeBool(BOOL_CODER * br, i32 probability) {
           break;
         }
         count = 8;
-        value |= br->buffer[br->pos];
+        value |= (u32) br->buffer[br->pos];
         br->pos++;
       }
     } while(range < 0x80);
@@ -149,7 +149,7 @@ u32 VP6HWDecodeBool128(BOOL_CODER * br) {
       return 0; /* any value, not valid */
     }
     count = 8;
-    value |= br->buffer[br->pos];
+    value |= (u32) br->buffer[br->pos];
     br->pos++;
   }
 

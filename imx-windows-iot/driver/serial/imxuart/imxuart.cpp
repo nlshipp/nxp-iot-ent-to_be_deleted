@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Copyright 2020 NXP
+// Copyright 2020, 2022 NXP
 // Licensed under the MIT License.
 //
 // Module Name:
@@ -6877,7 +6877,7 @@ IMXUartDeinitializeDma (
     rxDmaTransactionContextPtr->DmaBufferMdlPtr = nullptr;
 
     if (rxDmaTransactionContextPtr->DmaBufferPtr != nullptr) {
-        MmFreeNonCachedMemory(
+        RtlZeroMemory(
             rxDmaTransactionContextPtr->DmaBufferPtr,
             rxDmaTransactionContextPtr->DmaBufferSize);
     }

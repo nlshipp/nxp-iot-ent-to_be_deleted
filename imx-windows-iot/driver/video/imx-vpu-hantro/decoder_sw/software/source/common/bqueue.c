@@ -192,10 +192,15 @@ u32 BqueueInit2( struct BufferQueue *bq, u32 num_buffers ) {
   }
 #endif
   bq->queue_size = num_buffers;
-  bq->ctr = 1;
-  bq->abort = 0;
+
   pthread_mutex_init(&bq->buf_release_mutex, NULL);
   pthread_cond_init(&bq->buf_release_cv, NULL);
+
+  pthread_mutex_lock(&bq->buf_release_mutex);
+  bq->ctr = 1;
+  bq->abort = 0;
+  pthread_mutex_unlock(&bq->buf_release_mutex);
+
 #ifndef USE_EXTERNAL_BUFFER
   bq->buf_used = (u32*)DWLmalloc( sizeof(u32)*num_buffers);
 #else
@@ -373,6 +378,29 @@ void BqueueSetAbort(struct BufferQueue *bq) {
 void BqueueClearAbort(struct BufferQueue *bq) {
   pthread_mutex_lock(&bq->buf_release_mutex);
   bq->abort = 0;
+  pthread_mutex_unlock(&bq->buf_release_mutex);
+}
+
+void BqueueRemove(struct BufferQueue *bq) {
+  u32 i;
+  if(bq->pic_i == NULL || bq->buf_used == NULL)
+    return;
+
+  pthread_mutex_lock(&bq->buf_release_mutex);
+#ifndef USE_EXTERNAL_BUFFER
+  for( i = 0 ; i < bq->queue_size ; ++i ) {
+    bq->pic_i[i] = 0;
+    bq->buf_used[i] = 0;
+  }
+#else
+  for( i = 0; i < MAX_OUTPUT_BUFFERS; ++i ) {
+    bq->pic_i[i] = 0;
+    bq->buf_used[i] = 0;
+  }
+#endif
+  bq->ctr = 1;
+  bq->abort = 0;
+  bq->prev_anchor_slot  = 0;
   pthread_mutex_unlock(&bq->buf_release_mutex);
 }
 

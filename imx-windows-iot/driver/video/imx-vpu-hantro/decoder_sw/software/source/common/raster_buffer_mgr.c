@@ -112,7 +112,10 @@ struct DWLLinearMem RbmGetTiledBuffer(RasterBufferMgr instance,
 void RbmRelease(RasterBufferMgr instance) {
   RasterBufferMgrInst* inst = (RasterBufferMgrInst*)instance;
   for (int i = 0; i < inst->num_buffers; i++) {
-    DWLFreeLinear(inst->dwl, &inst->buffer_map[i].pp_buffer);
+#ifdef USE_NULL_POINTER_PROTECT
+    if (inst->buffer_map[i].pp_buffer.virtual_address != NULL)
+#endif
+      DWLFreeLinear(inst->dwl, &inst->buffer_map[i].pp_buffer);
   }
   DWLfree(inst->buffer_map);
   DWLfree(inst);
@@ -123,6 +126,8 @@ void RbmRelease(RasterBufferMgr instance) {
 /* Allocate internal buffers here. */
 RasterBufferMgr RbmInit(struct RasterBufferParams params) {
   RasterBufferMgrInst* inst = DWLmalloc(sizeof(RasterBufferMgrInst));
+  if (!inst)
+    return NULL;
   inst->num_buffers = params.num_buffers;
   inst->dwl = params.dwl;
   inst->ext_buffer_config = params.ext_buffer_config;
@@ -131,8 +136,10 @@ RasterBufferMgr RbmInit(struct RasterBufferParams params) {
   inst->pp_queue = NULL;
   if (size) {
     inst->pp_queue = InputQueueInit(inst->num_buffers);
-    if (!inst->pp_queue)
-      RbmRelease(inst);
+    if (!inst->pp_queue) {
+      DWLfree(inst);
+      return NULL;
+    }
   }
   return inst;
 }
@@ -209,7 +216,7 @@ void RbmAddPpBuffer(RasterBufferMgr instance, struct DWLLinearMem *pp_buffer, i3
   InputQueueAddBuffer(inst->pp_queue, pp_buffer);
 }
 
-struct DWLLinearMem * RbmReturnPpBuffer(RasterBufferMgr instance, const u32 *addr) {
+struct DWLLinearMem * RbmReturnPpBuffer(RasterBufferMgr instance, const addr_t addr) {
   RasterBufferMgrInst* inst = (RasterBufferMgrInst*)instance;
 
   return (InputQueueReturnBuffer(inst->pp_queue, addr));
@@ -225,5 +232,9 @@ void RbmResetPpBuffer(RasterBufferMgr instance) {
   RasterBufferMgrInst* inst = (RasterBufferMgrInst*)instance;
 
   InputQueueReset(inst->pp_queue);
+}
+void RbmResetPpBuffer2(RasterBufferMgr instance) {
+  RasterBufferMgrInst* inst = (RasterBufferMgrInst*)instance;
+  InputQueueReset2(inst->pp_queue);
 }
 #endif

@@ -47,17 +47,26 @@
 #include "ewl_linux_lock.h"
 #include "ewl_x280_common.h"
 
-#include "linux/hx280enc.h"
 #ifdef USE_ION
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0) || defined(ENABLE_DMABUF_HEAP)
+#include <linux/dma-heap.h>
+#else
 #include <linux/ion.h>
+#endif
 #include <linux/dma-buf.h>
 #include <linux/version.h>
 #ifdef ANDROID
+#if !defined(ENABLE_DMABUF_HEAP)
 #include <linux/mxc_ion.h>
 #include <ion_4.12.h>
 #endif
+#endif
 #else
 #include "memalloc.h"
+#endif
+
+#ifdef ENABLE_DMABUF_HEAP
+#include <linux/dma-buf-imx.h>
 #endif
 
 #include <sys/syscall.h>
@@ -177,6 +186,7 @@ int MapAsicRegisters(hx280ewl_t * ewl)
     ioctl(ewl->fd_enc, HX280ENC_IOCGHWOFFSET, &base);
     ioctl(ewl->fd_enc, HX280ENC_IOCGHWIOSIZE, &size);
 
+#ifndef CFG_SECURE_IOCTRL_REGS
     /* map hw registers to user space */
     pRegs =
         (u32 *) mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -186,6 +196,9 @@ int MapAsicRegisters(hx280ewl_t * ewl)
         PTRACE("EWLInit: Failed to mmap regs\n");
         return -1;
     }
+#else
+    pRegs = MAP_FAILED;
+#endif
 
     ewl->regSize = size;
     ewl->regBase = base;
@@ -495,6 +508,32 @@ i32 EWLRelease(const void *inst)
     return EWL_OK;
 }
 
+/*------------------------------------------------------------------------------
+    Function name   : EWLIoctlWriteRegs
+    Description     : Write values to HW register through ioctl.
+    Return type     : int - return 0 on success, or retrun -1.
+    Argument        : int fd - encoder device fd.
+    Argument        : u32 offset - start write offset of HW register.
+    Argument        : u32 size - write size.
+    Argument        : u32 *val - write data pointer.
+------------------------------------------------------------------------------*/
+int EWLIoctlWriteRegs(int fd, u32 offset, u32 size, u32 *val)
+{
+    struct enc_regs_buffer regs;
+
+    memset(&regs, 0, sizeof(regs));
+    regs.offset = offset;
+    regs.regs = val;
+    regs.size = size;
+    if (ioctl(fd, HX280ENC_IOC_WRITE_REGS, &regs) != 0)
+    {
+        PTRACE("ERROR write enc reg fail, offset:%08x\n", offset);
+        return -1;
+    }
+
+    return 0;
+}
+
 /*******************************************************************************
  Function name   : EWLWriteReg
  Description     : Set the content of a hadware register
@@ -507,41 +546,31 @@ void EWLWriteReg(const void *inst, u32 offset, u32 val)
     hx280ewl_t *enc = (hx280ewl_t *) inst;
 
     assert(enc != NULL && offset < enc->regSize);
-
+#ifndef CFG_SECURE_IOCTRL_REGS
     if(offset == 0x04)
     {
         asic_status = val;
     }
 
-    offset = offset / 4;
-    *(enc->pRegBase + offset) = val;
+    *(enc->pRegBase + (offset / 4)) = val;
+#else
+    EWLIoctlWriteRegs(enc->fd_enc, offset, 4, &val);
+#endif
 
-    PTRACE("EWLWriteReg 0x%02x with value %08x\n", offset * 4, val);
+    PTRACE("EWLWriteReg 0x%02x with value %08x\n", offset, val);
 }
 
 /*------------------------------------------------------------------------------
     Function name   : EWLEnableHW
     Description     : 
-    Return type     : void 
+    Return type     : i32
     Argument        : const void *inst
-    Argument        : u32 offset
-    Argument        : u32 val
 ------------------------------------------------------------------------------*/
-void EWLEnableHW(const void *inst, u32 offset, u32 val)
+i32 EWLEnableHW(const void *inst)
 {
-    hx280ewl_t *enc = (hx280ewl_t *) inst;
+    hx280ewl_t *ewl = (hx280ewl_t *) inst;
 
-    assert(enc != NULL && offset < enc->regSize);
-
-    if(offset == 0x04)
-    {
-        asic_status = val;
-    }
-
-    offset = offset / 4;
-    *(enc->pRegBase + offset) = val;
-
-    PTRACE("EWLEnableHW 0x%02x with value %08x\n", offset * 4, val);
+    return ioctl(ewl->fd_enc, HX280ENC_IOCG_EN_CORE);
 }
 
 /*------------------------------------------------------------------------------
@@ -555,15 +584,50 @@ void EWLEnableHW(const void *inst, u32 offset, u32 val)
 void EWLDisableHW(const void *inst, u32 offset, u32 val)
 {
     hx280ewl_t *enc = (hx280ewl_t *) inst;
+    u32 stats;
 
     assert(enc != NULL && offset < enc->regSize);
 
-    offset = offset / 4;
-    *(enc->pRegBase + offset) = val;
+    if(offset == 0x10)
+    {
+        EWLWriteReg(inst, offset, val);
+        stats = val;
+        asic_status = val;
+    }
+    else
+    {
+        stats = EWLReadReg(inst, offset);
+        stats = stats & (~1);
+        EWLWriteReg(inst, offset, stats);
+    }
 
-    asic_status = val;
+    PTRACE("EWLDisableHW 0x%02x with value %08x\n", offset, stats);
+}
 
-    PTRACE("EWLDisableHW 0x%02x with value %08x\n", offset * 4, val);
+/*------------------------------------------------------------------------------
+    Function name   : EWLIoctlReadRegs
+    Description     : Read values to HW register through ioctl.
+    Return type     : int - return 0 on success, or retrun -1.
+    Argument        : int fd - encoder device fd.
+    Argument        : u32 offset - start read offset of HW register.
+    Argument        : u32 size - read size.
+    Argument        : u32 *val - read data pointer.
+------------------------------------------------------------------------------*/
+int EWLIoctlReadRegs(int fd, u32 offset, u32 size, u32 *val)
+{
+    struct enc_regs_buffer regs;
+
+    memset(&regs, 0, sizeof(regs));
+    regs.offset = offset;
+    regs.regs = val;
+    regs.size = size;
+    if (ioctl(fd, HX280ENC_IOC_READ_REGS, &regs) != 0)
+    {
+        PTRACE("ERROR read enc reg fail, offset:%08x\n", offset);
+        return -1;
+    }
+
+    return 0;
 }
 
 /*******************************************************************************
@@ -581,6 +645,34 @@ u32 EWLReadReg(const void *inst, u32 offset)
     hx280ewl_t *enc = (hx280ewl_t *) inst;
 
     assert(offset < enc->regSize);
+#ifndef CFG_SECURE_IOCTRL_REGS
+    if(offset == 0x04)
+    {
+        return asic_status;
+    }
+
+    val = *(enc->pRegBase + (offset / 4));
+#else
+    EWLIoctlReadRegs(enc->fd_enc, offset, 4, &val);
+#endif
+
+    PTRACE("EWLReadReg 0x%02x --> %08x\n", offset, val);
+    return val;
+}
+
+/*******************************************************************************
+ Function name   : EWLGetShadowReg
+ Description     : Retrive the content of a mirror registers. used when IRQ is 
+                   receivedor Status change in polling mode.
+ Return type     : u32 
+ Argument        : u32 offset
+*******************************************************************************/
+u32 EWLGetShadowReg(const void *inst, u32 offset)
+{
+    u32 val;
+    hx280ewl_t *enc = (hx280ewl_t *) inst;
+
+    assert(offset < enc->regSize);
 
     if(offset == 0x04)
     {
@@ -588,11 +680,34 @@ u32 EWLReadReg(const void *inst, u32 offset)
     }
 
     offset = offset / 4;
-    val = *(enc->pRegBase + offset);
+    val = enc->regMirror[offset];
 
     PTRACE("EWLReadReg 0x%02x --> %08x\n", offset * 4, val);
 
     return val;
+}
+
+/*******************************************************************************
+ Function name   : EWLSetShadowReg
+ Description     : Set the content of a mirror register
+ Return type     : u32 
+ Argument        : u32 offset
+*******************************************************************************/
+void EWLSetShadowReg(const void *inst, u32 offset, u32 val)
+{
+    hx280ewl_t *enc = (hx280ewl_t *) inst;
+
+    assert(enc != NULL && offset < enc->regSize);
+
+    if(offset == 0x04)
+    {
+        asic_status = val;
+    }
+
+    offset = offset / 4;
+    enc->regMirror[offset] = val;
+
+    PTRACE("EWLWriteReg 0x%02x with value %08x\n", offset * 4, val);
 }
 
 /*------------------------------------------------------------------------------
@@ -762,7 +877,7 @@ i32 EWLMallocLinear(const void *instance, u32 size, EWLLinearMem_t * info)
 #endif
 }
 
-#else  // LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)) && !defined(ENABLE_DMABUF_HEAP) //LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 i32 EWLMallocLinear(const void *instance, u32 size, EWLLinearMem_t * info)
 {
     hx280ewl_t *enc_ewl = (hx280ewl_t *) instance;
@@ -802,7 +917,7 @@ i32 EWLMallocLinear(const void *instance, u32 size, EWLLinearMem_t * info)
     struct ion_heap_data ihd[heap_cnt];
     memset(&ihd, 0, sizeof(ihd));
     query.cnt = heap_cnt;
-    query.heaps = (u64)&ihd;
+    query.heaps = (unsigned long)&ihd;
     ret = ioctl (enc_ewl->fd_memalloc, ION_IOC_HEAP_QUERY, &query);
     if (ret != 0) {
       PTRACE("can't get ion heaps \n");
@@ -853,6 +968,84 @@ i32 EWLMallocLinear(const void *instance, u32 size, EWLLinearMem_t * info)
       return EWL_ERROR;
 }
 
+#else (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)) || defined(ENABLE_DMABUF_HEAP)  // (LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0))
+i32 EWLMallocLinear(const void *instance, u32 size, EWLLinearMem_t * info)
+{
+    hx280ewl_t *enc_ewl = (hx280ewl_t *) instance;
+    EWLLinearMem_t *buff = (EWLLinearMem_t *) info;
+
+    struct dma_heap_allocation_data data = { 0 };
+    struct dma_buf_phys dma_phys;
+    int ret;
+
+    u32 pgsize = getpagesize();
+
+    assert(enc_ewl != NULL);
+    assert(buff != NULL);
+
+    PTRACE("EWLMallocLinear\t%8d bytes\n", size);
+
+    buff->size = (size + (pgsize - 1)) & (~(pgsize - 1));
+
+    buff->ion_fd = -1;
+    data.len = buff->size;
+    data.fd_flags = O_RDWR | O_CLOEXEC;
+    data.heap_flags = 0;
+    ret = ioctl (enc_ewl->fd_memalloc, DMA_HEAP_IOCTL_ALLOC, &data);
+    if (ret < 0) {
+      PTRACE("ion allocate failed. \n");
+      goto bail;
+    }
+    info->ion_fd = data.fd;
+
+    ret = ioctl(info->ion_fd, DMA_BUF_IOCTL_PHYS, &dma_phys);
+    if (ret < 0) {
+#ifdef ENABLE_DMABUF_HEAP
+        PTRACE("ion DMA_BUF_IOCTL_PHYS get phys failed. \n");
+        struct dmabuf_imx_phys_data data;
+        int fd_;
+        fd_ = open("/dev/dmabuf_imx", O_RDONLY | O_CLOEXEC);
+        if (fd_ < 0) {
+            PTRACE("open /dev/dambuf_imx failed: %s", strerror(errno));
+            goto bail;
+        }
+        data.dmafd = info->ion_fd;
+        if (ioctl(fd_, DMABUF_GET_PHYS, &data) < 0) {
+            PTRACE("%s ION_GET_PHYS  failed",__func__);
+            close(fd_);
+            goto bail;
+        } else {
+            buff->busAddress = data.phys;
+        }
+        close(fd_);
+    } else {
+        buff->busAddress = dma_phys.phys;
+    }
+#else
+        PTRACE("ion get phys failed. \n");
+        goto bail;
+    }
+
+    buff->busAddress = dma_phys.phys;
+#endif
+
+    PTRACE("physical address: %p\n", buff->busAddress);
+
+    buff->virtualAddress = (u32 *)mmap(0, buff->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                  buff->ion_fd, 0);
+    if (buff->virtualAddress == MAP_FAILED) {
+      PTRACE("ERROR! mmap failed\n");
+      goto bail;
+    }
+
+    return EWL_OK;
+
+bail:
+    if (buff->ion_fd >= 0)
+      close(buff->ion_fd);
+
+    return EWL_ERROR;
+}
 #endif // LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 
 #else //USE_ION

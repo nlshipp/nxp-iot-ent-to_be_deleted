@@ -469,9 +469,9 @@ u32 StrmDec_FindSync(DecContainer * dec_container) {
       dec_container->StrmStorage.p_last_sync) {
     dec_container->StrmDesc.strm_curr_pos =
       dec_container->StrmStorage.p_last_sync;
-    dec_container->StrmDesc.strm_buff_read_bits = 8 *
+    dec_container->StrmDesc.strm_buff_read_bits = (u32)(8 *
         (dec_container->StrmDesc.strm_curr_pos -
-         dec_container->StrmDesc.p_strm_buff_start);
+         dec_container->StrmDesc.p_strm_buff_start));
   }
 
   code = 0;
@@ -852,11 +852,15 @@ u32 StrmDec_ProcessBvopExtraResync(DecContainer *dec_cont) {
       dec_cont->StrmStorage.vp_mb_number =
         StrmDec_CheckNextVpMbNumber( dec_cont );
       tmp = StrmDec_DecodeVideoPacketHeader( dec_cont );
-      if( tmp != HANTRO_OK )
+      if( tmp != HANTRO_OK ) {
+        dec_cont->StrmStorage.vp_mb_number = prev_vp_mb_num;
         return tmp;
+      }
       tmp = StrmDec_GetStuffing( dec_cont );
-      if( tmp != HANTRO_OK )
+      if( tmp != HANTRO_OK ) {
+        dec_cont->StrmStorage.vp_mb_number = prev_vp_mb_num;
         return tmp;
+      }
 
       dec_cont->StrmStorage.vp_mb_number = prev_vp_mb_num;
 

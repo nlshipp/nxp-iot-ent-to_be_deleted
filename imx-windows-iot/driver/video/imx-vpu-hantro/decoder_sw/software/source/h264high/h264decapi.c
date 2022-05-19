@@ -239,8 +239,12 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
   (void) DWLmemset(dec_cont, 0, sizeof(decContainer_t));
   dec_cont->dwl = dwl;
 
+  pthread_mutex_init(&dec_cont->protect_mutex, NULL);
+
+  pthread_mutex_lock(&dec_cont->protect_mutex);
   h264bsdInit(&dec_cont->storage, no_output_reordering,
               use_display_smoothing);
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
 
   dec_cont->dec_stat = H264DEC_INITIALIZED;
 
@@ -252,7 +256,6 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
   SetDecRegister(dec_cont->h264_regs, HWIF_PRED_BC_TAP_0_0, 1);
   SetDecRegister(dec_cont->h264_regs, HWIF_PRED_BC_TAP_0_1, (u32)(-5));
   SetDecRegister(dec_cont->h264_regs, HWIF_PRED_BC_TAP_0_2, 20);
-  pthread_mutex_init(&dec_cont->protect_mutex, NULL);
 
   /* save HW version so we dont need to check it all the time when deciding the control stuff */
   dec_cont->is8190 = (asic_id >> 16) != 0x8170U ? 1 : 0;
@@ -267,6 +270,11 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
   if(reference_frame_format == DEC_REF_FRM_TILED_DEFAULT) {
     /* Assert support in HW before enabling.. */
     if(!hw_cfg.tiled_mode_support) {
+      pthread_mutex_destroy(&dec_cont->protect_mutex); 
+      DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+      (void) DWLRelease(dwl);
+#endif
       return H264DEC_FORMAT_NOT_SUPPORTED;
     }
     dec_cont->tiled_mode_support = hw_cfg.tiled_mode_support;
@@ -286,6 +294,11 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
               dscale_cfg->down_scale_y != 2 &&
               dscale_cfg->down_scale_y != 4 &&
               dscale_cfg->down_scale_y != 8 )) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex); 
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return (H264DEC_PARAM_ERROR);
   } else {
     u32 scale_table[9] = {0, 0, 1, 0, 2, 0, 0, 0, 3};
@@ -304,6 +317,11 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
 
   dec_cont->pp_buffer_queue = InputQueueInit(0);
   if (dec_cont->pp_buffer_queue == NULL) {
+    pthread_mutex_destroy(&dec_cont->protect_mutex); 
+    DWLfree(dec_cont);
+#ifndef USE_EXTERNAL_BUFFER
+    (void) DWLRelease(dwl);
+#endif
     return (H264DEC_MEMFAIL);
   }
   dec_cont->storage.pp_buffer_queue = dec_cont->pp_buffer_queue;
@@ -321,6 +339,9 @@ H264DecRet H264DecInit(H264DecInst * dec_inst,
   else if (error_handling == DEC_EC_PARTIAL_IGNORE)
     dec_cont->storage.partial_freeze = 2;
 #endif
+  if (error_handling == DEC_EC_NONE)
+    dec_cont->storage.no_freeze = 1;
+
   dec_cont->storage.picture_broken = HANTRO_FALSE;
 
   dec_cont->max_dec_pic_width = hw_cfg.max_dec_pic_width;    /* max decodable picture width */
@@ -522,14 +543,11 @@ u32 IsDpbRealloc(decContainer_t *dec_cont) {
   seqParamSet_t *p_sps = storage->active_sps;
   u32 is_high_supported = (dec_cont->h264_profile_support == H264_HIGH_PROFILE) ? 1 : 0;
   u32 n_cores = dec_cont->n_cores;
-  u32 max_dpb_size, new_pic_size_in_mbs, new_pic_size, new_tot_buffers, dpb_size, max_ref_frames;
+  u32 max_dpb_size, new_pic_size_in_mbs = 0, new_pic_size, new_tot_buffers, dpb_size, max_ref_frames;
   u32 no_reorder;
   struct dpbInitParams dpb_params;
 
   new_pic_size_in_mbs = 0;
-
-  if (!dec_cont->use_adaptive_buffers)
-    return 1;
 
   if(dec_cont->b_mvc == 0)
     new_pic_size_in_mbs = p_sps->pic_width_in_mbs * p_sps->pic_height_in_mbs;
@@ -631,8 +649,14 @@ u32 IsDpbRealloc(decContainer_t *dec_cont) {
   }
 
   if ((dpb->n_new_pic_size <= dec_cont->n_ext_buf_size) &&
-      new_tot_buffers + dpb->n_guard_size <= dpb->tot_buffers)
+      new_tot_buffers + dpb->n_guard_size <= dpb->tot_buffers &&
+      dec_cont->use_adaptive_buffers)
     return 0;
+
+  if ((dpb->pic_size_in_mbs == dpb_params.pic_size_in_mbs) &&
+      dpb->dpb_size == dpb_size && !dec_cont->use_adaptive_buffers)
+    return 0;
+
   return 1;
 }
 #endif
@@ -739,9 +763,11 @@ void H264DecRelease(H264DecInst dec_inst) {
       dec_cont->storage.dpbs[1]);
 
   ReleaseAsicBuffers(dwl, dec_cont->asic_buff);
+  if (dec_cont->pp_buffer_queue)
+    InputQueueRelease(dec_cont->pp_buffer_queue);
 
   ReleaseList(&dec_cont->fb_list);
-  InputQueueRelease(dec_cont->pp_buffer_queue); // Temporary fix by NXP. Should be fixed by vendor in future.
+
 
   dec_cont->checksum = NULL;
   DWLfree(dec_cont);
@@ -1480,6 +1506,7 @@ RESOURCE_NOT_READY:
         }
 
         dec_cont->asic_buff->enable_dmv_and_poc = 0;
+        ASSERT(storage->active_sps != NULL);
         storage->dpb->interlaced = (storage->active_sps->frame_mbs_only_flag == 0) ? 1 : 0;
 
         /* FMO always decoded in rlc mode */
@@ -1539,6 +1566,7 @@ RESOURCE_NOT_READY:
       }
 
       /* Initialize DPB mode */
+      ASSERT(dec_cont->storage.active_sps != NULL);
       if( !dec_cont->storage.active_sps->frame_mbs_only_flag &&
           dec_cont->allow_dpb_field_ordering )
         dec_cont->dpb_mode = DEC_DPB_INTERLACED_FIELD;
@@ -1578,6 +1606,7 @@ RESOURCE_NOT_READY:
       if (!dec_cont->rlc_mode && dec_cont->workarounds.h264.frame_num &&
           !dec_cont->secure_mode) {
         u32 tmp;
+        ASSERT(storage->active_sps != NULL);
         dec_cont->force_nal_mode =
           h264bsdFixFrameNum((u8*)tmp_stream - num_read_bytes,
                              strm_len + num_read_bytes,
@@ -1771,8 +1800,9 @@ RESOURCE_NOT_READY:
         if (dec_cont->storage.partial_freeze) {
           dpbStorage_t *dpb_partial = &dec_cont->storage.dpb[1];
           do {
-            ref_data = h264bsdGetRefPicDataVlcMode(dpb_partial,
-                                                   dpb_partial->list[index], 0);
+            struct DWLLinearMem ref = h264bsdGetRefPicDataVlcMode(dpb_partial,
+                                      dpb_partial->list[index], 0);
+            ref_data = (u8 *)ref.virtual_address;
             index++;
           } while(index < 16 && ref_data == NULL);
         }
@@ -1946,7 +1976,7 @@ RESOURCE_NOT_READY:
           h264RemoveNoBumpOutput(&storage->dpb[0], (&storage->dpb[0])->num_out - (&storage->dpb[1])->num_out);
 
         if(dec_cont->pp_enabled) {
-          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, storage->dpb->current_out->ds_data->virtual_address);
+          InputQueueReturnBuffer(dec_cont->pp_buffer_queue, storage->dpb->current_out->ds_data->bus_address);
         }
         /* we trust our memcpy; ignore return value */
         (void) DWLmemcpy(&storage->dpb[0], &storage->dpb[1],
@@ -2053,8 +2083,9 @@ RESOURCE_NOT_READY:
         if (dec_cont->storage.partial_freeze) {
           dpbStorage_t *dpb_partial = &dec_cont->storage.dpb[1];
           do {
-            ref_data = h264bsdGetRefPicDataVlcMode(dpb_partial,
-                                                   dpb_partial->list[index], 0);
+            struct DWLLinearMem ref = h264bsdGetRefPicDataVlcMode(dpb_partial,
+                                      dpb_partial->list[index], 0);
+            ref_data = (u8 *)ref.virtual_address;
             index++;
           } while(index < 16 && ref_data == NULL);
         }
@@ -2132,7 +2163,9 @@ RESOURCE_NOT_READY:
               consumed = (u32) (next - tmp_stream);
               tmp_stream += consumed;
               strm_len -= consumed;
-            }
+            } else
+              tmp_stream = input->stream + input_data_len;
+            dec_cont->stream_pos_updated = 0;
           }
 
           ASSERT(dec_cont->rlc_mode == 0);
@@ -2229,7 +2262,7 @@ RESOURCE_NOT_READY:
 
       h264UpdateAfterPictureDecode(dec_cont);
       if(dec_cont->pp_enabled)
-        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.dpb->current_out->ds_data->virtual_address);
+        InputQueueReturnBuffer(dec_cont->pp_buffer_queue, dec_cont->storage.dpb->current_out->ds_data->bus_address);
 
       /* PP will run in H264DecNextPicture() for this concealed picture */
 
@@ -2367,8 +2400,20 @@ end:
   /* erroneous picture which is not outputted. */
   if (return_value == H264DEC_PIC_DECODED &&
       dec_cont->storage.dpb->current_out->num_err_mbs &&
-      !dec_cont->storage.dpb->current_out->corrupted_second_field)
+      !dec_cont->storage.dpb->current_out->corrupted_second_field &&
+      !dec_cont->storage.no_freeze)
     return_value = H264DEC_PIC_CONSUMED;
+
+  /* If just 1 field is decoded, return FIELD_DECODED intead of PIC_DECODED */
+  if (return_value == H264DEC_PIC_DECODED &&
+      dec_cont->storage.second_field)
+    return_value = H264DEC_FIELD_DECODED;
+
+  /* If PIC_DECODED is set for DPB flush purpose, return STRM_PROCESSED */
+  if (return_value == H264DEC_PIC_DECODED &&
+      dec_cont->dec_stat == H264DEC_NEW_HEADERS)
+    return_value = H264DEC_STRM_PROCESSED;
+
 #ifdef USE_OUTPUT_RELEASE
   if(dec_cont->abort)
     return(H264DEC_ABORTED);
@@ -3221,6 +3266,7 @@ void h264InitPicFreezeOutput(decContainer_t * dec_cont, u32 from_old_dpb) {
 
   /* update status of decoded image (relevant only for  multi-Core) */
   /* current out is always in dpb[0] */
+  if (dec_cont->b_mc)
   {
     dpbPicture_t *current_out = storage->dpb->current_out;
 
@@ -3234,7 +3280,9 @@ void h264InitPicFreezeOutput(decContainer_t * dec_cont, u32 from_old_dpb) {
   u32 index = 0;
   const u8 *ref_data;
   do {
-    ref_data = h264bsdGetRefPicDataVlcMode(dpb, dpb->list[index], 0);
+    struct DWLLinearMem ref = h264bsdGetRefPicDataVlcMode(dpb,
+                              dpb->list[index], 0);
+    ref_data = ref.virtual_address;
     index++;
   } while(index < 16 && ref_data == NULL);
 #endif
@@ -3586,15 +3634,15 @@ void h264CheckReleasePpAndHw(decContainer_t *dec_cont) {
 
 ------------------------------------------------------------------------------*/
 H264DecRet H264DecPeek(H264DecInst dec_inst, H264DecPicture * output) {
-  decContainer_t *dec_cont = (decContainer_t *) dec_inst;
-  dpbPicture_t *current_out = dec_cont->storage.dpb->current_out;
-
-  DEC_API_TRC("H264DecPeek#\n");
-
   if(dec_inst == NULL || output == NULL) {
     DEC_API_TRC("H264DecPeek# ERROR: dec_inst or output is NULL\n");
     return (H264DEC_PARAM_ERROR);
   }
+
+  decContainer_t *dec_cont = (decContainer_t *) dec_inst;
+  dpbPicture_t *current_out = dec_cont->storage.dpb->current_out;
+
+  DEC_API_TRC("H264DecPeek#\n");
 
   /* Check for valid decoder instance */
   if(dec_cont->checksum != dec_cont) {
@@ -3746,8 +3794,7 @@ H264DecRet H264DecPictureConsumed(H264DecInst dec_inst,
     /* find the mem descriptor for this specific buffer, base view first */
     dpb = dec_cont->storage.dpbs[0];
     for(i = 0; i < dpb->tot_buffers; i++) {
-      if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address &&
-          picture->output_picture == dpb->pic_buffers[i].virtual_address) {
+      if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address) {
         id = i;
         break;
       }
@@ -3758,8 +3805,7 @@ H264DecRet H264DecPictureConsumed(H264DecInst dec_inst,
       dpb = dec_cont->storage.dpbs[1];
       /* find the mem descriptor for this specific buffer */
       for(i = 0; i < dpb->tot_buffers; i++) {
-        if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address &&
-            picture->output_picture == dpb->pic_buffers[i].virtual_address) {
+        if(picture->output_picture_bus_address == dpb->pic_buffers[i].bus_address) {
           id = i;
           break;
         }
@@ -3771,7 +3817,7 @@ H264DecRet H264DecPictureConsumed(H264DecInst dec_inst,
 
     PopOutputPic(&dec_cont->fb_list, dpb->pic_buff_id[id]);
   } else {
-    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture);
+    InputQueueReturnBuffer(dec_cont->pp_buffer_queue, picture->output_picture_bus_address);
   }
 
   return H264DEC_OK;
@@ -3926,14 +3972,15 @@ H264DecRet H264DecNextPicture_INTERNAL(H264DecInst dec_inst,
 
     DEC_API_TRC("H264DecNextPicture_INTERNAL# H264DEC_PIC_RDY\n");
 
-    if (output->nbr_of_err_mbs && !out_pic->corrupted_second_field)
+    if (output->nbr_of_err_mbs && !out_pic->corrupted_second_field &&
+        !dec_cont->storage.no_freeze)
       ClearOutput(&dec_cont->fb_list, out_pic->mem_idx);
     else
       PushOutputPic(&dec_cont->fb_list, output, out_pic->mem_idx);
 
     /* Consume reference buffer when only output pp buffer. */
     if (dec_cont->pp_enabled) {
-      InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue, output->output_picture);
+      InputQueueSetBufAsUsed(dec_cont->pp_buffer_queue, output->output_picture_bus_address);
       PopOutputPic(&dec_cont->fb_list, out_pic->mem_idx);
     }
 
@@ -4188,6 +4235,7 @@ H264DecRet H264DecGetBufferInfo(H264DecInst dec_inst, H264DecBufferInfo *mem_inf
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -4196,9 +4244,64 @@ H264DecRet H264DecGetBufferInfo(H264DecInst dec_inst, H264DecBufferInfo *mem_inf
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return H264DEC_WAITING_FOR_BUFFER;
+}
+
+static void h264RemoveDpb(dpbStorage_t *dpb) {
+  FrameBufferList *fb_list = dpb->fb_list;
+  for(u32 i = 0; i < 16 + 1; i++) {
+      dpb->buffer[i].data = NULL;
+      dpb->buffer[i].mem_idx = 0;
+  }
+
+#define FB_OUTPUT           0x04U
+
+  for (u32 i = 0; i < MAX_FRAME_BUFFER_NUMBER; i++) {
+    if (fb_list->fb_stat[i].b_used & FB_OUTPUT) {
+      ClearOutput(fb_list, i);
+    }
+  }
+
+  for (u32 i = 0; i < dpb->tot_buffers; i++) {
+#ifdef USE_NULL_POINTER_PROTECT
+    if (dpb->pic_buffers[i].bus_address)
+#endif
+    {
+      if (dpb->pic_buff_id[i] != FB_NOT_VALID_ID) {
+        ReleaseId(dpb->fb_list, dpb->pic_buff_id[i]);
+      }
+    }
+  }
+  dpb->fb_list->free_buffers = 0;
+  dpb->tot_buffers = dpb->tot_buffers_reserved;
+}
+
+H264DecRet H264DecRemoveBuffer(H264DecInst dec_inst) {
+  decContainer_t *dec_cont = (decContainer_t *)dec_inst;
+  pthread_mutex_lock(&dec_cont->protect_mutex);
+
+  h264StateReset(dec_cont);
+
+  dec_cont->buffer_index[0] = 0;
+  dec_cont->buffer_index[1] = 0;
+  dec_cont->ext_buffer_num = 0;
+
+  dpbStorage_t *dpb = dec_cont->storage.dpbs[0];
+  h264RemoveDpb(dpb);
+  if (dec_cont->storage.mvc_stream) {
+    dpb = dec_cont->storage.dpbs[1];
+    h264RemoveDpb(dpb);
+  }
+
+  pthread_mutex_lock(&dec_cont->fb_list.ref_count_mutex);
+  for (u32 i = 0; i < MAX_FRAME_BUFFER_NUMBER; i++) {
+    dec_cont->fb_list.fb_stat[i].n_ref_count = 0;
+  }
+  pthread_mutex_unlock(&dec_cont->fb_list.ref_count_mutex);
+  pthread_mutex_unlock(&dec_cont->protect_mutex);
+  return H264DEC_OK;
 }
 
 H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
@@ -4206,7 +4309,7 @@ H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
   H264DecRet dec_ret = H264DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
+      //X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return H264DEC_PARAM_ERROR;
@@ -4243,9 +4346,11 @@ H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
           dpb->pic_buff_id[i] = id;
         }
 
+#ifdef SET_EMPTY_PICTURE_DATA
         void *base =
           (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
         (void)DWLmemset(base, 0, info->size - dpb->dir_mv_offset);
+#endif
 
         dec_cont->buffer_index[0]++;
         if(dec_cont->buffer_index[0] < dpb->tot_buffers)
@@ -4268,10 +4373,11 @@ H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
         dpb->pic_buff_id[i] = id;
         dpb[1].pic_buff_id[i] = id;
 
+#ifdef SET_EMPTY_PICTURE_DATA
         void *base =
           (char *)(dpb->pic_buffers[i].virtual_address) + dpb->dir_mv_offset;
         (void)DWLmemset(base, 0, info->size - dpb->dir_mv_offset);
-
+#endif
         dec_cont->buffer_index[0]++;
         dpb->tot_buffers++;
         dpb[1].tot_buffers++;
@@ -4311,10 +4417,11 @@ H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
             dpb->pic_buff_id[idx[i]] = id;
           }
 
+#ifdef SET_EMPTY_PICTURE_DATA
           void *base =
             (char *)(dpb->pic_buffers[idx[i]].virtual_address) + dpb->dir_mv_offset;
           (void)DWLmemset(base, 0, info->size - dpb->dir_mv_offset);
-
+#endif
           dec_cont->buffer_index[i]++;
           if(dec_cont->buffer_index[i] < dpb->tot_buffers)
             dec_ret = H264DEC_WAITING_FOR_BUFFER;
@@ -4338,10 +4445,11 @@ H264DecRet H264DecAddBuffer(H264DecInst dec_inst, struct DWLLinearMem *info) {
       }
       dpb->pic_buff_id[idx[i]] = id;
 
+#ifdef SET_EMPTY_PICTURE_DATA
       void *base =
         (char *)(dpb->pic_buffers[idx[i]].virtual_address) + dpb->dir_mv_offset;
       (void)DWLmemset(base, 0, info->size - dpb->dir_mv_offset);
-
+#endif
       dec_cont->buffer_index[i]++;
       dpb->tot_buffers++;
 
@@ -4385,7 +4493,8 @@ void h264StateReset(decContainer_t *dec_cont) {
   h264bsdClearStorage(&dec_cont->storage);
 
   /* Clear parameters in decContainer */
-  dec_cont->dec_stat = H264DEC_INITIALIZED;
+  if(dec_cont->dec_stat != H264DEC_WAITING_FOR_BUFFER)
+    dec_cont->dec_stat = H264DEC_INITIALIZED;
   dec_cont->pic_number = 0;
 #ifdef CLEAR_HDRINFO_IN_SEEK
   dec_cont->rlc_mode = 0;

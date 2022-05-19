@@ -95,6 +95,8 @@ typedef enum H264DecRet_ {
   H264DEC_NO_DECODING_BUFFER = 14,
   /** Erroneous picture which is not outputted */
   H264DEC_PIC_CONSUMED = 15,
+  /** First field decoded */
+  H264DEC_FIELD_DECODED = 16,
 
   H264DEC_PARAM_ERROR = -1, /**<\hideinitializer */
   H264DEC_STRM_ERROR = -2, /**<\hideinitializer */
@@ -478,6 +480,7 @@ H264DecRet H264DecGetInfo(H264DecInst dec_inst, H264DecInfo *dec_info);
 H264DecRet H264DecPeek(H264DecInst dec_inst, H264DecPicture *picture);
 
 #ifdef USE_EXTERNAL_BUFFER
+H264DecRet H264DecRemoveBuffer(H264DecInst dec_inst);
 
 /*!\brief Add externally allocated memories to reference buffer
 *

@@ -162,6 +162,8 @@ u32 AllocateIdFree(struct FrameBufferList *fb_list, const void *data) {
 void ReleaseId(struct FrameBufferList *fb_list, u32 id) {
   assert(id < MAX_FRAME_BUFFER_NUMBER);
 
+  if (id >= MAX_FRAME_BUFFER_NUMBER) return;
+
   /* it is "bad" to release referenced or unallocated buffers */
   assert(fb_list->fb_stat[id].n_ref_count == 0);
 #ifndef USE_EXTERNAL_BUFFER
@@ -169,8 +171,6 @@ void ReleaseId(struct FrameBufferList *fb_list, u32 id) {
 #else
   if(fb_list->fb_stat[id].b_used == FB_UNALLOCATED) return;
 #endif
-
-  if (id >= MAX_FRAME_BUFFER_NUMBER) return;
 
   if (fb_list->fb_stat[id].b_used == FB_FREE) {
     assert(fb_list->free_buffers > 0);
@@ -478,7 +478,10 @@ void MarkOutputPicCorrupt(struct FrameBufferList *fb_list, u32 id, u32 errors) {
   pthread_mutex_lock(&fb_list->out_count_mutex);
 
   rd_id = fb_list->out_rd_id;
-
+  if (rd_id < 0) {
+    pthread_mutex_unlock(&fb_list->out_count_mutex);
+    return;
+  }
   for (i = 0; i < fb_list->num_out; i++) {
     if (fb_list->out_fifo[rd_id].mem_idx == id) {
       DPB_TRACE("id = %d\n", id);
@@ -627,7 +630,7 @@ void RemoveTempOutputAll(struct FrameBufferList *fb_list, struct DpbStorage *dpb
           if (dpb->storage->raster_buffer_mgr &&
               dpb->buffer[j].pp_data != NULL) {
             RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr,
-                              dpb->buffer[j].pp_data->virtual_address);
+                              dpb->buffer[j].pp_data->bus_address);
           }
           break;
         }
@@ -646,7 +649,7 @@ void RemoveTempOutputAll(struct FrameBufferList *fb_list, struct DpbStorage *dpb
 #ifdef USE_EXTERNAL_BUFFER
 void RemoveOutputAll(struct FrameBufferList *fb_list, struct DpbStorage *dpb) {
   i32 i, j;
-  i32 rd_id, id;
+  u32 rd_id, id;
 
   if (!dpb || !dpb->storage)
     return;
@@ -660,7 +663,7 @@ void RemoveOutputAll(struct FrameBufferList *fb_list, struct DpbStorage *dpb) {
           if (dpb->storage->raster_buffer_mgr &&
               dpb->buffer[j].pp_data != NULL) {
             RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr,
-                              dpb->buffer[j].pp_data->virtual_address);
+                              dpb->buffer[j].pp_data->bus_address);
           }
           break;
         }
@@ -692,7 +695,7 @@ void RemoveOutputAll(struct FrameBufferList *fb_list, struct DpbStorage *dpb) {
     } else {
       if (dpb->storage->raster_buffer_mgr) {
         RbmReturnPpBuffer(dpb->storage->raster_buffer_mgr,
-                          fb_list->out_fifo[rd_id].pic.output_picture);
+                          fb_list->out_fifo[rd_id].pic.output_picture_bus_address);
       }
     }
 
@@ -785,7 +788,9 @@ void ResetOutFifoInList(struct FrameBufferList *fb_list) {
   (void)DWLmemset(fb_list->out_fifo, 0, MAX_FRAME_BUFFER_NUMBER * sizeof(struct OutElement));
   fb_list->out_wr_id = 0;
   fb_list->out_rd_id = 0;
+  pthread_mutex_lock(&fb_list->out_count_mutex);
   fb_list->num_out = 0;
+  pthread_mutex_unlock(&fb_list->out_count_mutex);
 }
 
 
@@ -793,7 +798,7 @@ void MarkIdAllocated(struct FrameBufferList *fb_list, u32 id) {
   DPB_TRACE(" id = %d\n", id);
   pthread_mutex_lock(&fb_list->ref_count_mutex);
 
-  if (fb_list->fb_stat[id].b_used | FB_FREE) {
+  if (fb_list->fb_stat[id].b_used & FB_FREE) {
     fb_list->fb_stat[id].b_used &= ~FB_FREE;
     if (fb_list->fb_stat[id].n_ref_count == 0)
       fb_list->free_buffers--;
@@ -808,7 +813,7 @@ void MarkIdFree(struct FrameBufferList *fb_list, u32 id)
   DPB_TRACE(" id = %d\n", id);
   pthread_mutex_lock(&fb_list->ref_count_mutex);
 
-  if (fb_list->fb_stat[id].b_used | FB_ALLOCATED) {
+  if (fb_list->fb_stat[id].b_used & FB_ALLOCATED) {
     fb_list->fb_stat[id].b_used &= ~FB_ALLOCATED;
     if (fb_list->fb_stat[id].n_ref_count == 0)
       fb_list->free_buffers++;

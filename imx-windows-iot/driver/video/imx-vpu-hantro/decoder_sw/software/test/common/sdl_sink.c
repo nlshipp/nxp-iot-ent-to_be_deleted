@@ -94,12 +94,12 @@ const void* SdlSinkOpen(const char* fname) {
   return calloc(sizeof(struct SDLSink), 1);
 }
 
-void SdlSinkWrite(const void* inst, struct DecPicture pic) {
+void SdlSinkWrite(const void* inst, const struct DecPicture* pic) {
   struct SDLSink* this = (struct SDLSink*)inst;
   /* Displays full decoded image size, cropped output dimensions
    * are in pic.sequence_info.crop_params. */
-  u32 w = pic.sequence_info.pic_width;
-  u32 h = pic.sequence_info.pic_height;
+  u32 w = pic->sequence_info.pic_width;
+  u32 h = pic->sequence_info.pic_height;
   if (w != this->rect.w || h != this->rect.w) {
     DeInit(this);
     this->rect.w = w;
@@ -111,13 +111,13 @@ void SdlSinkWrite(const void* inst, struct DecPicture pic) {
   UpdateCaption(this);
   this->pic_num++;
   SDL_LockYUVOverlay(this->overlay);
-  memcpy(this->overlay->pixels[0], pic.luma.virtual_address, w * h);
+  memcpy(this->overlay->pixels[0], pic->luma.virtual_address, w * h);
   /* round odd picture dimensions to next multiple of two for chroma */
   if (w & 1) w += 1;
   if (h & 1) h += 1;
-  memcpy(this->overlay->pixels[1], pic.chroma.virtual_address, w * h / 4);
+  memcpy(this->overlay->pixels[1], pic->chroma.virtual_address, w * h / 4);
   memcpy(this->overlay->pixels[2],
-         ((u8*)pic.chroma.virtual_address) + w * h / 4, w * h / 4);
+         ((u8*)pic->chroma.virtual_address) + w * h / 4, w * h / 4);
   SDL_UnlockYUVOverlay(this->overlay);
   SDL_DisplayYUVOverlay(this->overlay, &this->rect);
   SDL_Flip(this->screen);

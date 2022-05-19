@@ -201,6 +201,7 @@ struct HevcDecContainer {
   u32 legacy_regs;  /* Legacy registers. */
   u32 secure_mode;
   u32 drop_curr_pic;
+  u32 discard_dpb_num;
 };
 
 #endif /* #ifdef HEVC_CONTAINER_H_ */

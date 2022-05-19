@@ -190,7 +190,7 @@ u32 HevcResetDpb(const void *dec_inst, struct DpbStorage *dpb,
 
 u32 HevcSetRefPics(struct DpbStorage *dpb, struct SliceHeader *slice_header,
                    i32 pic_order_cnt, struct SeqParamSet *sps, u32 is_idr,
-                   u32 is_cra, u32 hrd_present);
+                   u32 is_cra, u32 hrd_present, u32 *discard_dpb);
 
 void *HevcAllocateDpbImage(struct DpbStorage *dpb, i32 pic_order_cnt,
                            i32 pic_order_cnt_lsb, u32 is_idr,
@@ -206,7 +206,7 @@ void HevcFreeDpb(const void *dwl, struct DpbStorage *dpb);
 #else
 i32 HevcFreeDpb(const void *inst, struct DpbStorage *dpb);
 i32 HevcFreeDpbExt(const void *dec_inst, struct DpbStorage *dpb);
-void HevcDpbMarkOlderUnused(struct DpbStorage *dpb, i32 pic_order_cnt, u32 hrd_present);
+u32 HevcDpbMarkOlderUnused(struct DpbStorage *dpb, i32 pic_order_cnt, u32 hrd_present);
 void HevcEmptyDpb(const void *dec_inst, struct DpbStorage *dpb);
 #endif
 void HevcDpbUpdateOutputList(struct DpbStorage *dpb);

@@ -768,7 +768,6 @@ static CODEC_STATE decoder_getframe_jpeg(CODEC_PROTOTYPE * arg, FRAME * frame,
 static CODEC_STATE decoder_abort_jpeg(CODEC_PROTOTYPE * arg)
 {
     UNUSED_PARAMETER(arg);
-
     CODEC_JPEG *this = (CODEC_JPEG *) arg;
     this->state = JPEG_PARSE_HEADERS;
     return CODEC_ERROR_UNSPECIFIED;

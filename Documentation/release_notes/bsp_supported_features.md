@@ -10,7 +10,7 @@ Table: Supported boards
 |Board name            | Board revision   | Schema revision               | BSP name              |
 |:---------------------|:-----------------|:------------------------------|:----------------------|
 | MCIMX8M-EVK          | 700-29615 REV A3 | SCH-29615 REV B4              | NXPEVK_iMX8M_4GB      |
-
+| 8MMINILPD4-EVK       | 700-31407 REV X5 | SCH-3140 REV C                | NXPEVK_iMX8M_Mini_2GB |
 
 Table: Supported features
 

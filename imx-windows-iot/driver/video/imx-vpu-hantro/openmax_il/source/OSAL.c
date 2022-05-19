@@ -999,6 +999,7 @@ OSAL_ERRORTYPE OSAL_EventReset(OSAL_PTR hEvent)
         char c = 1;
         int ret = read(pEvent->fd[0], &c, 1);
         if (ret == -1) {
+            pthread_mutex_unlock(&pEvent->mutex);
             DBGT_CRITICAL("read(pEvent->fd[0], &c, 1) failed");
             DBGT_EPILOG("");
             return OSAL_ERROR_UNDEFINED;
@@ -1040,6 +1041,7 @@ OSAL_ERRORTYPE OSAL_EventSet(OSAL_PTR hEvent)
         char c = 1;
         int ret = write(pEvent->fd[1], &c, 1);
         if (ret == -1) {
+            pthread_mutex_unlock(&pEvent->mutex);
             DBGT_CRITICAL("write(pEvent->fd[1], &c, 1) failed");
             DBGT_EPILOG("");
             return OSAL_ERROR_UNDEFINED;

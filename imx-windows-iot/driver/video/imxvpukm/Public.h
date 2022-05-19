@@ -90,5 +90,14 @@ typedef struct {
 #define VPU_MEM_UNCACHED        0
 #define VPU_MEM_WRITE_COMBINED  1
 #define VPU_MEM_CACHED          2
+#define VPU_MEM_WC_REUSABLE     3
+
+static const char *memtype2str[] = {
+      "VPU_MEM_UNCACHED      ",
+      "VPU_MEM_WRITE_COMBINED",
+      "VPU_MEM_CACHED        ",
+      "VPU_MEM_WC_REUSABLE   "
+};
+
 
 EXTERN_C_END

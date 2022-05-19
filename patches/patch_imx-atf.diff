@@ -13,3 +13,23 @@ index b3063f672..536ed78fc 100644
  		       INTR_GROUP0, GIC_INTR_CFG_LEVEL),
  };
  
+diff --git a/plat/imx/imx8mm/imx8mm_bl31_setup.c b/plat/imx/imx8mm/imx8mm_bl31_setup.c
+index aa1c336e2..8cfacf4ec 100644
+--- a/plat/imx/imx8mm/imx8mm_bl31_setup.c
++++ b/plat/imx/imx8mm/imx8mm_bl31_setup.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2017-2018 NXP
++ * Copyright 2017-2018,2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -310,7 +310,7 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 
+ 	/* Assign M4 to domain 1 */
+ 	mmio_write_32(IMX_RDC_BASE + 0x204, 0x1);
+-	mmio_write_32(IMX_RDC_BASE + 0x518, 0xfc);
++	mmio_write_32(IMX_RDC_BASE + 0x518, 0xf3);
+ 	mmio_write_32(IMX_RDC_BASE + 0x5A4, 0xf3);
+ 
+ #if defined (CSU_RDC_TEST)

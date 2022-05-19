@@ -165,6 +165,7 @@ u32 StrmDec_DecodeHdrs(DecContainer * dec_container, u32 mode) {
     if(tmp) {
       tmp = dec_container->Hdrs.visual_object_verid =
               StrmDec_GetBits(dec_container, 4);
+      (void)(tmp);
       dec_container->Hdrs.visual_object_priority =
         StrmDec_GetBits(dec_container, 3);
     } else
@@ -260,6 +261,8 @@ u32 StrmDec_DecodeHdrs(DecContainer * dec_container, u32 mode) {
 #ifdef HANTRO_PEDANTIC_MODE
       if(tmp == 0)
         return (HANTRO_NOK);
+#else
+      (void)(tmp);
 #endif
     }
 #ifdef HANTRO_PEDANTIC_MODE
@@ -327,10 +330,12 @@ u32 StrmDec_DecodeHdrs(DecContainer * dec_container, u32 mode) {
       MP4DecSetLowDelay(dec_container);
     }
 
+    (void)(tmp);
     tmp = dec_container->Hdrs.video_object_layer_shape =
             StrmDec_GetBits(dec_container, 2);
     if((tmp != RECTANGULAR) && (tmp != END_OF_STREAM))
       return (HANTRO_NOK);
+    (void)(marker_bit);
     marker_bit = StrmDec_GetBits(dec_container, 1);
 #ifdef HANTRO_PEDANTIC_MODE
     if(!marker_bit)
@@ -405,13 +410,16 @@ u32 StrmDec_DecodeHdrs(DecContainer * dec_container, u32 mode) {
         return (HANTRO_NOK);
 #else
         tmp = StrmDec_GetBits(dec_container, 6);
+        (void)(tmp);
         tmp = StrmDec_GetBits(dec_container, 2);
+        (void)(tmp);
         tmp = StrmDec_GetBits(dec_container, 1);
 #endif
 
       }
     }
 
+    (void)(tmp);
     tmp = dec_container->Hdrs.not8_bit =
             StrmDec_GetBits(dec_container, 1);
     if(tmp && (tmp != END_OF_STREAM))
@@ -460,6 +468,7 @@ u32 StrmDec_DecodeHdrs(DecContainer * dec_container, u32 mode) {
 #else
     (void) StrmDec_GetBits(dec_container, 1);
 #endif
+    (void)(tmp);
     tmp = dec_container->Hdrs.data_partitioned =
             StrmDec_GetBits(dec_container, 1);
 #ifdef ASIC_TRACE_SUPPORT

@@ -133,6 +133,8 @@ JpegDecRet JpegDecDecodeScanHeader(JpegDecContainer * p_dec_data) {
     return (JPEGDEC_STRM_ERROR);
 
   p_dec_data->scan.Ns = JpegDecGetByte(stream);
+  if (p_dec_data->scan.Ns > MAX_NUMBER_OF_COMPONENTS)
+    return (JPEGDEC_STRM_ERROR);
 
   p_dec_data->info.fill_x = p_dec_data->info.fill_y = 0;
   if(p_dec_data->scan.Ns == 1) {
@@ -143,6 +145,8 @@ JpegDecRet JpegDecDecodeScanHeader(JpegDecContainer * p_dec_data) {
 
     tmp = JpegDecGetByte(&(p_dec_data->stream));
     p_dec_data->frame.c_index = tmp - 1;
+    if (p_dec_data->frame.c_index >= MAX_NUMBER_OF_COMPONENTS)
+      return (JPEGDEC_STRM_ERROR);
     p_dec_data->info.component_id = p_dec_data->frame.c_index;
     p_dec_data->scan.Cs[p_dec_data->frame.c_index] = tmp;
     tmp = JpegDecGetByte(stream);

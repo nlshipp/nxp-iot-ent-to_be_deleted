@@ -707,7 +707,7 @@ CODEC_STATE decoder_setframebuffer_hevc(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX
     UNUSED_PARAMETER(available_buffers);
     CODEC_HEVC *this = (CODEC_HEVC *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     struct HevcDecBufferInfo info;
     enum DecRet ret;
     const int page_size = getpagesize();

@@ -811,7 +811,7 @@ CODEC_STATE decoder_setframebuffer_webp(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX
     UNUSED_PARAMETER(available_buffers);
     CODEC_WEBP *this = (CODEC_WEBP *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     VP8DecBufferInfo info;
     VP8DecRet ret;
 

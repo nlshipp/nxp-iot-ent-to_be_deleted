@@ -85,7 +85,7 @@ static u32 vp6hwdCheckSupport(VP6DecContainer_t *dec_cont);
 #ifdef USE_EXTERNAL_BUFFER
 static void VP6SetExternalBufferInfo(VP6DecInst dec_inst);
 #endif
-static i32 FindIndex(VP6DecContainer_t *dec_cont, const u32* address);
+static i32 FindIndex(VP6DecContainer_t *dec_cont, addr_t address);
 
 #ifdef USE_OUTPUT_RELEASE
 VP6DecRet VP6DecNextPicture_INTERNAL(VP6DecInst dec_inst,
@@ -243,6 +243,7 @@ VP6DecRet VP6DecInit(VP6DecInst * dec_inst,
   DWLReadAsicConfig(&config,DWL_CLIENT_TYPE_VP6_DEC);
 
   if(!config.addr64_support && sizeof(void *) == 8) {
+    DWLfree(dec_cont);
     DEC_API_TRC("VP6DecInit# ERROR: HW not support 64bit address!\n");
     return (VP6DEC_PARAM_ERROR);
   }
@@ -255,6 +256,7 @@ VP6DecRet VP6DecInit(VP6DecInst * dec_inst,
   if(reference_frame_format == DEC_REF_FRM_TILED_DEFAULT) {
     /* Assert support in HW before enabling.. */
     if(!config.tiled_mode_support) {
+      DWLfree(dec_cont);
       return VP6DEC_FORMAT_NOT_SUPPORTED;
     }
     dec_cont->tiled_mode_support = config.tiled_mode_support;
@@ -269,8 +271,10 @@ VP6DecRet VP6DecInit(VP6DecInst * dec_inst,
   dec_cont->picture_broken = 0;
 
 #ifdef USE_OUTPUT_RELEASE
-  if (FifoInit(16, &dec_cont->fifo_display) != FIFO_OK)
+  if (FifoInit(16, &dec_cont->fifo_display) != FIFO_OK){
+    DWLfree(dec_cont);
     return VP6DEC_MEMFAIL;
+  }
 #endif
 #ifdef USE_EXTERNAL_BUFFER
   dec_cont->no_reallocation = 1;
@@ -867,10 +871,12 @@ request_decoding_buffer:
     dec_cont->ref_to_out = 1;
     dec_cont->picture_broken = 1;
     BqueueDiscard(&dec_cont->bq, p_asic_buff->out_buffer_i);
+#if 0
     if (!dec_cont->pic_number) {
       (void) DWLmemset( p_asic_buff->refBuffer->virtual_address, 128,
                         p_asic_buff->width * p_asic_buff->height * 3 / 2);
     }
+#endif
   }
 
   dec_cont->pic_number++;
@@ -1011,7 +1017,7 @@ VP6DecRet VP6DecNextPicture(VP6DecInst dec_inst,
     output->p_output_frame = out_pic->virtual_address;
     output->output_frame_bus_address = out_pic->bus_address;
     output->pic_id = 0;
-    buffer_id = FindIndex(dec_cont, output->p_output_frame);
+    buffer_id = FindIndex(dec_cont, output->output_frame_bus_address);
     output->decode_id = dec_cont->asic_buff->decode_id[buffer_id];
     if(dec_cont->pb.FrameType == BASE_FRAME)
       output->pic_coding_type = DEC_PIC_TYPE_I;
@@ -1096,7 +1102,7 @@ VP6DecRet VP6DecNextPicture_INTERNAL(VP6DecInst dec_inst,
     output->frame_width = dec_cont->width;
     output->frame_height = dec_cont->height;
 #endif
-    buffer_id = FindIndex(dec_cont, output->p_output_frame);
+    buffer_id = FindIndex(dec_cont, output->output_frame_bus_address);
 
     output->frame_width = dec_cont->asic_buff->frame_width[buffer_id];
     output->frame_height = dec_cont->asic_buff->frame_height[buffer_id];
@@ -1158,7 +1164,7 @@ VP6DecRet VP6DecPictureConsumed(VP6DecInst dec_inst, VP6DecPicture * output) {
     return (VP6DEC_NOT_INITIALIZED);
   }
 
-  buffer_id = FindIndex(dec_cont, output->p_output_frame);
+  buffer_id = FindIndex(dec_cont, output->output_frame_bus_address);
 
   /* Remove the reference to the buffer. */
   BqueuePictureRelease(&dec_cont->bq, buffer_id);
@@ -1170,7 +1176,7 @@ VP6DecRet VP6DecPictureConsumed(VP6DecInst dec_inst, VP6DecPicture * output) {
 VP6DecRet VP6DecEndOfStream(VP6DecInst dec_inst, u32 strm_end_flag) {
   VP6DecContainer_t *dec_cont = (VP6DecContainer_t *)dec_inst;
   VP6DecRet ret;
-  VP6DecPicture output;
+  VP6DecPicture output = { 0 };
 
   DEC_API_TRC("VP6DecEndOfStream#\n");
 
@@ -1225,7 +1231,7 @@ VP6DecRet VP6DecEndOfStream(VP6DecInst dec_inst, u32 strm_end_flag) {
 
 static VP6DecRet VP6PushOutput(VP6DecContainer_t* dec_cont) {
   VP6DecRet ret;
-  VP6DecPicture output;
+  VP6DecPicture output = { 0 };
 
   /* Sample dec_cont->out_count for Peek */
   dec_cont->fullness = dec_cont->out_count;
@@ -1238,11 +1244,11 @@ static VP6DecRet VP6PushOutput(VP6DecContainer_t* dec_cont) {
 
 #endif
 
-static i32 FindIndex(VP6DecContainer_t* dec_cont, const u32* address) {
+static i32 FindIndex(VP6DecContainer_t* dec_cont, addr_t address) {
   i32 i;
 
   for (i = 0; i < (i32)dec_cont->num_buffers; i++) {
-    if (dec_cont->asic_buff->pictures[i].virtual_address == address)
+    if (dec_cont->asic_buff->pictures[i].bus_address == address)
       break;
   }
   ASSERT((u32)i < dec_cont->num_buffers);
@@ -1349,6 +1355,7 @@ VP6DecRet VP6DecGetBufferInfo(VP6DecInst dec_inst, VP6DecBufferInfo *mem_info) {
   if(dec_cont->buf_to_free) {
     mem_info->buf_to_free = *dec_cont->buf_to_free;
     dec_cont->buf_to_free->virtual_address = NULL;
+    dec_cont->buf_to_free->bus_address = 0;
     dec_cont->buf_to_free = NULL;
   } else
     mem_info->buf_to_free = empty;
@@ -1357,7 +1364,7 @@ VP6DecRet VP6DecGetBufferInfo(VP6DecInst dec_inst, VP6DecBufferInfo *mem_info) {
   mem_info->buf_num = dec_cont->buf_num;
 
   ASSERT((mem_info->buf_num && mem_info->next_buf_size) ||
-         (mem_info->buf_to_free.virtual_address != NULL));
+         (mem_info->buf_to_free.bus_address != 0));
 
   return VP6DEC_WAITING_FOR_BUFFER;
 }
@@ -1368,7 +1375,6 @@ VP6DecRet VP6DecAddBuffer(VP6DecInst dec_inst, struct DWLLinearMem *info) {
   VP6DecRet dec_ret = VP6DEC_OK;
 
   if(dec_inst == NULL || info == NULL ||
-      X170_CHECK_VIRTUAL_ADDRESS(info->virtual_address) ||
       X170_CHECK_BUS_ADDRESS_AGLINED(info->bus_address) ||
       info->size < dec_cont->next_buf_size) {
     return VP6DEC_PARAM_ERROR;
@@ -1465,7 +1471,10 @@ void VP6StateReset(VP6DecContainer_t *dec_cont) {
 #ifdef USE_OMXIL_BUFFER
   if (dec_cont->fifo_display)
     FifoRelease(dec_cont->fifo_display);
-  FifoInit(16, &dec_cont->fifo_display);
+  if (FifoInit(16, &dec_cont->fifo_display) != FIFO_OK) {
+    fprintf(stderr, "FifoInit() failed in file %s at line # %d\n", __FILE__, __LINE__-1);
+    return;
+  }
 #endif
   (void)buffers;
 }

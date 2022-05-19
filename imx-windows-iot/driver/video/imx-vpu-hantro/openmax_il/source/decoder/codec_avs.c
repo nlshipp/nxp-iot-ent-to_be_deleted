@@ -822,7 +822,7 @@ CODEC_STATE decoder_setframebuffer_avs(CODEC_PROTOTYPE * arg, BUFFER *buff, OMX_
     UNUSED_PARAMETER(available_buffers);
     CODEC_AVS *this = (CODEC_AVS *)arg;
     CODEC_STATE stat = CODEC_ERROR_UNSPECIFIED;
-    struct DWLLinearMem mem;
+    struct DWLLinearMem mem = { 0 };
     AvsDecBufferInfo info;
     AvsDecRet ret;
 

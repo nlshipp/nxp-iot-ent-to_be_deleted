@@ -47,12 +47,12 @@ extern "C" {
 /* MD5 sink functions for calculating sequence checksum. */
 const void* Md5sinkOpen(const char* fname);
 void Md5sinkClose(const void* inst);
-void Md5sinkWritePic(const void* inst, struct DecPicture pic);
+void Md5sinkWritePic(const void* inst, const struct DecPicture* pic);
 
 /* MD5 sink functions for calculating per picture checksums. */
 const void* md5perpicsink_open(const char* fname);
 void md5perpicsink_close(const void* inst);
-void md5perpicsink_write_pic(const void* inst, struct DecPicture pic);
+void md5perpicsink_write_pic(const void* inst, const struct DecPicture* pic);
 
 #ifdef __cplusplus
 }

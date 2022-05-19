@@ -858,20 +858,25 @@ static u32 StrmDec_DecodeSVHPlusHeader(DecContainer * dec_container) {
       /* par width */
       tmp = dec_container->Hdrs.par_width =
               StrmDec_GetBits(dec_container, 8);
+      (void)(tmp);
       /* par height */
       tmp = dec_container->Hdrs.par_height =
               StrmDec_GetBits(dec_container, 8);
     }
 
     /* custom picture clock frequency used, read code */
-    if (dec_container->SvDesc.cpcf)
+    if (dec_container->SvDesc.cpcf) {
+      (void)(tmp);
       tmp = dec_container->SvDesc.cpcfc =
               StrmDec_GetBits(dec_container, 8);
+    }
   }
 
   /* extended temporal reference if custom picture clock frequency */
-  if (dec_container->SvDesc.cpcf)
+  if (dec_container->SvDesc.cpcf) {
+    (void)(tmp);
     tmp = dec_container->SvDesc.etr = StrmDec_GetBits(dec_container, 2);
+  }
 
   /* QP */
   dec_container->VopDesc.q_p = StrmDec_GetBits(dec_container, 5);
@@ -1060,8 +1065,10 @@ u32 StrmDec_DecodeSorensonSparkHeader(DecContainer * dec_container) {
       dec_container->SvDesc.source_format == 1) {
     tmp = StrmDec_GetBits(dec_container,
                           8*(dec_container->SvDesc.source_format+1)); /* width */
+    (void)(tmp);
     tmp = StrmDec_GetBits(dec_container,
                           8*(dec_container->SvDesc.source_format+1)); /* height */
+    (void)(tmp);
   }
 
   tmp = StrmDec_GetBits(dec_container, 2);
