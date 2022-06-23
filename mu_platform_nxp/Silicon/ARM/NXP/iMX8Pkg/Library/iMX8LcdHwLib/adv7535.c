@@ -1,16 +1,32 @@
-/** @file
-
-  Copyright 2020 NXP
-
-  This program and the accompanying materials
-  are licensed and made available under the terms and conditions of the BSD License
-  which accompanies this distribution.  The full text of the license may be found at
-  http://opensource.org/licenses/bsd-license.php
-
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-**/
+/*
+* Copyright 2020, 2022 NXP
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+*
+* * Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
+*
+* * Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
+*
+* * Neither the name of the copyright holder nor the
+*   names of its contributors may be used to endorse or promote products
+*   derived from this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS AND CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+*/
 
 #include <Base.h>
 #include <Uefi/UefiBaseType.h>
@@ -85,9 +101,11 @@ EFI_STATUS Adv7535Discover
 
   status = iMXI2cRead(&I2C_ADV7535Config, ADV7535_REG_CHIP_REVISION, &i2cData[0], 2);
   CHECK_I2C_TRANSACTION_STATUS(status, "ADV7535_REG_CHIP_REVISION", End);
-  if (!status && i2cData[0] == ADV7535_REG_CHIP_REVISION_VALUE) {
-      status = EFI_SUCCESS;
+  if (i2cData[0] == ADV7535_REG_CHIP_REVISION_VALUE) {
+      return EFI_SUCCESS;
   }
+  DEBUG ((DEBUG_ERROR, "ADV7535 not found chip_revision=%d expected %d\n", i2cData[0], ADV7535_REG_CHIP_REVISION_VALUE));
+  status = EFI_DEVICE_ERROR;
 End:
   return status;
 }

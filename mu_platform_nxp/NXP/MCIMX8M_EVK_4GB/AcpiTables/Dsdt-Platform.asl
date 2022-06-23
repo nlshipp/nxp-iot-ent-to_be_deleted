@@ -14,7 +14,7 @@
 *
 */
 
-OperationRegion(FUSE,SystemMemory,0x30350400,0x900)      // 0x3035_0D00
+OperationRegion(FUSE,SystemMemory,0x30350400,0x900)
 Field(FUSE, AnyAcc, Nolock, Preserve)
 {
   Offset(0x240),
@@ -25,6 +25,30 @@ Field(FUSE, AnyAcc, Nolock, Preserve)
   Offset(0x250),
   MC11, 8,          // 0x650 NET1 MAC address bytes 1
   MC10, 8,          // 0x651 NET1 MAC address bytes 0
+}
+
+
+#define GPR_BASE 0x30340000
+OperationRegion(GPR, SystemMemory, GPR_BASE, 0x100)
+Field(GPR, DWordAcc, Nolock, Preserve)
+{
+  Offset(0x88),
+  GR34, 32,
+  GR35, 32,
+  Offset(0xA4),
+  GR41, 32,
+  GR42, 32,
+}
+
+
+ #define SRC_BASE 0x30390000
+OperationRegion(SRC, SystemMemory, SRC_BASE, 0x100)
+Field(SRC, DWordAcc, Nolock, Preserve)
+{
+  Offset(0x4C),
+  MI1P, 32,
+  Offset(0x50),
+  MI2P, 32,
 }
 
 //

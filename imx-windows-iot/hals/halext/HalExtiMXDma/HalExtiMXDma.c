@@ -1,5 +1,5 @@
 ﻿/* Copyright (c) Microsoft Corporation. All rights reserved.
-   Copyright 2019 NXP
+   Copyright 2019,2022 NXP
    Licensed under the MIT License.
 
 Module Name:
@@ -43,6 +43,7 @@ Abstract:
 #include "IMX6UldmaHw.h"
 #include "IMX8MDmaHw.h"
 #include "IMX8MMDmaHw.h"
+#include "IMX8MPDmaHw.h"
 #include "IMX7DDmaHw.h"
 //
 // ------------------------------------------------- Data Structure Definitions
@@ -1313,6 +1314,7 @@ Return Value:
 
     case IMX_CPU_MX8MQ:
     case IMX_CPU_MX8MN:
+    case IMX_CPU_MX8MP:
     case IMX_CPU_MX8MM: /* MM has 3 SDMA but we support 2 */
         if (Instance > 1) {
             return STATUS_NOT_SUPPORTED;
@@ -1394,8 +1396,17 @@ Return Value:
 
     case IMX_CPU_MX8MM:
     case IMX_CPU_MX8MN:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx8mmDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx8mmDmaReqMax;
+		SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx8mmDmaReqToChannelConfig;
+		SdmaControllerPtr->SdmaReqMaxId = Imx8mmDmaReqMax;
+		SdmaControllerPtr->SdmaCodeBlock = imx7_sdma_code;
+		SdmaControllerPtr->SdmaCodeSize = IMX7_RAM_CODE_SIZE * sizeof(short);
+		SdmaControllerPtr->SdmaAp2ApScript = imx7_ap_2_ap_ADDR;
+		SdmaControllerPtr->SdmaPer2PerScript = imx7_per_2_per_ADDR;
+		break;
+
+	case IMX_CPU_MX8MP:
+        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx8mpDmaReqToChannelConfig;
+        SdmaControllerPtr->SdmaReqMaxId = Imx8mpDmaReqMax;
         SdmaControllerPtr->SdmaCodeBlock = imx7_sdma_code;
         SdmaControllerPtr->SdmaCodeSize = IMX7_RAM_CODE_SIZE * sizeof(short);
         SdmaControllerPtr->SdmaAp2ApScript = imx7_ap_2_ap_ADDR;

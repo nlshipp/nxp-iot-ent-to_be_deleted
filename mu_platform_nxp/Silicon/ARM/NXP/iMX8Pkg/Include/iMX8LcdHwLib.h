@@ -21,6 +21,7 @@
 #include <Uefi/UefiBaseType.h>
 #include <iMXDisplay.h>
 #include <Protocol/GraphicsOutput.h>
+#include <LcdPlatformLib.h>
 
 #define LCD_VRAM_SIZE                     SIZE_8MB
 
@@ -205,19 +206,12 @@
 #define LCD_12BPP_444_BLUE_MASK         0x0000000F
 #define LCD_12BPP_444_RESERVED_MASK     0x0000F000
 
-/** The enumeration maps the PL111 LcdBpp values used in the LCD Control
-  Register
-**/
+/* List of supported MIPI DSI to HDMI converters */
 typedef enum {
-  LCD_BITS_PER_PIXEL_1 = 0,
-  LCD_BITS_PER_PIXEL_2,
-  LCD_BITS_PER_PIXEL_4,
-  LCD_BITS_PER_PIXEL_8,
-  LCD_BITS_PER_PIXEL_16_555,
-  LCD_BITS_PER_PIXEL_24,
-  LCD_BITS_PER_PIXEL_16_565,
-  LCD_BITS_PER_PIXEL_12_444
-} LCD_BPP;
+ ADV7535 = 0,
+ IT6263 = 1,
+ transmitterUnknown,
+} imxConverter;
 
 /**
   Check for presence of display
@@ -305,4 +299,11 @@ LcdShutdown (
   VOID
   );
 
+/*
+ * Function returns number of Bytes per pixel.
+ */
+UINTN
+LcdGetBytesPerPixel (
+  IN  IMX_PIXEL_FORMAT PixelFormat
+  );
 #endif /* LCD_IMX8_LCD_HW_LIB_H_ */

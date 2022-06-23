@@ -28,6 +28,16 @@
 
 #define IMX_DISPLAY_TIMING_NO_FLAGS 0
 
+/* Display interfaces */
+typedef enum {
+ imxNativeHdmi = 0,
+ imxMipiDsi = 1,
+ imxLvds0 = 2,
+ imxLvds1 = 3,
+ imxLvds0dual = 4,
+ imxInterfaceUnknown,
+} imxDisplayInterfaceType;
+
 typedef enum {
   PIXEL_FORMAT_ARGB32,
   PIXEL_FORMAT_BGRA32,

@@ -1,0 +1,101 @@
+diff --git a/MdeModulePkg/Bus/Pci/XhciDxe/Xhci.h b/MdeModulePkg/Bus/Pci/XhciDxe/Xhci.h
+index 72b4e084f1..bfea99e4ea 100644
+--- a/MdeModulePkg/Bus/Pci/XhciDxe/Xhci.h
++++ b/MdeModulePkg/Bus/Pci/XhciDxe/Xhci.h
+@@ -50,6 +50,11 @@ typedef struct _USB_DEV_CONTEXT      USB_DEV_CONTEXT;
+ //
+ #define XHC_GENERIC_TIMEOUT          (10 * 1000)
+ //
++// XHC transfer timeout values.
++// The unit is millisecond, setting it as 10 ms.
++//
++#define XHC_TRANSFER_TIMEOUT         (10)
++//
+ // XHC reset timeout experience values.
+ // The unit is millisecond, setting it as 1s.
+ //
+@@ -65,6 +70,11 @@ typedef struct _USB_DEV_CONTEXT      USB_DEV_CONTEXT;
+ //
+ #define XHC_ASYNC_TIMER_INTERVAL     EFI_TIMER_PERIOD_MILLISECONDS(1)
+ 
++//
++// XHC transfer retries.
++//
++#define XHC_TRANSFER_RETRIES         (3)
++
+ //
+ // XHC raises TPL to TPL_NOTIFY to serialize all its operations
+ // to protect shared data structures.
+diff --git a/MdeModulePkg/Bus/Pci/XhciDxe/XhciSched.c b/MdeModulePkg/Bus/Pci/XhciDxe/XhciSched.c
+index 27a0cbec4a..8aa090fc15 100644
+--- a/MdeModulePkg/Bus/Pci/XhciDxe/XhciSched.c
++++ b/MdeModulePkg/Bus/Pci/XhciDxe/XhciSched.c
+@@ -2289,17 +2289,21 @@ XhcInitializeDeviceSlot64 (
+   UINT8                       ParentSlotId;
+   DEVICE_CONTEXT_64           *ParentDeviceContext;
+   EFI_PHYSICAL_ADDRESS        PhyAddr;
++  UINTN                       Retries = 0;
+ 
+-  ZeroMem (&CmdTrb, sizeof (CMD_TRB_ENABLE_SLOT));
+-  CmdTrb.CycleBit = 1;
+-  CmdTrb.Type     = TRB_TYPE_EN_SLOT;
++  do {
++    ZeroMem (&CmdTrb, sizeof (CMD_TRB_ENABLE_SLOT));
++    CmdTrb.CycleBit = 1;
++    CmdTrb.Type     = TRB_TYPE_EN_SLOT;
++
++    Status = XhcCmdTransfer (
++                Xhc,
++                (TRB_TEMPLATE *) (UINTN) &CmdTrb,
++                XHC_TRANSFER_TIMEOUT,
++                (TRB_TEMPLATE **) (UINTN) &EvtTrb
++                );
++  } while (EFI_ERROR(Status) || (Retries++ < XHC_TRANSFER_RETRIES));
+ 
+-  Status = XhcCmdTransfer (
+-              Xhc,
+-              (TRB_TEMPLATE *) (UINTN) &CmdTrb,
+-              XHC_GENERIC_TIMEOUT,
+-              (TRB_TEMPLATE **) (UINTN) &EvtTrb
+-              );
+   if (EFI_ERROR (Status)) {
+     DEBUG ((EFI_D_ERROR, "XhcInitializeDeviceSlot64: Enable Slot Failed, Status = %r\n", Status));
+     return Status;
+@@ -2593,6 +2597,7 @@ XhcDisableSlotCmd64 (
+   CMD_TRB_DISABLE_SLOT  CmdTrbDisSlot;
+   UINT8                 Index;
+   VOID                  *RingSeg;
++  UINTN                 Retries = 0;
+ 
+   //
+   // Disable the device slots occupied by these devices on its downstream ports.
+@@ -2618,16 +2623,19 @@ XhcDisableSlotCmd64 (
+   //
+   DEBUG ((EFI_D_INFO, "Disable device slot %d!\n", SlotId));
+ 
+-  ZeroMem (&CmdTrbDisSlot, sizeof (CmdTrbDisSlot));
+-  CmdTrbDisSlot.CycleBit = 1;
+-  CmdTrbDisSlot.Type     = TRB_TYPE_DIS_SLOT;
+-  CmdTrbDisSlot.SlotId   = SlotId;
+-  Status = XhcCmdTransfer (
+-             Xhc,
+-             (TRB_TEMPLATE *) (UINTN) &CmdTrbDisSlot,
+-             XHC_GENERIC_TIMEOUT,
+-             (TRB_TEMPLATE **) (UINTN) &EvtTrb
+-             );
++  do {
++    ZeroMem (&CmdTrbDisSlot, sizeof (CmdTrbDisSlot));
++    CmdTrbDisSlot.CycleBit = 1;
++    CmdTrbDisSlot.Type     = TRB_TYPE_DIS_SLOT;
++    CmdTrbDisSlot.SlotId   = SlotId;
++    Status = XhcCmdTransfer (
++               Xhc,
++               (TRB_TEMPLATE *) (UINTN) &CmdTrbDisSlot,
++               XHC_TRANSFER_TIMEOUT,
++               (TRB_TEMPLATE **) (UINTN) &EvtTrb
++               );
++  } while (EFI_ERROR(Status) || (Retries++ < XHC_TRANSFER_RETRIES));
++
+   if (EFI_ERROR (Status)) {
+     DEBUG ((EFI_D_ERROR, "XhcDisableSlotCmd: Disable Slot Command Failed, Status = %r\n", Status));
+     return Status;

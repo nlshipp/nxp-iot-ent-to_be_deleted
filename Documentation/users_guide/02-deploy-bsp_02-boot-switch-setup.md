@@ -10,8 +10,20 @@ Table: MCIMX8M-EVK boot DIP cfg
 | ![DIP switch configuration](images/boards/imx8mq_bs_sd.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mq_bs_emmc.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mq_bs_usb_download.png "DIP switch configuration"){width=3cm} |
 
 
-Table: MCIMX8MM-EVK boot DIP cfg
+Table: 8MMINILPD4-EVK boot DIP cfg
 
 | SD card boot | eMMC boot | USB UUU Download |
 |:-------------|:----------|:-----------------|
 | ![DIP switch configuration](images/boards/imx8mm_bs_sd.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mm_bs_emmc.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mm_bs_usb_download.png "DIP switch configuration"){width=3cm} |
+
+Table: 8MNANOD4-EVK boot DIP cfg
+
+| SD card boot | eMMC boot | USB UUU Download |
+|:-------------|:----------|:-----------------|
+| ![DIP switch configuration](images/boards/imx8mn_bs_sd.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mn_bs_emmc.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mn_bs_usb_download.png "DIP switch configuration"){width=3cm} |
+
+Table: 8MPLUSLPD4-EVK boot DIP cfg
+
+| SD card boot | eMMC boot | USB UUU Download |
+|:-------------|:----------|:-----------------|
+| ![DIP switch configuration](images/boards/imx8mp_bs_sd.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mp_bs_emmc.png "DIP switch configuration"){width=3cm} | ![DIP switch configuration](images/boards/imx8mp_bs_usb_download.png "DIP switch configuration"){width=3cm} |

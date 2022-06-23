@@ -32,14 +32,39 @@
 #define IMX_PCIE1_PD                    1
 #define IMX_USB1_PD                     2
 #define IMX_USB2_PD                     3
+#define IMX_MIPI_CSI1_PD                8 /* over id 3, id = ID - 3, Thus DDR changes aren't allowed. */
+#define IMX_MIPI_CSI2_PD                9
+#define IMX_PCIE2_PD                    10
+
 #define IMX_GPU_BUS                     4
 #define IMX_VPU_BUS                     5
 #define IMX_VPU_G1                      6
 #define IMX_VPU_G2                      7
 #define IMX_VPU_H1                      8
-#define IMX_PCIE2_PD                    10
 
 #define IMX_VPU_BLK_CTL_BASE            0x38320000
+
+/* Clock sources:
+    16 SYSTEM_PLL1_CLK   800 System PLL1 output clock
+    17 SYSTEM_PLL1_DIV2  400 System PLL1 divided 2 clock output
+    18 SYSTEM_PLL1_DIV3  266 System PLL1 divided 3 clock output
+    19 SYSTEM_PLL1_DIV4  200 System PLL1 divided 4 clock output
+    20 SYSTEM_PLL1_DIV5  160 System PLL1 divided 5 clock output
+    21 SYSTEM_PLL1_DIV6  133 System PLL1 divided 6 clock output
+    22 SYSTEM_PLL1_DIV8  100 System PLL1 divided 8 clock output
+    23 SYSTEM_PLL1_DIV10  80 System PLL1 divided 10 clock output
+    24 SYSTEM_PLL1_DIV20  40 System PLL divided 20 clock output
+    25 SYSTEM_PLL2_CLK  1000 System PLL2 output clock
+    26 SYSTEM_PLL2_DIV2  500 System PLL2 divided 2 clock output
+    27 SYSTEM_PLL2_DIV3  333 System PLL2 divided 3 clock output
+    28 SYSTEM_PLL2_DIV4  250 System PLL2 divided 4 clock output
+    29 SYSTEM_PLL2_DIV5  200 System PLL2 divided 5 clock output
+    30 SYSTEM_PLL2_DIV6  166 System PLL2 divided 6 clock output
+    31 SYSTEM_PLL2_DIV8  125 System PLL2 divided 8 clock output
+    32 SYSTEM_PLL2_DIV10 100 System PLL2 divided 10 clock output
+    33 SYSTEM_PLL2_DIV20  50 System PLL2 divided 20 clock output
+    34 SYSTEM_PLL3_CLK  1000 System PLL3 output clock
+*/
 
 ARM_CORE_INFO iMX8Ppi[] =
 {
@@ -140,6 +165,57 @@ VOID AudioInit(VOID)
   if (EFI_ERROR (status)) {
     DebugPrint (DEBUG_ERROR, "AudioInit - ImxSetAudioMclkClockRate failed");
   }
+}
+
+/**
+  Initialize MIPI CSI block and perform required pin-muxing.
+**/
+VOID CameraMipiCsi1Init(VOID)
+{
+    ARM_SMC_ARGS smc_args;
+
+    /* Enable MIPI CSI 1 power domain */
+    DebugPrint(DEBUG_ERROR, "Will do imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MIPI_CSI1_PD).\n");
+    imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MIPI_CSI1_PD, 0x01, 0x00, smc_args);
+    ArmCallSmc(&smc_args);
+
+    /* Enable MIPI CSI 2 power domain */
+    DebugPrint(DEBUG_ERROR, "Will do imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MIPI_CSI1_PD).\n");
+    imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MIPI_CSI2_PD, 0x01, 0x00, smc_args);
+    ArmCallSmc(&smc_args);
+
+    CCM_CCGR_MIPI_CSI1 = 0x00;
+    CCM_CCGR_MIPI_CSI2 = 0x00;
+    MicroSecondDelay(50);
+    // CLK_CLKO2 = 23.5 MHz - max 266, Linux 20. SYSTEM_PLL1_DIV2 (400 MHz)
+    CCM_TARGET_ROOT_IPP_DO_CLKO2 = CCM_TARGET_ROOT_MUX(2) | CCM_TARGET_ROOT_POST_PODF(16) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // MIPI_CSI1_CORE = 133 MHz - max 266, Linux 133, QNX 333. SYSTEM_PLL1_DIV3 (266 MHz) / 2
+    CCM_TARGET_ROOT_MIPI_CSI1_CORE = CCM_TARGET_ROOT_MUX(1) | CCM_TARGET_ROOT_POST_PODF(1) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // 66,6 MHz - 800/12 (SYSTEM_PLL1_CLK)
+    CCM_TARGET_ROOT_MIPI_CSI1_ESC = CCM_TARGET_ROOT_MUX(3) | CCM_TARGET_ROOT_POST_PODF(11) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // 100 SYSTEM_PLL2_DIV10
+    CCM_TARGET_ROOT_MIPI_CSI1_PHY_REF = CCM_TARGET_ROOT_MUX(3) | CCM_TARGET_ROOT_POST_PODF(7) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // MIPI_CSI1_CORE = 133 MHz - max 266, Linux 133, QNX 333. SYSTEM_PLL1_DIV3 (266 MHz) / 2
+    CCM_TARGET_ROOT_MIPI_CSI2_CORE = CCM_TARGET_ROOT_MUX(1) | CCM_TARGET_ROOT_POST_PODF(1) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // 100 SYSTEM_PLL2_DIV10
+    CCM_TARGET_ROOT_MIPI_CSI2_PHY_REF = CCM_TARGET_ROOT_MUX(3) | CCM_TARGET_ROOT_POST_PODF(7) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    // 66,6 MHz - 800/12 (SYSTEM_PLL1_CLK)
+    CCM_TARGET_ROOT_MIPI_CSI2_ESC = CCM_TARGET_ROOT_MUX(3) | CCM_TARGET_ROOT_POST_PODF(11) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+    MicroSecondDelay(50);
+    // Enable clock gates
+    CCM_CCGR_MIPI_CSI2 = 0x03;
+    CCM_CCGR_MIPI_CSI1 = 0x03;
+    
+    MicroSecondDelay(50); 
+    IOMUXC_SW_PAD_CTL_PAD_GPIO1_IO06 = 0x19; // pinctrl_csi_rst
+    IOMUXC_SW_PAD_CTL_PAD_GPIO1_IO03 = 0x19; // pinctrl_csi1_pwn is it IOMUXC_MUX_ALT5; ?
+
+    IOMUXC_SW_PAD_CTL_PAD_GPIO1_IO15 = 0x59; // pinctrl_CLKO2
+    IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO15 = 0x6; // muxctrl_CLKO2 from pinstool
+
+    // GPIO value
+    GPIO1_BASE_PTR->DR |= (0x01 << 3) | (0x01 << 6); /* Test set high level */
+    GPIO1_BASE_PTR->GDIR |= (0x01 << 3) | (0x01 << 6); /* Set output direction */
 }
 
 /**
@@ -630,6 +706,7 @@ RETURN_STATUS ArmPlatformInitialize(IN UINTN MpId)
   VpuInit();
   GpuInit();
   UsdhcInit();
+  CameraMipiCsi1Init();
 
   return RETURN_SUCCESS;
 }

@@ -55,6 +55,9 @@
 
   gArmTokenSpaceGuid.PcdArmPrimaryCoreMask
 
+  giMX8TokenSpaceGuid.PcdBank1MemoryBase
+  giMX8TokenSpaceGuid.PcdBank1MemorySize
+
   giMX8TokenSpaceGuid.PcdPcie1Enable
   giMX8TokenSpaceGuid.PcdPcie1ControlBaseAddress
   giMX8TokenSpaceGuid.PcdPcie1DeviceMemoryBase

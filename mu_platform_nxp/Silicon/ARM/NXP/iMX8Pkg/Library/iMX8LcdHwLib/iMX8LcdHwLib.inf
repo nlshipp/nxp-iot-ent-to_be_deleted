@@ -27,6 +27,7 @@
   adv7535.c
   Lcdif.c
   MipiDsi.c
+  clock.c
 
 
 [Packages]
@@ -43,3 +44,5 @@
   giMX8TokenSpaceGuid.PcdDisplayEnable
   giMX8TokenSpaceGuid.PcdDisplayInterface
   giMX8TokenSpaceGuid.PcdDisplayI2CBaseAddr
+  giMX8TokenSpaceGuid.PcdDisplayReadEDID
+  giMX8TokenSpaceGuid.PcdDisplayForceConverterMaxResolution

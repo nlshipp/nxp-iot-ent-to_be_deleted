@@ -54,6 +54,11 @@ copy %BUILD_ROOT%\imxaud\* %DRVR_ROOT%\Audio\ >NUL
 if errorlevel 1 (set FAILURE=imxaud & goto ERROR)
 copy %REPO_ROOT%\driver\audio\controller\imxaud\imxaud.wm.xml %DRVR_ROOT%\Audio\ >NUL
 
+mkdir %DRVR_ROOT%\CAN >NUL 2>NUL
+copy %BUILD_ROOT%\imxcan\* %DRVR_ROOT%\CAN\ >NUL
+if errorlevel 1 (set FAILURE=imxcan & goto ERROR)
+copy %REPO_ROOT%\driver\can\imxcan\imxcan.wm.xml %DRVR_ROOT%\CAN\ >NUL
+
 mkdir %DRVR_ROOT%\GPIO >NUL 2>NUL
 copy %BUILD_ROOT%\imxgpio\* %DRVR_ROOT%\GPIO\ >NUL
 if errorlevel 1 (set FAILURE=imxgpio & goto ERROR)
@@ -127,6 +132,28 @@ mkdir %DRVR_ROOT%\USB >NUL 2>NUL
 copy %BUILD_ROOT%\imxUcmTcpciCxClient\* %DRVR_ROOT%\USB\ >NUL
 if errorlevel 1 (set FAILURE=imxUcmTcpciCxClient & goto ERROR)
 copy %REPO_ROOT%\driver\USB\imxUcmTcpciCxClient\imxUcmTcpciCxClient.wm.xml %DRVR_ROOT%\USB\ >NUL
+
+
+mkdir %DRVR_ROOT%\Wm8960codec >NUL 2>NUL
+copy %BUILD_ROOT%\Wm8960codec\* %DRVR_ROOT%\Wm8960codec\ >NUL
+if errorlevel 1 (set FAILURE=Wm8960codec & goto ERROR)
+
+:: Copy Camera
+mkdir %DRVR_ROOT%\Avstream_ov5640 >NUL 2>NUL
+copy %BUILD_ROOT%\imxavstream_ov5640\* %DRVR_ROOT%\Avstream_ov5640 >NUL
+if errorlevel 1 (set FAILURE=Avstream & goto ERROR)
+
+mkdir %DRVR_ROOT%\Sns_ov5640 >NUL 2>NUL
+copy %BUILD_ROOT%\imxsns_ov5640\* %DRVR_ROOT%\Sns_ov5640 >NUL
+if errorlevel 1 (set FAILURE=Sns_ov5640 & goto ERROR)
+
+mkdir %DRVR_ROOT%\Csi >NUL 2>NUL
+copy %BUILD_ROOT%\imxcsi\* %DRVR_ROOT%\Csi >NUL
+if errorlevel 1 (set FAILURE=Csi & goto ERROR)
+
+mkdir %DRVR_ROOT%\Mipi >NUL 2>NUL
+copy %BUILD_ROOT%\imxmipi\* %DRVR_ROOT%\Mipi >NUL
+if errorlevel 1 (set FAILURE=Csi & goto ERROR)
 
 :: Copy HAL Extension Packages
 echo Copying HAL Extension Packages to %DRVR_ROOT%

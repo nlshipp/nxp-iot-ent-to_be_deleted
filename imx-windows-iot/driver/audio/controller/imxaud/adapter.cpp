@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -512,15 +513,21 @@ Return Value:
             NT_ASSERT(NT_SUCCESS(ntStatus));
           
             ULONG i = g_cRenderEndpoints;
-
             while (i--) 
             {
                 ntStatus = ext->m_pCommon->RemoveEndpointFilters(g_RenderEndpoints[i], NULL, NULL);
                 NT_ASSERT(NT_SUCCESS(ntStatus));
             }
 
-            ext->m_pCommon->Release();
-            ext->m_pCommon = NULL;
+            i = g_cCaptureEndpoints;
+            while (i--)
+            {
+                ntStatus = ext->m_pCommon->RemoveEndpointFilters(g_CaptureEndpoints[i], NULL, NULL);
+                NT_ASSERT(NT_SUCCESS(ntStatus));
+            }
+
+			ext->m_pCommon->Release();
+			ext->m_pCommon = NULL;
         }
     }
     

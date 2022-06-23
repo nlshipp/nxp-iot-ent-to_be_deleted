@@ -87,3 +87,5 @@
   giMX8TokenSpaceGuid.PcdPcie2DeviceMemorySize
   
   giMX8TokenSpaceGuid.PcdGpuEnable
+
+  giMX8TokenSpaceGuid.PcdMipiCsiDeviceMemorySize

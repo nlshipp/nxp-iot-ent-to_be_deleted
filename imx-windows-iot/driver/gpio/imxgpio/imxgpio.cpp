@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Copyright 2019-2020 NXP
+// Copyright 2019-2022 NXP
 // Licensed under the MIT License.
 //
 // Module Name:
@@ -31,6 +31,7 @@
 #include "imx6ull.hpp"
 #include "imx8m.hpp"
 #include "imx8m-mini.hpp"
+#include "imx8mp.hpp"
 
 IMX_NONPAGED_SEGMENT_BEGIN; //====================================================
 
@@ -1940,6 +1941,20 @@ NTSTATUS IMX_GPIO::configureCPUType (
         sparsePinMapLength = ARRAYSIZE(Imx8MMiniGpioPinDataSparseMap);
         inputSelectMap = Imx8MMiniGpioPinInputSelectTable;
         inputSelectMapLength = ARRAYSIZE(Imx8MMiniGpioPinInputSelectTable);
+        break;
+
+    case IMX_CPU_MX8MP:
+        bankStride = IMX8MP_GPIO_BANK_STRIDE;
+        bankCount = IMX8MP_GPIO_BANK_COUNT;
+        pinCount = IMX8MP_GPIO_PIN_COUNT;
+        pullShift = IMX8MP_GPIO_PULL_SHIFT;
+        pullMask = IMX8MP_GPIO_PULL_MASK;
+        pullUp = IMX8MP_GPIO_PULL_UP;
+        pullDown = IMX8MP_GPIO_PULL_DOWN;
+        sparsePinMap = Imx8MPGpioPinDataSparseMap;
+        sparsePinMapLength = ARRAYSIZE(Imx8MPGpioPinDataSparseMap);
+        inputSelectMap = Imx8MPGpioPinInputSelectTable;
+        inputSelectMapLength = ARRAYSIZE(Imx8MPGpioPinInputSelectTable);
         break;
 
     default:

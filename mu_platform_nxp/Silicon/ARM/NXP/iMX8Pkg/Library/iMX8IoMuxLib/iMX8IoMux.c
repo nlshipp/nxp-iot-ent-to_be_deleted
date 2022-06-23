@@ -34,7 +34,7 @@ ImxPadConfig (
   )
 {
   _Static_assert(
-    (IOMUXC_SELECT_INPUT_UPPER_BOUND - IOMUXC_SELECT_INPUT_BASE_ADDRESS) < (0xff * 4),
+    IOMUXC_SELECT_INPUT_COUNT < 0xffu,
     "Too many SELECT_INPUT registers values to encode in IMX_PADCFG");
 
   //

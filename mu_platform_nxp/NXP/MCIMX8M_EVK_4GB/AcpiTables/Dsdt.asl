@@ -23,21 +23,24 @@
 DefinitionBlock("DsdtTable.aml", "DSDT", 5, "MSFT", "EDK2", 1) {
   Scope(_SB) {
     include("Dsdt-Platform.asl")
-    include("Dsdt-Sdhc.asl")
+    /* Dependencies */
     include("Dsdt-Gpio.asl")
-    include("Dsdt-Usb.asl")
-    include("Dsdt-Spi.asl")
     include("Dsdt-I2c.asl")
+    include("Dsdt-Spi.asl")
     include("Dsdt-Uart.asl")
-    include("Dsdt-Rhp.asl")
-    include("Dsdt-Enet.asl")
+    /* Others */
     include("Dsdt-Audio.asl")
-    include("Dsdt-TrEE.asl")
-    include("Dsdt-PCIe.asl")
+    include("Dsdt-Camera_Ov5640.asl")
+    include("Dsdt-Enet.asl")
     include("Dsdt-Gfx.asl")
-    include("Dsdt-Vpu.asl")
+    include("Dsdt-PCIe.asl")
     include("Dsdt-Pwm.asl")
+    include("Dsdt-Rhp.asl")
+    include("Dsdt-Sdhc.asl")
     include("Dsdt_TCPC.asl")
     include("Dsdt-Tmu.asl")
+    include("Dsdt-TrEE.asl")
+    include("Dsdt-Usb.asl")
+    include("Dsdt-Vpu.asl")
   }
 }

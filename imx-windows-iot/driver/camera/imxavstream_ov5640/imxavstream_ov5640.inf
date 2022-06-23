@@ -1,0 +1,103 @@
+; Copyright (c) Microsoft Corporation. All rights reserved.
+; Copyright 2022 NXP
+; Licensed under the MIT License.
+
+[Version]
+signature   = "$WINDOWS NT$"
+Class       = Camera
+ClassGuid   = {ca3e7ab9-b4c3-4ae6-8251-579ef933890f}
+Provider    = %ProviderName%
+Catalogfile = imxavstream_ov5640.cat
+
+[SourceDisksNames]
+1000=%DiskName%,,,
+
+[SourceDisksFiles]
+imxavstream_ov5640.sys=1000
+
+[DestinationDirs]
+DefaultDestDir=12
+imxavstream_ov5640.CopyFiles=12
+
+[imxavstream_ov5640.CopyFiles]
+imxavstream_ov5640.sys
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTarm64
+
+[Standard.NTarm64]
+%imxavstream_ov5640.DeviceDesc%=imxavstream_ov5640.NTarm64, ACPI\NXP0C21
+
+;---------------------------------------------------------------
+;                A R M 64  D D I n s t a l l
+;---------------------------------------------------------------
+
+[imxavstream_ov5640.NTarm64]
+Include=ks.inf,KSCAPTUR.inf
+Needs=KS.Registration,KSCAPTUR.Registration.NT
+CopyFiles=imxavstream_ov5640.CopyFiles
+
+;---------------------------------------------------------------
+;                I n t e r f a c e s
+;---------------------------------------------------------------
+
+[imxavstream_ov5640.NTarm64.Interfaces]
+AddInterface=%KSCATEGORY_CAPTURE%,"GLOBAL",CaptureInterface.NT,0
+AddInterface=%KSCATEGORY_VIDEO%,"GLOBAL",CaptureInterface.NT,0
+AddInterface=%KSCATEGORY_VIDEO_CAMERA%,"GLOBAL",CaptureInterface.NT,0
+
+[CaptureInterface.NT]
+AddReg=imxavstream_ov5640.Reader.AddReg
+
+;---------------------------------------------------------------
+;                A d d R e g
+;---------------------------------------------------------------
+
+[imxavstream_ov5640.Reader.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%imxavstream_ov5640.Reader.FriendlyName%
+
+;---------------------------------------------------------------
+;                S e r v i c e s  
+;---------------------------------------------------------------
+
+[imxavstream_ov5640.NTarm64.Services]
+AddService=imxavstream_ov5640,%SPSVCINST_ASSOCSERVICE%, imxavstream_ov5640.ServiceInstall
+
+[imxavstream_ov5640.ServiceInstall]
+DisplayName=%imxavstream_ov5640.DeviceDesc%
+ServiceType=%SERVICE_KERNEL_DRIVER%
+StartType=%SERVICE_DEMAND_START%
+ErrorControl=%SERVICE_ERROR_NORMAL%
+ServiceBinary=%12%\imxavstream_ov5640.sys
+
+;---------------------------------------------------------------
+;                S t r i n g s
+;---------------------------------------------------------------
+
+[Strings]
+ProviderName                           = "NXP"
+ManufacturerName                       = "NXP Semiconductors"
+DiskName				               = "i.MX AVStream OV5640 Installation Disk"
+imxavstream_ov5640.DeviceDesc	       = "i.MX AVStream OV5640 Device"
+imxavstream_ov5640.SVCDESC		       = "i.MX AVStream OV5640 Service"
+imxavstream_ov5640.Reader.FriendlyName = "i.MX AVStream OV5640 Source"
+
+; non-localizable
+Proxy.CLSID             ="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
+KSCATEGORY_CAPTURE      ="{65E8773D-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_VIDEO        ="{6994AD05-93EF-11D0-A3CC-00A0C9223196}"
+KSCATEGORY_VIDEO_CAMERA ="{E5323777-F976-4f5b-9B55-B94699C46E44}"
+
+SPSVCINST_ASSOCSERVICE = 0x00000002
+SERVICE_KERNEL_DRIVER  = 1
+
+SERVICE_BOOT_START     = 0
+SERVICE_SYSTEM_START   = 1
+SERVICE_DEMAND_START   = 3
+
+SERVICE_ERROR_IGNORE   = 0
+SERVICE_ERROR_NORMAL   = 1
+SERVICE_ERROR_CRITICAL = 3
+
+REG_DWORD              = 0x00010001

@@ -1215,6 +1215,9 @@ SdhcDeviceRegister (
     LOG_ERROR ("InstallMultipleProtocolInterfaces failed. %r", Status);
     goto Exit;
   }
+  
+  //TODO: driver should be functionall also with FRC_SDCLK_ON = Force CLK active
+  MmioWrite32 ((UINTN)&SdhcCtx->RegistersBase->VEND_SPEC, (UINT32)0x20007809U);
 
 Exit:
   if (EFI_ERROR (Status)) {

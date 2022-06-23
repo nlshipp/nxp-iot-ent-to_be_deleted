@@ -1,5 +1,5 @@
 /*
-* Copyright 2019-2020 NXP
+* Copyright 2019-2020,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -159,6 +159,7 @@ NDIS_STATUS MpInitializeEx(NDIS_HANDLE MiniportAdapterHandle, NDIS_HANDLE Minipo
     NDIS_MINIPORT_INTERRUPT_CHARACTERISTICS         Interrupt;
     NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES   RegistrationAttributes;
     NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES        GeneralAttributes;
+    NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES        OffloadAttributes;
     NDIS_PM_CAPABILITIES                            PowerManagementCapabilities;
     PMP_ADAPTER                                     pAdapter = NULL;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR                 pResDesc;
@@ -264,6 +265,32 @@ NDIS_STATUS MpInitializeEx(NDIS_HANDLE MiniportAdapterHandle, NDIS_HANDLE Minipo
             DBG_ENET_DEV_PRINT_ERROR_WITH_STATUS("NdisMSetMiniportAttributes() failed.");
             break;
         }
+
+        // Advertise NIC offload capatibilities
+        NDIS_OFFLOAD NdisOffload;
+        NdisZeroMemory(&NdisOffload, sizeof(NDIS_OFFLOAD));
+        NdisOffload.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD;
+        NdisOffload.Header.Revision = NDIS_OFFLOAD_REVISION_1;
+        NdisOffload.Header.Size = sizeof(NDIS_OFFLOAD);
+        NdisOffload.Checksum.IPv4Transmit.Encapsulation = NDIS_ENCAPSULATION_IEEE_802_3;
+        NdisOffload.Checksum.IPv4Transmit.TcpChecksum = NDIS_OFFLOAD_SET_ON;
+        NdisOffload.Checksum.IPv4Transmit.UdpChecksum = NDIS_OFFLOAD_SET_ON;
+        NdisOffload.Checksum.IPv4Transmit.IpChecksum = NDIS_OFFLOAD_SET_ON;
+        NdisOffload.Checksum.IPv4Receive.TcpChecksum = NDIS_OFFLOAD_SET_ON;
+        NdisOffload.Checksum.IPv4Receive.UdpChecksum = NDIS_OFFLOAD_SET_ON;
+        NdisOffload.Checksum.IPv4Receive.IpChecksum = NDIS_OFFLOAD_SET_ON;
+
+        NdisZeroMemory( &OffloadAttributes, sizeof(NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES));
+        OffloadAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
+        OffloadAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
+        OffloadAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
+        OffloadAttributes.HardwareOffloadCapabilities = OffloadAttributes.DefaultOffloadConfiguration = &NdisOffload;
+
+        if ((Status = NdisMSetMiniportAttributes(MiniportAdapterHandle, (PNDIS_MINIPORT_ADAPTER_ATTRIBUTES)&OffloadAttributes)) != NDIS_STATUS_SUCCESS) {
+            DBG_ENET_DEV_PRINT_ERROR_WITH_STATUS("NdisMSetMiniportAttributes() failed.");
+            break;
+        }
+
         // Get HW resources
         NDIS_PHYSICAL_ADDRESS  ENETRegBase;
         ULONG                  ENETRegLength = 0;

@@ -1,0 +1,21 @@
+//+-------------------------------------------------------------------------
+//
+//  Microsoft Windows
+//
+//  Copyright (C) Microsoft Corporation, 1999 - 1999
+//  Copyright 2022 NXP
+//
+//--------------------------------------------------------------------------
+
+#include <windows.h>
+
+#include <ntverp.h>
+
+#define VER_FILETYPE                VFT_DRV
+#define VER_FILESUBTYPE             VFT2_UNKNOWN
+#define VER_FILEDESCRIPTION_STR     "i.MX AVStream OV5640 Driver"
+#define VER_INTERNALNAME_STR        "imxavstream_ov5640.sys"
+#define VER_ORIGINALFILENAME_STR    "imxavstream_ov5640.sys"
+
+#include "common.ver"
+

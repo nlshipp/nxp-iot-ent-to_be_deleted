@@ -1,7 +1,7 @@
 #
 #  Copyright (c) Microsoft Corporation. All rights reserved.
 #  Copyright (c) 2013-2018, ARM Limited. All rights reserved.
-#  Copyright 2019-2020 NXP
+#  Copyright 2019-2020,2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -94,10 +94,29 @@
 
   # Selection of the i.MX8 display interface.
   #   PcdDisplayEnable      - enable display, default enabled
-  #   PcdDisplayInterface   - default display interface, 0=HDMI, 1=MIPI_DSI
+  #   PcdDisplayInterface   - default display interface, 0=HDMI, 1=MIPI_DSI, 2=LVDS0, 3=LVDS1, 4=LVDS dual
   #   PcdDisplayI2CBaseAddr - Base address of the I2C block used for cummunication with display, default I2C2 for i.MX8
+  #   PcdDisplayReadEDID    - True = read EDID from display if available. If not available, set fixed resolution (default 1920x1080@60)
+  #                           False = skip EDID reading (even if available) and set fixed resolution (default 1920x1080@60)
+  #   PcdDisplayForceConverterMaxResolution - mipi-hdmi and lvds-hdmi converters have max allowed resolution 1920x1080@60
+  #                                         - TRUE - if EDID data read exceeds the limit, force set fixed resolution for converters only (default 1920x1080@60)
+  #                                         - FALSE - Use EDID data read even if exceeds converter limit
+  #                                         - if PcdDisplayReadEDID = FALSE, this option has no effect
   giMX8TokenSpaceGuid.PcdDisplayEnable|TRUE|BOOLEAN|0x00000027
   giMX8TokenSpaceGuid.PcdDisplayInterface|0|UINT32|0x00000028
   giMX8TokenSpaceGuid.PcdGpuEnable|FALSE|BOOLEAN|0x00000029
-  giMX8TokenSpaceGuid.PcdDisplayI2CBaseAddr|0|UINT32|0x30A30000
+  giMX8TokenSpaceGuid.PcdDisplayI2CBaseAddr|0x30A30000|UINT32|0x0000002A
+  giMX8TokenSpaceGuid.PcdDisplayReadEDID|TRUE|BOOLEAN|0x0000002B
+  giMX8TokenSpaceGuid.PcdDisplayForceConverterMaxResolution|TRUE|BOOLEAN|0x0000002C
+
+  # Board configuration
+  giMX8TokenSpaceGuid.PcdCAN1InsteadOfI2C5|TRUE|BOOLEAN|0x00000030
+  giMX8TokenSpaceGuid.PcdCAN2InsteadOfPDMStream3|TRUE|BOOLEAN|0x00000031
+
+  # CAN
+  giMX8TokenSpaceGuid.PcdCAN1XTALEnable|FALSE|BOOLEAN|0x00000032
+  giMX8TokenSpaceGuid.PcdCAN2XTALEnable|FALSE|BOOLEAN|0x00000033
+
+  # Camera subsystem
+  giMX8TokenSpaceGuid.PcdMipiCsiDeviceMemorySize|0x10000|UINT64|0x0000003B
 

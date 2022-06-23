@@ -2,7 +2,7 @@
 * Common IMX definitions
 *
 *  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Copyright 2019 NXP
+*  Copyright 2019,2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -127,3 +127,27 @@
 #define SDMA_REQ_SAI1_RX 76
 #define SDMA_REQ_SAI2_TX 77
 #define SDMA_REQ_SAI2_RX 78
+
+#define SDMA_REQ_SAI3_TX 79
+#define SDMA_REQ_SAI3_RX 80
+#define SDMA_REQ_SAI4_TX 81
+#define SDMA_REQ_SAI4_RX 82
+#define SDMA_REQ_SAI5_TX 83
+#define SDMA_REQ_SAI5_RX 84
+#define SDMA_REQ_SAI6_TX 85
+#define SDMA_REQ_SAI6_RX 86
+#define SDMA_REQ_UART7_RX 87
+#define SDMA_REQ_UART7_TX 88
+#define SDMA_REQ_GPT2 89
+#define SDMA_REQ_GPT3 90
+#define SDMA_REQ_GPT4 91
+#define SDMA_REQ_GPT5 92
+#define SDMA_REQ_GPT6 93
+#define SDMA_REQ_ENET1_EV0 94
+#define SDMA_REQ_ENET1_EV1 95
+#define SDMA_REQ_ENET2_EV0 96
+#define SDMA_REQ_ENET2_EV1 97
+#define SDMA_REQ_EXT3 98
+#define SDMA_REQ_EXT4 99
+#define SDMA_REQ_SAI7_TX 100
+#define SDMA_REQ_SAI7_RX 101

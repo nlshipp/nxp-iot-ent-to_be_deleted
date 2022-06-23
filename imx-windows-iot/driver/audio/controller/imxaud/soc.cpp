@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -163,25 +164,35 @@ CDmaBuffer::UnregisterStream
 
 CSoc::CSoc()
 {
-
+	m_pSaiRegisters = NULL;
+	m_pInterruptObject = NULL;
 }
 
 CSoc::~CSoc()
 {
-    if (m_pSaiRegisters != NULL)
-    {
-        MmUnmapIoSpace(m_pSaiRegisters, sizeof(SaiRegisters));
-    }
+	CleanUp();
+}
 
-    IO_DISCONNECT_INTERRUPT_PARAMETERS params;
+VOID
+CSoc::CleanUp()
+{
+	IO_DISCONNECT_INTERRUPT_PARAMETERS params;
 
-    if (m_pInterruptObject != NULL)
-    {
-        params.Version = CONNECT_FULLY_SPECIFIED;
-        params.ConnectionContext.InterruptObject = m_pInterruptObject;
+	if (m_pInterruptObject != NULL)
+	{
+		params.Version = CONNECT_FULLY_SPECIFIED;
+		params.ConnectionContext.InterruptObject = m_pInterruptObject;
 
-        IoDisconnectInterruptEx(&params);
-    }
+		IoDisconnectInterruptEx(&params);
+		m_pInterruptObject = NULL;
+	}
+
+	if (m_pSaiRegisters != NULL)
+	{
+		MmUnmapIoSpace(m_pSaiRegisters, sizeof(SaiRegisters));
+		m_pSaiRegisters = NULL;
+	}
+
 }
 
 NTSTATUS
@@ -246,7 +257,6 @@ CSoc::SetupClocks()
     SAI_TRANSMIT_MASK_REGISTER TransmitMaskRegister;
     SAI_RECEIVE_MASK_REGISTER ReceiveMaskRegister;
 
-    IO_CONNECT_INTERRUPT_PARAMETERS parameters;
     NTSTATUS status;
 #ifdef _ARM64_
     UINT32 CpuRev;
@@ -408,25 +418,6 @@ CSoc::SetupClocks()
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->TransmitMaskRegister.AsUlong, TransmitMaskRegister.AsUlong);
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->ReceiveMaskRegister.AsUlong, ReceiveMaskRegister.AsUlong);
 
-    ASSERT(m_pDescriptor);
-
-    parameters.Version = CONNECT_FULLY_SPECIFIED;
-    parameters.FullySpecified.PhysicalDeviceObject = m_pPDO;
-    parameters.FullySpecified.InterruptObject = &m_pInterruptObject;
-    parameters.FullySpecified.ServiceRoutine = &CSoc::ISR;
-    parameters.FullySpecified.ServiceContext = this;
-    parameters.FullySpecified.SpinLock = NULL;
-    parameters.FullySpecified.SynchronizeIrql = (KIRQL) m_pDescriptor->u.Interrupt.Level;
-    parameters.FullySpecified.FloatingSave = FALSE;
-    parameters.FullySpecified.ShareVector = FALSE;
-    parameters.FullySpecified.Vector = m_pDescriptor->u.Interrupt.Vector;
-    parameters.FullySpecified.Irql = (KIRQL) m_pDescriptor->u.Interrupt.Level;
-    parameters.FullySpecified.InterruptMode = LevelSensitive;
-    parameters.FullySpecified.ProcessorEnableMask = m_pDescriptor->u.Interrupt.Affinity;
-    parameters.FullySpecified.Group = 0;
-
-    status = IoConnectInterruptEx(&parameters);
-
     EnableInterrupts();
 
     ASSERT(NT_SUCCESS(status));
@@ -446,8 +437,8 @@ CSoc::DisableInterruptsNoLock()
     ReceiveControlRegister.AsUlong = READ_REGISTER_ULONG(&m_pSaiRegisters->ReceiveControlRegister.AsUlong);
 
     // Clear the interrupt flags and don't reset any error flags yet
-    TransmitControlRegister.AsUlong &= ~(SAI_CTRL_INTERRUPTMASK | SAI_CTRL_ERRORFLAGS);
-    ReceiveControlRegister.AsUlong &= ~(SAI_CTRL_INTERRUPTMASK | SAI_CTRL_ERRORFLAGS);
+	TransmitControlRegister.AsUlong &= ~(SAI_CTRL_INTERRUPTMASK | SAI_CTRL_ERRORFLAGS);
+	ReceiveControlRegister.AsUlong &= ~(SAI_CTRL_INTERRUPTMASK | SAI_CTRL_ERRORFLAGS);
 
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->TransmitControlRegister.AsUlong, TransmitControlRegister.AsUlong);
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->ReceiveControlRegister.AsUlong, ReceiveControlRegister.AsUlong);
@@ -461,7 +452,7 @@ CSoc::DisableInterrupts()
 
     irql = AcquireIsrSpinLock();
 
-    DisableInterruptsNoLock();
+	DisableInterruptsNoLock();
 
     ReleaseIsrSpinLock(irql);
 }
@@ -478,12 +469,12 @@ CSoc::EnableInterruptsNoLock()
 
     if (m_bIsRenderActive == TRUE)
     {
-        TransmitControlRegister.FifoRequestInterruptEnable = 1;
+		TransmitControlRegister.FifoRequestInterruptEnable = 1;
     }
 
     if (m_bIsCaptureActive == TRUE)
     {
-        ReceiveControlRegister.FifoRequestInterruptEnable = 1;
+		ReceiveControlRegister.FifoRequestInterruptEnable = 1;
     }
 
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->TransmitControlRegister.AsUlong, TransmitControlRegister.AsUlong);
@@ -499,7 +490,7 @@ CSoc::EnableInterrupts()
 
     irql = AcquireIsrSpinLock();
 
-    EnableInterruptsNoLock();
+	EnableInterruptsNoLock();
 
     ReleaseIsrSpinLock(irql);
 }

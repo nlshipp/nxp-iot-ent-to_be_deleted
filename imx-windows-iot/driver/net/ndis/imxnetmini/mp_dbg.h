@@ -1,5 +1,5 @@
 /*
-* Copyright 2018-2020 NXP
+* Copyright 2018-2020,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -175,6 +175,19 @@ static inline LONG GetTime() {
 #define DBG_ENET_DEV_DPC_PRINT_INFO(_format_str_,...)             DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,__VA_ARGS__)
 #endif //DBG_ENET_DEV_DPC
 
+// ENET device Checksum offload specific macros - uncomment next line for message printing
+//#define DBG_ENET_DEV_CHKSUM_OFFLOAD
+#ifdef DBG_ENET_DEV_CHKSUM_OFFLOAD
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_CODE(_line_) _line_
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG()                             DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s +++\n"                     ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG_WITH_PARAMS(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s +++ "_format_str_"\n"      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,__VA_ARGS__)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END()                             DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s ---\n"                     ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END_WITH_STATUS(_status_)         DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s --- [0x%.8X]\n"            ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,_status_)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_WARNING(_format_str_,...)          DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s WARNING "_format_str_"\n"  ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,__VA_ARGS__)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,__VA_ARGS__)
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_INFO(_format_str_,...)             DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pAdapter?pAdapter->ENETDev_DeviceName:"ENETx",__FUNCTION__,__VA_ARGS__)
+#endif //DBG_ENET_DEV_CHKSUM_OFFLOAD
+
 // ENET device RX specific macros - uncomment next line for message printing
 //#define DBG_ENET_DEV_RX
 #ifdef DBG_ENET_DEV_RX
@@ -241,7 +254,7 @@ static inline LONG GetTime() {
 #endif //DBG_ENET_DEV_OIDS
 
 // ENET PHY device specific macros - uncomment next line for message printing
-//#define DBG_PHY_DEV
+#define DBG_PHY_DEV
 #ifdef DBG_PHY_DEV
 #define DBG_PHY_DEV_CODE(_line_) _line_
 #define DBG_PHY_DEV_METHOD_BEG()                             DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:%s +++\n"                     ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),pPHYDev?pPHYDev->PHYDev_DeviceName:"ENETx",__FUNCTION__)
@@ -553,6 +566,40 @@ static inline LONG GetTime() {
 #endif
 #ifndef DBG_ENET_DEV_TX_PRINT_INFO
 #define DBG_ENET_DEV_TX_PRINT_INFO(...)
+#endif
+
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_CODE
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_CODE(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG_WITH_PARAMS
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_BEG_WITH_PARAMS(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END_WITH_STATUS
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_METHOD_END_WITH_STATUS(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR_WITH_STATUS
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR_WITH_STATUS(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR_WITH_STATUS_AND_PARAMS
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_ERROR_WITH_STATUS_AND_PARAMS(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_WARNING
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_WARNING(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE(...)
+#endif
+#ifndef DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_INFO
+#define DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_INFO(...)
 #endif
 
 #ifndef DBG_ENET_DEV_DPC_RX_CODE

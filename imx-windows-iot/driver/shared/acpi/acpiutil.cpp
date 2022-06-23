@@ -24,14 +24,7 @@ extern "C" {
     #include <initguid.h>
 } // extern "C"
 
-#include <acpiutil.hpp>
-
-#define NONPAGED_SEGMENT_BEGIN \
-    __pragma(code_seg(push)) \
-    //__pragma(code_seg(.text))
-
-#define NONPAGED_SEGMENT_END \
-    __pragma(code_seg(pop))
+#include "acpiutil.hpp"
 
 #define ASSERT_MAX_IRQL(IRQL) NT_ASSERT(KeGetCurrentIrql() <= (IRQL))
 
@@ -127,21 +120,6 @@ AcpiDevicePropertiesQueryValue(
     _In_ const ACPI_METHOD_ARGUMENT UNALIGNED* DevicePropertiesPkgPtr,
     _In_z_ const CHAR* KeyNamePtr,
     _Out_ const ACPI_METHOD_ARGUMENT UNALIGNED** ValuePtr);
-
-//
-// Internal Misc
-//
-
-_IRQL_requires_max_(APC_LEVEL)
-NTSTATUS
-AcpiSendIoctlSynchronously(
-    _In_ DEVICE_OBJECT* PdoPtr,
-    _In_ ULONG IoControlCode,
-    _In_reads_bytes_(InputBufferSize) ACPI_EVAL_INPUT_BUFFER* InputBufferPtr,
-    _In_ ULONG InputBufferSize,
-    _Out_writes_bytes_to_(OutputBufferSize, *BytesReturnedCountPtr) ACPI_EVAL_OUTPUT_BUFFER UNALIGNED* OutputBufferPtr,
-    _In_ ULONG OutputBufferSize,
-    _Out_opt_ ULONG* BytesReturnedCountPtr);
 
 NONPAGED_SEGMENT_BEGIN //=================================================
 
@@ -754,18 +732,16 @@ AcpiQueryDsm(
         goto Cleanup;
     }
 
-    switch (returnBufferPtr->Argument->DataLength) {
+    switch (returnBufferPtr->Argument->DataLength)
+	{
     case sizeof(UINT8):
-        *SupportedFunctionsMaskPtr =
-            *(reinterpret_cast<UINT8*>(returnBufferPtr->Argument->Data));
+        *SupportedFunctionsMaskPtr = *(reinterpret_cast<UINT8*>(returnBufferPtr->Argument->Data));
         break;
     case sizeof (UINT16):
-        *SupportedFunctionsMaskPtr =
-            *(reinterpret_cast<UINT16*>(returnBufferPtr->Argument->Data));
+        *SupportedFunctionsMaskPtr = *(reinterpret_cast<UINT16*>(returnBufferPtr->Argument->Data));
         break;
     case sizeof(UINT32):
-        *SupportedFunctionsMaskPtr =
-            *(reinterpret_cast<UINT32*>(returnBufferPtr->Argument->Data));
+        *SupportedFunctionsMaskPtr = *(reinterpret_cast<UINT32*>(returnBufferPtr->Argument->Data));
         break;
     default:
         NT_ASSERTMSG("Invalid _DSM query return size", FALSE);
@@ -875,7 +851,6 @@ AcpiEvaluateMethod(
     // First attempt gets the required output buffer size, second one allocates
     // and resends the IRP with big enough output buffer
     //
-
     do
     {
         outputBufferPtr =

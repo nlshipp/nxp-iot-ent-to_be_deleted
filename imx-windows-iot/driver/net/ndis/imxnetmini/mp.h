@@ -1,6 +1,6 @@
 /*
 * Copyright (c) Microsoft Corporation.  All rights reserved.
-* Copyright 2019-2020 NXP
+* Copyright 2019-2020,2022 NXP
 *
 * Use of this sample source code is subject to the terms of the Microsoft
 * license agreement under which you licensed this sample source code. If
@@ -406,7 +406,15 @@ typedef struct _MP_ADAPTER {
 
     ACPI_EVAL_OUTPUT_BUFFER UNALIGNED* pOutputBuffer;
     ACPI_METHOD_ARGUMENT    UNALIGNED* pPropertiesPackage;
-
+    //Checksum offloading
+    NDIS_OFFLOAD_ENCAPSULATION OffloadEncapsulation;
+    ENET_CHECKSUM_OFFLOAD_MODE IPChecksumOffloadIPv4;
+    ENET_CHECKSUM_OFFLOAD_MODE TCPChecksumOffloadIPv4;
+    ENET_CHECKSUM_OFFLOAD_MODE TCPChecksumOffloadIPv6;
+    ENET_CHECKSUM_OFFLOAD_MODE UDPChecksumOffloadIPv4;
+    ENET_CHECKSUM_OFFLOAD_MODE UDPChecksumOffloadIPv6;
+    ENET_RX_FRAME_DISCARD_MODE DiscardRxFrameWithWrongProtocolChecksum;
+    ENET_RX_FRAME_DISCARD_MODE DiscardRxFrameWithWrongIPv4HeaderChecksum;
 } MP_ADAPTER, *PMP_ADAPTER;
 
 //--------------------------------------

@@ -133,6 +133,10 @@ ImxValidateEdidData (
       EdidDataPtr[6] != 0xFF ||
       EdidDataPtr[7] != 0x00) {
     DEBUG ((DEBUG_ERROR, "%a: Invalid EDID header\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a: Expected: 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a: Received: 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", __FUNCTION__,
+      EdidDataPtr[0], EdidDataPtr[1], EdidDataPtr[2], EdidDataPtr[3], EdidDataPtr[4], EdidDataPtr[5],
+      EdidDataPtr[6], EdidDataPtr[7]));
     return EFI_INVALID_PARAMETER;
   }
 

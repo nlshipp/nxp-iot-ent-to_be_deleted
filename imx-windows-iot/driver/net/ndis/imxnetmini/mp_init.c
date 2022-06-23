@@ -1,5 +1,5 @@
 /*
-* Copyright 2019-2020 NXP
+* Copyright 2019-2020,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -312,7 +312,7 @@ void MpFreeAdapter(PMP_ADAPTER  pAdapter)
 
         MDIODev_DeinitDevice(&pAdapter->ENETDev_MDIODevice);
 
-        for (int i = 0; i < pAdapter->Tx_DmaBDT_ItemCount; i++) { // Free all Tx packet buffer MDL
+        for (int i = 0; i < pAdapter->Tx_DmaBDT_ItemCount; i++) { // Free all Tx packets buffer MDL
             if (pAdapter->Tx_EnetSwExtBDT[i].pMdl != NULL) {
                  NdisFreeMdl(pAdapter->Tx_EnetSwExtBDT[i].pMdl);
                  pAdapter->Tx_EnetSwExtBDT[i].pMdl = NULL;
@@ -428,6 +428,62 @@ NDIS_STATUS NICReadRegParameters(PMP_ADAPTER pAdapter)
             SPEED_SELECT_DEFAULT,
             SPEED_SELECT_MIN,
             SPEED_SELECT_MAX
+        },
+        {
+            NDIS_STRING_CONST("*IPChecksumOffloadIPv4"),
+            MP_OFFSET(IPChecksumOffloadIPv4),
+            MP_SIZE(IPChecksumOffloadIPv4),
+            TxRxChksumOffloadEnabled,
+            ChksumOffloadDisabled,
+            TxRxChksumOffloadEnabled
+        },
+        {
+            NDIS_STRING_CONST("*TCPChecksumOffloadIPv4"),
+            MP_OFFSET(TCPChecksumOffloadIPv4),
+            MP_SIZE(TCPChecksumOffloadIPv4),
+            TxRxChksumOffloadEnabled,
+            ChksumOffloadDisabled,
+            TxRxChksumOffloadEnabled
+        },
+        {
+            NDIS_STRING_CONST("*TCPChecksumOffloadIPv6"),
+            MP_OFFSET(TCPChecksumOffloadIPv6),
+            MP_SIZE(TCPChecksumOffloadIPv6),
+            TxRxChksumOffloadEnabled,
+            ChksumOffloadDisabled,
+            TxRxChksumOffloadEnabled
+        },
+        {
+            NDIS_STRING_CONST("*UDPChecksumOffloadIPv4"),
+            MP_OFFSET(UDPChecksumOffloadIPv4),
+            MP_SIZE(UDPChecksumOffloadIPv4),
+            TxRxChksumOffloadEnabled,
+            ChksumOffloadDisabled,
+            TxRxChksumOffloadEnabled
+        },
+        {
+            NDIS_STRING_CONST("*UDPChecksumOffloadIPv6"),
+            MP_OFFSET(UDPChecksumOffloadIPv6),
+            MP_SIZE(UDPChecksumOffloadIPv6),
+            TxRxChksumOffloadEnabled,
+            ChksumOffloadDisabled,
+            TxRxChksumOffloadEnabled
+        },
+        {
+            NDIS_STRING_CONST("*DiscardRxFrameWithWrongProtocolChecksum"),
+            MP_OFFSET(DiscardRxFrameWithWrongProtocolChecksum),
+            MP_SIZE(DiscardRxFrameWithWrongProtocolChecksum),
+            RxFrameDiscardEnabled,
+            RxFrameDiscardDisabled,
+            RxFrameDiscardEnabled
+        },
+        {
+            NDIS_STRING_CONST("*DiscardRxFrameWithWrongIPv4HeaderChecksum"),
+            MP_OFFSET(DiscardRxFrameWithWrongIPv4HeaderChecksum),
+            MP_SIZE(DiscardRxFrameWithWrongIPv4HeaderChecksum),
+            RxFrameDiscardEnabled,
+            RxFrameDiscardDisabled,
+            RxFrameDiscardEnabled
         },
 #if DBG
         {

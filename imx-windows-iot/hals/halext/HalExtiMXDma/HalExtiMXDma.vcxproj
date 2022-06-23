@@ -240,6 +240,7 @@ sign -hal $(OutDir)$(TARGETNAME)$(TARGETEXT)</Command>
     <ClInclude Include="iMX7DDmaHw.h" />
     <ClInclude Include="iMX8MDmaHw.h" />
     <ClInclude Include="iMX8MMDmaHw.h" />
+    <ClInclude Include="iMX8MPDmaHw.h" />
     <ClInclude Include="ImxSdmaHw.h" />
     <ClInclude Include="sdma_imx6q_script_code.h" />
     <ClInclude Include="sdma_imx7d_script_code.h" />

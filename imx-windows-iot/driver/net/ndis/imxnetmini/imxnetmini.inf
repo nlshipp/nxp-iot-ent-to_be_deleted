@@ -27,6 +27,7 @@ BusType            = 15   ; PNPBus
 AddReg             = iMXMini.Reg
 AddReg             = iMXMiniBuffers.Reg
 AddReg             = iMXMiniSpeed.Reg
+AddReg             = iMXMiniChksumOffload.Reg
 CopyFiles          = iMXMini.CopyFiles
 
 [iMXMini.ndi.Services]
@@ -60,6 +61,66 @@ HKR, Ndi\params\*SpeedDuplex\enum,        "1",        0, %10Mb-Half-Duplex%
 HKR, Ndi\params\*SpeedDuplex\enum,        "2",        0, %10Mb-Full-Duplex%
 HKR, Ndi\params\*SpeedDuplex\enum,        "3",        0, %100Mb-Half-Duplex%
 HKR, Ndi\params\*SpeedDuplex\enum,        "4",        0, %100Mb-Full-Duplex%
+
+[iMXMiniChksumOffload.Reg]
+; *TCPChecksumOffloadIPv4
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,                ParamDesc,              0, %TCPChksumOffv4%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,                default,                0, "3"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\Enum,           "0",                    0, %Disabled%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\Enum,           "1",                    0, %ChksumOffTx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\Enum,           "2",                    0, %ChksumOffRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4\Enum,           "3",                    0, %ChksumOffTxRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv4,                type,                   0, "enum"
+
+; *TCPChecksumOffloadIPv6
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,                ParamDesc,              0, %TCPChksumOffv6%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,                default,                0, "3"
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\Enum,           "0",                    0, %Disabled%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\Enum,           "1",                    0, %ChksumOffTx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\Enum,           "2",                    0, %ChksumOffRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6\Enum,           "3",                    0, %ChksumOffTxRx%
+HKR, Ndi\Params\*TCPChecksumOffloadIPv6,                type,                   0, "enum"
+
+; *UDPChecksumOffloadIPv4
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,                ParamDesc,              0, %UDPChksumOffv4%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,                default,                0, "3"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,           "0",                    0, %Disabled%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,           "1",                    0, %ChksumOffTx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,           "2",                    0, %ChksumOffRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4\Enum,           "3",                    0, %ChksumOffTxRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv4,                type,                   0, "enum"
+
+; *UDPChecksumOffloadIPv6
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,                ParamDesc,              0, %UDPChksumOffv6%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,                default,                0, "3"
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\Enum,           "0",                    0, %Disabled%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\Enum,           "1",                    0, %ChksumOffTx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\Enum,           "2",                    0, %ChksumOffRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6\Enum,           "3",                    0, %ChksumOffTxRx%
+HKR, Ndi\Params\*UDPChecksumOffloadIPv6,                type,                   0, "enum"
+
+; *IPChecksumOffloadIPv4
+HKR, Ndi\Params\*IPChecksumOffloadIPv4,                 ParamDesc,              0, %IPChksumOffv4%
+HKR, Ndi\Params\*IPChecksumOffloadIPv4,                 default,                0, "3"
+HKR, Ndi\Params\*IPChecksumOffloadIPv4\Enum,            "0",                    0, %Disabled%
+HKR, Ndi\Params\*IPChecksumOffloadIPv4\Enum,            "1",                    0, %ChksumOffTx%
+HKR, Ndi\Params\*IPChecksumOffloadIPv4\Enum,            "2",                    0, %ChksumOffRx%
+HKR, Ndi\Params\*IPChecksumOffloadIPv4\Enum,            "3",                    0, %ChksumOffTxRx%
+HKR, Ndi\Params\*IPChecksumOffloadIPv4,                 type,                   0, "enum"
+
+; *DiscardRxFrameWithWrongProtocolChecksum
+HKR, Ndi\Params\*DiscardRxFrameWithWrongProtocolChecksum,                 ParamDesc,              0, %RxProtocolChksumDiscard%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongProtocolChecksum,                 default,                0, "1"
+HKR, Ndi\Params\*DiscardRxFrameWithWrongProtocolChecksum\Enum,            "0",                    0, %Disabled%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongProtocolChecksum\Enum,            "1",                    0, %Enabled%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongProtocolChecksum,                 type,                   0, "enum"
+
+; *DiscardRxFrameWithWrongIPv4HeaderChecksum
+HKR, Ndi\Params\*DiscardRxFrameWithWrongIPv4HeaderChecksum,                 ParamDesc,              0, %RxIPv4HeaderChksumDiscard%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongIPv4HeaderChecksum,                 default,                0, "1"
+HKR, Ndi\Params\*DiscardRxFrameWithWrongIPv4HeaderChecksum\Enum,            "0",                    0, %Disabled%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongIPv4HeaderChecksum\Enum,            "1",                    0, %Enabled%
+HKR, Ndi\Params\*DiscardRxFrameWithWrongIPv4HeaderChecksum,                 type,                   0, "enum"
 
 ;-----------------------------------------------------------------------------
 ; Miniport Common
@@ -128,3 +189,16 @@ AutoDetect                   = "Auto Negotiation"
 10Mb-Full-Duplex             = "10Mbps/Full Duplex"
 100Mb-Half-Duplex            = "100Mbps/Half Duplex"
 100Mb-Full-Duplex            = "100Mbps/Full Duplex"
+RxProtocolChksumDiscard      = "Discard RX frames with wrong protocol checksum"
+RxIPv4HeaderChksumDiscard    = "Discard RX frames with wrong IPv4 header checksum"
+IPChksumOffv4                = "IPv4 Checksum Offload"
+TCPChksumOffv4               = "TCP Checksum Offload (IPv4)"
+UDPChksumOffv4               = "UDP Checksum Offload (IPv4)"
+TCPChksumOffv6               = "TCP Checksum Offload (IPv6)"
+UDPChksumOffv6               = "UDP Checksum Offload (IPv6)"
+ChksumOffTxRx                = "Rx & Tx Enabled"
+ChksumOffTx                  = "Tx Enabled"
+ChksumOffRx                  = "Rx Enabled"
+Enabled                      = "Enabled"
+Disabled                     = "Disabled"
+

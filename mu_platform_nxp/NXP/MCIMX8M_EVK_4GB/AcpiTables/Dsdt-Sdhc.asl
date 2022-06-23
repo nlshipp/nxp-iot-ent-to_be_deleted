@@ -106,7 +106,7 @@ Device (SDH2)
 
        Method (_RMV) // Remove
        {
-         Return (0) // Fixed
+         Return (1) // Not fixed
        }
    }
 

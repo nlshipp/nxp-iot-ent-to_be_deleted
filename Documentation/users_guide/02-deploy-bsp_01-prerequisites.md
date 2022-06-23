@@ -1,4 +1,4 @@
-﻿Deploy Windows IoT image to development board {#deploy-bsp}
+Deploy Windows IoT image to development board {#deploy-bsp}
 ====
 This chapter will guide you through the deployment process of Windows operating system and boot firmware to the NXP development boards. At a high level, you will go through the following steps:
 1. Obtain the BSP drivers + firmware, either by using the prebuilt package, or by building them from source

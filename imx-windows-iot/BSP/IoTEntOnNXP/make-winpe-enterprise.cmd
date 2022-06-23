@@ -80,8 +80,10 @@ if "%DEV_NAME%"=="" (
 
 if "%DEV_NAME%"=="NXPEVK_iMX8M_4GB" ( set BOARD_DISKNUM=1
 ) else (if "%DEV_NAME%"=="NXPEVK_iMX8M_Mini_2GB" ( set BOARD_DISKNUM=0
+) else (if "%DEV_NAME%"=="EVK_iMX8MN_2GB" ( set BOARD_DISKNUM=0
+) else (if "%DEV_NAME%"=="EVK_iMX8MP_6GB" ( set BOARD_DISKNUM=0
 ) else goto USAGE
-)
+)))
 
 set DRIVER_DIR="%SCRIPT_DIR%\drivers"
 set BINPATCH_DIR="%SCRIPT_DIR%\binpatch"
@@ -349,7 +351,7 @@ exit /b 0
     echo Creates a WinPE image for i.MX
     echo Options:
     echo    /image                           Pass the path to the image containing IOT Enterprise
-    echo    /device                          Which device shall the image be created for. {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB}
+    echo    /device                          Which device shall the image be created for. {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB, EVK_iMX8MN_2GB, EVK_iMX8MP_6GB}
     echo    /winpedebug                      Optionally enable debugging for WinPE.
     echo    /windebug                        Optionally enable debugging for Windows.
     echo    /test_signing                    Optionally enable driver test signing.

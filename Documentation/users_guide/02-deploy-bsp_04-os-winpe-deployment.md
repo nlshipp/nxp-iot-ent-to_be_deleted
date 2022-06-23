@@ -45,8 +45,8 @@ We will list commands for an MCIMX8M-EVK board. The tools and techniques can be 
       - Use `/winpedebug` to enable Windows PE debug through the serial port.
       - Use `/windebug` to enable Windows IoT debug through the serial port.
       - Use `/test_signing` to enable test signing.
-      - Use `/device` could be `NXPEVK_iMX8M_4GB` or `NXPEVK_iMX8M_Mini_2GB`.
-    
+      - The `/device` could be `NXPEVK_iMX8M_4GB`, `NXPEVK_iMX8M_Mini_2GB`, `EVK_iMX8MN_2GB` or `EVK_iMX8MP_6GB`.
+
  4. Now you can deploy the WinPE image to an SD card by `make-winpe-enterprise.cmd /apply <disk_number>`.
  
      ```bash

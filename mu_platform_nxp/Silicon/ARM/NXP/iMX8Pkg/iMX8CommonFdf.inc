@@ -66,7 +66,7 @@
   # Usb Support
   #
 !if $(CONFIG_USB) == TRUE
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
+!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
 # TODO: add Ehci package
 !else
   INF MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf

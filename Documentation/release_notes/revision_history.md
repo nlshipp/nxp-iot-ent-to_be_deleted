@@ -8,3 +8,4 @@ Table: Revision history
 | W0.9.0 | 1/2022 | Private preview release for i.MX8M platform. |
 | W0.9.1 | 3/2022 | Public preview release for i.MX8M platform. |
 | W1.0.0 | 4/2022 | Public release for i.MX8M and i.MX8M Mini platforms. |
+| W1.1.0 | 6/2022 | Public release for i.MX8M Nano and i.MX8M Plus platforms. |

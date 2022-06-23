@@ -1,7 +1,7 @@
 /** @file
 
   Copyright (c) 2020, Linaro, Ltd. All rights reserved.
-  Copyright 2020 NXP
+  Copyright 2020, 2022 NXP
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -16,15 +16,37 @@
 #include <Base.h>
 #include <Uefi/UefiBaseType.h>
 #include <Library/DebugLib.h>
-#include <LcdPlatformLib.h>
 #include <Library/MemoryAllocationLib.h>
 
 #include <iMXDisplay.h>
 #include <iMXI2cLib.h>
 #include "adv7535.h"
-#include "Lcdif.h"
 #include "MipiDsi.h"
+#include "ldb.h"
 #include "iMX8.h"
+#include "it6263.h"
+
+#if defined(CPU_IMX8MP)
+  #define DISP_CTRL_LCDIFV3
+  #define DISP_CTRL_LDB
+#elif defined(CPU_IMX8MM) || defined(CPU_IMX8MN)
+  #define DISP_CTRL_LCDIF
+#else
+  #error Unsupported derivative!
+#endif
+
+#if defined(DISP_CTRL_LCDIFV3)
+#include "Lcdifv3.h"
+#endif
+#if defined(DISP_CTRL_LCDIF)
+#include "Lcdif.h"
+#endif
+
+/* Maxumum resolution for it6263 and adv7535 converters */
+#define CONV_MAX_HACTIVE_1920        1920u
+#define CONV_MAX_VACTIVE_1080        1080u
+#define CONV_MAX_HACTIVE_1280        1280u
+#define CONV_MAX_VACTIVE_720         720u
 
 /* EDID macros */
 #define BASIC_EDID_STRUCTURE_LENGTH       128
@@ -39,24 +61,191 @@
 
 #define SHORT_VIDEO_BLOCK                 0x02
 
-/* Preferred timing mode read from EDID */
+/* Preferred timing mode. if PcdDisplayReadEDID == TRUE, it is overwritten with edid data */
 IMX_DISPLAY_TIMING PreferredTiming;
+
+/* Predefined modes - one selected is copied to PreferredTiming in LcdDisplayDetect */
+/* 1920x1080@60Hz */
+const IMX_DISPLAY_TIMING PreferredTiming_1920x1080_60 = {
+  .PixelClock = 148500000,
+  .HActive = 1920,
+  .HBlank = 280,
+  .VActive = 1080,
+  .VBlank = 45,
+  .HSync = 44,
+  .VSync = 5,
+  .HSyncOffset = 88,
+  .VSyncOffset = 4,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
+/* 1920x1200@60Hz - dual lvds panel */
+const IMX_DISPLAY_TIMING PreferredTiming_1920x1200_60 = {
+  .PixelClock = 156685000,
+  .HActive = 1920,
+  .HBlank = 230,
+  .VActive = 1200,
+  .VBlank = 15,
+  .HSync = 40,
+  .VSync = 5,
+  .HSyncOffset = 90,
+  .VSyncOffset = 5,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
+/* 1280x1024@60Hz */
+const IMX_DISPLAY_TIMING PreferredTiming_1280x1024_60 = {
+  .PixelClock = 108000000,
+  .HActive = 1280,
+  .HBlank = 408,
+  .VActive = 1024,
+  .VBlank = 42,
+  .HSync = 112,
+  .VSync = 3,
+  .HSyncOffset = 48,
+  .VSyncOffset = 1,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
+/* 1280x720@60 */
+const IMX_DISPLAY_TIMING PreferredTiming_1280x720_60 = {
+  .PixelClock = 74250000,
+  .HActive = 1280,
+  .HBlank = 370,
+  .VActive = 720,
+  .VBlank = 30,
+  .HSync = 40,
+  .VSync = 5,
+  .HSyncOffset = 110,
+  .VSyncOffset = 5,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
+/* 1024x768@60 */
+const IMX_DISPLAY_TIMING PreferredTiming_1024x768_60 = {
+  .PixelClock = 65000000,
+  .HActive = 1024,
+  .HBlank = 320,
+  .VActive = 768,
+  .VBlank = 38,
+  .HSync = 136,
+  .VSync = 6,
+  .HSyncOffset = 24,
+  .VSyncOffset = 3,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
+/* 800x600@60 */
+const IMX_DISPLAY_TIMING PreferredTiming_800x600_60 = {
+  .PixelClock = 40000000,
+  .HActive = 800,
+  .HBlank = 256,
+  .VActive = 600,
+  .VBlank = 28,
+  .HSync = 128,
+  .VSync = 4,
+  .HSyncOffset = 40,
+  .VSyncOffset = 1,
+  .HImageSize = 527,
+  .VImageSize = 296,
+  .HBorder = 0,
+  .VBorder = 0,
+  .EdidFlags = 0,
+  .Flags = 0,
+  .PixelRepetition = 0,
+  .Bpp = 24,
+  .PixelFormat = PIXEL_FORMAT_ARGB32,
+};
+
 /* Count of the read modes */
 int videoModesCnt = 0;
 
-/* Display interfaces */
-typedef enum {
- imxNativeHdmi = 0,
- imxMipiDsi = 1,
- imxInterfaceUnknown,
-} imxDisplayInterfaceType;
-
 /* Get display interface type defined in *.dsc file */
 imxDisplayInterfaceType displayInterface = FixedPcdGet32(PcdDisplayInterface);
-/* Type of MIPI DSI converter */
-imxMipiDsiToHdmiConverter MipiDsiConverter = transmitterUnknown;
+/* Type of converter */
+imxConverter converter = transmitterUnknown;
+
+#define CHECK_STATUS_RETURN_ERR(chkfunc, chkmessage) \
+    { \
+      EFI_STATUS chkstatus; \
+      if ((chkstatus = (chkfunc)) != EFI_SUCCESS) { \
+        DEBUG ((DEBUG_ERROR, "%s returned error %d\n", (chkmessage), chkstatus)); \
+        return chkstatus; \
+      } \
+    }
 
 /* ******************************* Low level functions ******************************* */
+/**
+  Initialize TargetTiming structure from predefined constant data
+  @param  SourceTiming    Predefined constant data of particular mode
+  @param  TargetTiming    Output timing structure
+**/
+static VOID
+LcdInitPreferredTiming (
+  IN const IMX_DISPLAY_TIMING *SourceTiming,
+  OUT IMX_DISPLAY_TIMING *TargetTiming
+  )
+{
+  TargetTiming->PixelClock = SourceTiming->PixelClock;
+  TargetTiming->HActive = SourceTiming->HActive;
+  TargetTiming->HBlank = SourceTiming->HBlank;
+  TargetTiming->VActive = SourceTiming->VActive;
+  TargetTiming->VBlank = SourceTiming->VBlank;
+  TargetTiming->HSync = SourceTiming->HSync;
+  TargetTiming->VSync = SourceTiming->VSync;
+  TargetTiming->HSyncOffset = SourceTiming->HSyncOffset;
+  TargetTiming->VSyncOffset = SourceTiming->VSyncOffset;
+  TargetTiming->HImageSize = SourceTiming->HImageSize;
+  TargetTiming->VImageSize = SourceTiming->VImageSize;
+  TargetTiming->HBorder = SourceTiming->HBorder;
+  TargetTiming->VBorder = SourceTiming->VBorder;
+  TargetTiming->EdidFlags = SourceTiming->EdidFlags;
+  TargetTiming->Flags = SourceTiming->Flags;
+  TargetTiming->PixelRepetition = SourceTiming->PixelRepetition;
+  TargetTiming->Bpp = SourceTiming->Bpp;
+  TargetTiming->PixelFormat = SourceTiming->PixelFormat;
+}
+
 /**
   Dump preferred timing mode read from EDID
   @param  DtdOffset                Display timing descriptor offset.
@@ -108,14 +297,71 @@ LcdReadEdid (
 {
   EFI_STATUS status = EFI_SUCCESS;
 
+  /* For now read only standard EDID structure , ignore EDID extensions */
   if(displayInterface == imxMipiDsi) {
-    if(MipiDsiConverter == ADV7535) {
-      /* For now read only standard EDID structure , ignore EDID extensions */
+    if(converter == ADV7535) {
       status = Adv7535ReadEdid(edid, offset, length);
     }
+#if defined(DISP_CTRL_LDB)
+  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1) || (displayInterface == imxLvds0dual)) {
+    if (converter == IT6263) {
+      status = It6263ReadEdid(edid, offset, length);
+    }
+#endif
+  } else {
+    DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
+    status = EFI_NOT_FOUND;
   }
 
   return status;
+}
+
+/**
+  Check converter resolution is supported by EDID data
+
+  @param  DTDPtr                 Pointer to EDID Detailed Timing Descriptor
+  @param  MaxHactive             Maxumum horizontal resolution
+  @param  MaxVactive             Maxumum vertical resolution
+
+  @retval TRUE                   EDID resolution is lower or equal to Maximum
+  @retval FALSE                  EDID resolution exceeds Maximum
+
+**/
+static BOOLEAN
+LcdConvSuppResolution(
+  IN IMX_DETAILED_TIMING_DESCRIPTOR   *DTDPtr
+)
+{
+  uint32_t hactive;
+  uint32_t vactive;
+  uint32_t hmax;
+  uint32_t vmax;
+  
+  hactive = (DTDPtr->HActiveBlank & 0xF0);
+  hactive = (hactive << 4) | DTDPtr->HActive;
+  vactive = (DTDPtr->VActiveBlank & 0xF0);
+  vactive = (vactive << 4) | DTDPtr->VActive;
+
+  if(displayInterface == imxMipiDsi) {
+    hmax = CONV_MAX_HACTIVE_1920;
+    vmax = CONV_MAX_VACTIVE_1080;
+  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1)) {
+    hmax = CONV_MAX_HACTIVE_1280;
+    vmax = CONV_MAX_VACTIVE_720;
+  } else if (displayInterface == imxLvds0dual) {
+    hmax = CONV_MAX_HACTIVE_1920;
+    vmax = CONV_MAX_VACTIVE_1080;
+  } else {
+    DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
+    return FALSE;
+  }
+
+  
+  if ((hactive <= hmax)  && (vactive <= vmax)) {
+    return TRUE;
+  }
+  return FALSE;
+  
 }
 
 /* ******************************* High level functions ******************************* */
@@ -131,70 +377,122 @@ LcdDisplayDetect (
   VOID
   )
 {
-  EFI_STATUS         status;
+  EFI_STATUS         status = EFI_SUCCESS;
   uint8_t           *edid;
   int                edid_extensions = 0;
+  BOOLEAN            conv_set_edid_always = 1;
 
-  /* Search for one of supported MIPI_DSI to HDMI transceiver */ 
-  if (displayInterface == imxMipiDsi) {
-    if (MipiDsiConverter == transmitterUnknown) {
-      do {
-        /* Search for ADV7535 */
-        status = Adv7535Discover();
-        if (status == EFI_SUCCESS) {
-          DEBUG((DEBUG_INFO, "ADV7535 search SUCCEDED\n"));
-          MipiDsiConverter = ADV7535;
-          break;
+  /* Try to autodetect connected converter regardless of selected displayInterface
+     mipi-dsi with ADV7535 inteface has priority over lvds with IT6263 */
+  if (converter == transmitterUnknown) {
+    do {
+      /* Search for ADV7535 */
+      status = Adv7535Discover();
+      if (status == EFI_SUCCESS) {
+        DEBUG((DEBUG_ERROR, "ADV7535 probe SUCCEDED. Mipi-dsi display interface selected.\n"));
+        converter = ADV7535;
+        displayInterface = imxMipiDsi;
+        LcdInitPreferredTiming (&PreferredTiming_1920x1080_60, &PreferredTiming);
+        break;
+      }
+#if defined(DISP_CTRL_LDB)
+      /* Search for IT6263 */
+      status = It6263Discover();
+      if (status == EFI_SUCCESS) {
+        converter = IT6263;
+        if ((displayInterface != imxLvds0) && (displayInterface != imxLvds1) && (displayInterface != imxLvds0dual)) {
+            /* lvds is already requested, don't change it, so we can test DLVDS and LVDS1 interfaces.
+               Otherwise select lvds0 */
+            displayInterface = imxLvds0;
         }
-        /* Add new decoder here */
-      } while(0);
-    }
-    DEBUG((DEBUG_INFO, "MIPI_DSI to HDMI transmitter: %d\n", MipiDsiConverter));
-    if(MipiDsiConverter == transmitterUnknown) {
-      DEBUG((DEBUG_ERROR, "No MIPI_DSI to HDMI transmitter detected.\n"));
+        DEBUG((DEBUG_ERROR, "IT6263 probe SUCCEDED. LVDS%d display interface selected.\n", (displayInterface-2)));
+        LcdInitPreferredTiming (&PreferredTiming_1280x720_60, &PreferredTiming);
+        break;
+      }
+#endif
+    } while(0);
+  }
+  DEBUG((DEBUG_INFO, "HDMI converter: %d\n", converter));
+  /* Converter was not detected - select fixed default timimng */
+  if (converter == transmitterUnknown) {
+    if (displayInterface == imxMipiDsi) {
+      videoModesCnt++;
+      LcdInitPreferredTiming (&PreferredTiming_1920x1080_60, &PreferredTiming);
+      DEBUG((DEBUG_ERROR, "Mipi-dsi display interface. Default resolution used. %dx%d pclk=%d Hz\n", 
+            PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
+      LcdDumpDisplayTiming(0, &PreferredTiming);
+      return EFI_SUCCESS;
+    } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1) || (displayInterface == imxLvds0dual)) {
+      videoModesCnt++;
+      LcdInitPreferredTiming (&PreferredTiming_1280x720_60, &PreferredTiming);
+      DEBUG((DEBUG_ERROR, "LVDS%d display interface. Default resolution used. %dx%d pclk=%d Hz\n",
+            displayInterface-2, PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
+      LcdDumpDisplayTiming(0, &PreferredTiming);
+      return EFI_SUCCESS;
+    } else {
+      DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
       return EFI_NOT_FOUND;
     }
   }
 
-  /* Allocate memory for EDID structure */
-  edid = AllocatePool(BASIC_EDID_STRUCTURE_LENGTH + 1);
+  if (FixedPcdGet32(PcdDisplayReadEDID) == TRUE) {
+    /* Allocate memory for EDID structure */
+    edid = AllocatePool(BASIC_EDID_STRUCTURE_LENGTH + 1);
 
-  /* Read EDID */
-  status = LcdReadEdid(edid, 0, BASIC_EDID_STRUCTURE_LENGTH);
-  if (EFI_ERROR(status)) {
-    DEBUG((DEBUG_ERROR, "Unable to read EDID\n"));
-    goto End;
-  }
-
-  /* Ignore extensions */
-  edid_extensions = edid[126];
-  DEBUG((DEBUG_ERROR, "EDID Version: %d.%d\n",edid[EDID_VERSION_REG_OFFSET],edid[EDID_REVISION_REG_OFFSET]));
-  DEBUG((DEBUG_INFO, "EDID Num of Extensions: %d\n", edid_extensions));
-
-
-  /* Validate EDID data to */
-  status = ImxValidateEdidData(edid);
-  if (EFI_ERROR(status)) {
-    DEBUG((DEBUG_ERROR, "EDID data not valid\n"));
-    goto End;
-  }
-
-  /* Read first DTD, which is the most preferred */
-  for (int dtd_idx = IMX_EDID_DTD_1_OFFSET; dtd_idx <= IMX_EDID_DTD_1_OFFSET; dtd_idx += IMX_EDID_DTD_SIZE) {
-    /* Convert EDID data into internal format */
-    status = ImxConvertDTDToDisplayTiming((IMX_DETAILED_TIMING_DESCRIPTOR *)&edid[dtd_idx],
-                                        &PreferredTiming);
-    if (status != EFI_SUCCESS) {
-      DEBUG((DEBUG_ERROR, "Conversion to display timing failed\n"));
+    /* Read EDID */
+    status = LcdReadEdid(edid, 0, BASIC_EDID_STRUCTURE_LENGTH);
+    if (EFI_ERROR(status)) {
+      DEBUG((DEBUG_ERROR, "Unable to read EDID\n"));
       goto End;
     }
-    videoModesCnt++;
-    /* BPP is fixed to 24 (8 bits per color component) */
-    PreferredTiming.Bpp = 24;
-    LcdDumpDisplayTiming(dtd_idx, &PreferredTiming);
-  }
+
+    /* Ignore extensions */
+    edid_extensions = edid[126];
+    DEBUG((DEBUG_INFO, "EDID Version: %d.%d\n",edid[EDID_VERSION_REG_OFFSET],edid[EDID_REVISION_REG_OFFSET]));
+    DEBUG((DEBUG_INFO, "EDID Num of Extensions: %d\n", edid_extensions));
+
+
+    /* Validate EDID data to */
+    status = ImxValidateEdidData(edid);
+    if (EFI_ERROR(status)) {
+      DEBUG((DEBUG_ERROR, "EDID data not valid\n"));
+      goto End;
+    }
+
+    if (converter == ADV7535 || converter == IT6263) {
+      if (FixedPcdGet32(PcdDisplayForceConverterMaxResolution) == TRUE) {
+        conv_set_edid_always = 0;
+      }
+    }
+
+    /* Read first DTD, which is the most preferred */
+    for (int dtd_idx = IMX_EDID_DTD_1_OFFSET; dtd_idx <= IMX_EDID_DTD_1_OFFSET; dtd_idx += IMX_EDID_DTD_SIZE) {
+      /* Convert EDID data into internal format */
+      if (conv_set_edid_always || 
+          LcdConvSuppResolution((IMX_DETAILED_TIMING_DESCRIPTOR *)&edid[dtd_idx])) {
+        status = ImxConvertDTDToDisplayTiming((IMX_DETAILED_TIMING_DESCRIPTOR *)&edid[dtd_idx],
+                                              &PreferredTiming);
+        if (status != EFI_SUCCESS) {
+          DEBUG((DEBUG_ERROR, "Conversion to display timing failed\n"));
+          goto End;
+        }
+      }
+      videoModesCnt++;
+      /* BPP is fixed to 24 (8 bits per color component) */
+      PreferredTiming.Bpp = 24;
+      PreferredTiming.PixelFormat = PIXEL_FORMAT_ARGB32;
+      LcdDumpDisplayTiming(dtd_idx, &PreferredTiming);
+    }
+    DEBUG((DEBUG_ERROR, "Selected resolution %dx%d pclk=%d Hz\n",
+           PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
 End:
-  FreePool(edid);
+    FreePool(edid);
+  } else {
+    videoModesCnt++;
+    DEBUG((DEBUG_ERROR, "Selected default resolution %dx%d pclk=%d Hz\n",
+           PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
+    LcdDumpDisplayTiming(0, &PreferredTiming);
+  }
   return status;
 }
 
@@ -212,12 +510,29 @@ LcdInitialize (
   )
 {
   /* Reset MIPI-DSI & LCDIF */
-  MipiDsiReset();
-  LcdifReset();
+  if (displayInterface == imxMipiDsi) {
+    MipiDsiReset();
+#if defined(DISP_CTRL_LCDIFV3)
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Reset(LCDIF1_DEV), "Lcdifv3_Reset");
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Init(LCDIF1_DEV, FrameBaseAddress), "Lcdifv3_Init");
+#endif
+#if defined(DISP_CTRL_LCDIF)
+    LcdifReset();
+    LcdifInit(FrameBaseAddress);
+#endif
+#if defined(DISP_CTRL_LDB)
+  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1) || (displayInterface == imxLvds0dual)) {
+    LdbReset();
+#if defined(DISP_CTRL_LCDIFV3)
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Reset(LCDIF2_DEV), "Lcdifv3_Reset");
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Init(LCDIF2_DEV, FrameBaseAddress), "Lcdifv3_Init");
+#endif /* DISP_CTRL_LCDIFV3 */
+#endif /* DISP_CTRL_LDB */
+  } else {
+    DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
+    return EFI_NOT_FOUND;
+  }
 
-  /* Basic LCDIF config */
-  LcdifInit(FrameBaseAddress);
-  
   return EFI_SUCCESS;
 }
 
@@ -286,8 +601,7 @@ LcdGetBpp (
   EFI_STATUS status;
 
   if (ModeNumber >= videoModesCnt) {
-     status = EFI_INVALID_PARAMETER;
-     goto End;
+     return EFI_INVALID_PARAMETER;
   }
   ASSERT (Bpp != NULL);
 
@@ -301,7 +615,6 @@ LcdGetBpp (
       break;
   }
 
-End:
   return EFI_SUCCESS;
 }
 
@@ -318,60 +631,104 @@ LcdSetMode (
   IN  UINT32     ModeNumber
   )
 {
-  EFI_STATUS status;
   IMX_DISPLAY_TIMING *Timing = &PreferredTiming;
   
   if (ModeNumber >= videoModesCnt) {
     return EFI_INVALID_PARAMETER;
   }
 
-  /* Mipi DSI set timing mode */
-  if ((status = MipiDsiConfig(Timing,MipiDsiConverter)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "MIPI DSI config failed, status=%d\n", status));
-    goto End;
-  }
   if (displayInterface == imxMipiDsi) {
-    if (MipiDsiConverter == ADV7535) {
+  /*--------------------------MIPI----------------------------------------------*/
+    /* Mipi DSI set timing mode */
+    CHECK_STATUS_RETURN_ERR(MipiDsiConfig(Timing, converter), "MIPI DSI config");
+    if (converter == ADV7535) {
       /* ADV7535 set timing mode */
-      if ((status = Adv7535SetMode(Timing)) != EFI_SUCCESS) {
-        DEBUG ((DEBUG_ERROR, "ADV7535 config failed, status=%d\n", status));
-        goto End;
-      }
+      CHECK_STATUS_RETURN_ERR(Adv7535SetMode(Timing), "ADV7535 config");
     }
+#if defined(DISP_CTRL_LCDIFV3)
+    /* LCDIF set timing mode */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_SetTimingMode(LCDIF1_DEV, Timing), "Lcdifv3_SetTimingMode");
+    /* Enable LCDIF */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Enable(LCDIF1_DEV, TRUE), "Lcdifv3_Enable");
+#endif /* defined(CPU_IMX8MP) */
+#if defined(DISP_CTRL_LCDIF)
+    /* LCDIF set timing mode */
+    CHECK_STATUS_RETURN_ERR(LcdifSetTimingMode(Timing), "LCDIF config")
+    /* Enable LCDIF */
+    CHECK_STATUS_RETURN_ERR(LcdifEnable(TRUE), "LCDIF enable")
+#endif /* ifndef CPU_IMX8MP */
+#if defined(DISP_CTRL_LDB)
+  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1) || (displayInterface == imxLvds0dual)) {
+  /*--------------------------LVDS----------------------------------------------*/
+    CHECK_STATUS_RETURN_ERR(LdbConfig(Timing, displayInterface),"LDB config");
+    if (converter == IT6263) {
+      /* ADV7535 set timing mode */
+      CHECK_STATUS_RETURN_ERR(It6263SetMode(Timing, displayInterface), "IT6263 config");
+    }
+
+#if defined(DISP_CTRL_LCDIFV3)
+    /* LCDIF set timing mode */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_SetTimingMode(LCDIF2_DEV, Timing), "Lcdifv3_SetTimingMode");
+    /* Enable LCDIF */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Enable(LCDIF2_DEV, TRUE), "Lcdifv3_Enable");
+#endif /* DISP_CTRL_LCDIFV3 */
+#endif /* DISP_CTRL_LDB */
+  } else {
+    DEBUG ((DEBUG_ERROR, "Unsupported display interface %d\n", (int)displayInterface));
+    return EFI_INVALID_PARAMETER;
   }
 
-  /* LCDIF set timing mode */
-  if ((status = LcdifSetTimingMode(Timing)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "LCDIF config failed, status=%d\n", status));
-    goto End;
-  }
-
-  /* Enable LCDIF */
-  if ((status = LcdifEnable(TRUE)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "LCDIF enable failed, status=%d\n", status));
-    goto End;
-  }
-#if 0
-  LcdifDump();
-  MipiDsiDump();
-#endif
-  End:
-    return status;
+    return EFI_SUCCESS;
 }
 
 /**
   De-initializes the display.
 **/
-EFI_STATUS
+VOID
 LcdShutdown (
   VOID
   )
 {
-  EFI_STATUS status = EFI_SUCCESS;
+  EFI_STATUS         status = EFI_SUCCESS;
 
-  /* Disable LCDIF */
-  if ((status = LcdifEnable(FALSE)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "LCDIF disable failed, status=%d\n", status));
+  if (displayInterface == imxMipiDsi) {
+#if defined(DISP_CTRL_LCDIFV3)
+    status = Lcdifv3_Enable(LCDIF1_DEV, FALSE);
+#endif
+#if defined(DISP_CTRL_LCDIF)
+    status = LcdifEnable(FALSE);
+#endif
+    if (status != EFI_SUCCESS) {
+      DEBUG ((DEBUG_ERROR, "LCD Shutdown failed - %d\n", status));
+    }
+  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1) || (displayInterface == imxLvds0dual)) {
+#if defined(DISP_CTRL_LCDIFV3)
+    status = Lcdifv3_Enable(LCDIF2_DEV, FALSE);
+    if (status != EFI_SUCCESS) {
+      DEBUG ((DEBUG_ERROR, "LCD Shutdown failed - %d\n", status));
+    }
+#endif
+  } else {
+    DEBUG ((DEBUG_ERROR, "Unsupported display interface %d\n", (int)displayInterface));
   }
-  return status;
+
+  return;
+}
+
+/*
+ * Function returns number of Bytes per pixel.
+ */
+UINTN
+LcdGetBytesPerPixel (
+  IN  IMX_PIXEL_FORMAT PixelFormat
+  )
+{
+  switch (PixelFormat) {
+    case PIXEL_FORMAT_ARGB32:
+    case PIXEL_FORMAT_BGRA32:
+      return 4;
+
+    default:
+      return 0;
+  }
 }

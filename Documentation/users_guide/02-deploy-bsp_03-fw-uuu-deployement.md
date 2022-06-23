@@ -29,6 +29,6 @@ To deploy boot firmware to SD card from Windows we recommend to use Cfimager too
 1. Navigate to `firmware` directory. In the source package it is located in `imx-windows-iot/BSP/firmware`.
 2. Download NXP cfimager tool and put it into `firmware/cfimager.exe` or system `%PATH%`.
 3. Plug SD card into the computer and run `flash_bootloader.cmd /device NXPEVK_iMX8M_4GB /target_drive <SD card letter eg. f:>` inside `firmware` directory.
-   The `/device` could be `NXPEVK_iMX8M_4GB` or `NXPEVK_iMX8M_Mini_2GB`.
+   The `/device` could be `NXPEVK_iMX8M_4GB`, `NXPEVK_iMX8M_Mini_2GB`, `EVK_iMX8MN_2GB` or `EVK_iMX8MP_6GB`.
 4. Begin preparing board by powering it off.
 5. Switch the target board to boot form SD card using DIP switches. See [Basic Board Setup][]

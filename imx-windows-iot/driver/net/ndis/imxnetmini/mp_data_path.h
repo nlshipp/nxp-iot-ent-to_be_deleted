@@ -1,5 +1,5 @@
 /*
-* Copyright 2018-2020 NXP
+* Copyright 2018-2020,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,16 @@
 #define MP_NBL_ID(_NetBufferList)                                  (*(LONG *)&((_NetBufferList)->MiniportReserved[1]))
 #define MP_NBL_SET_ID(_NetBufferList, _ID)                         *(LONG *)&((_NetBufferList)->MiniportReserved[1]) = (_ID)
 
+//Macros used to seek within ethernet frame payload in order to check value of the protocol checksums
+#define ETH_FRAME_TYPE_POS        12U
+#define ETH_VLAN_TAGGED_FRAME     0x8100
+#define ETH_VLAN_TAG_LENGTH       4U
+#define ETH_TCP_CHECKSUM_OFFSET   16U
+#define ETH_UDP_CHECKSUM_OFFSET   7U
+#define ETH_IP_HEADER_START       14U
+#define IPV4_HEADER_LENGTH_OFFSET 0U    //Offset of IP Header Length field from start of the IPv4 packet
+#define IPV4_HEADER_LENGTH_MASK   0xF    //Mask of IP Header Length field 
+#define IPV6_HEADER_LENTH         40U
 
 MINIPORT_SEND_NET_BUFFER_LISTS      MpSendNetBufferLists;
 MINIPORT_CANCEL_SEND                MpCancelSendNetBufferLists;

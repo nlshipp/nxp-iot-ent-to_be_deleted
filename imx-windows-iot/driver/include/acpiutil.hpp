@@ -20,6 +20,27 @@
 #ifndef __ACPIUTIL_HPP__
 #define __ACPIUTIL_HPP__
 
+#define NONPAGED_SEGMENT_BEGIN \
+    __pragma(code_seg(push)) \
+    //__pragma(code_seg(.text))
+
+#define NONPAGED_SEGMENT_END \
+    __pragma(code_seg(pop))
+
+#define PAGED_SEGMENT_BEGIN \
+    __pragma(code_seg(push)) \
+    __pragma(code_seg("PAGE"))
+
+#define PAGED_SEGMENT_END \
+    __pragma(code_seg(pop))
+
+#define INIT_SEGMENT_BEGIN \
+    __pragma(code_seg(push)) \
+    __pragma(code_seg("INIT"))
+
+#define INIT_SEGMENT_END \
+    __pragma(code_seg(pop))
+
 //
 // Memory allocation tag for memory allocated and used as
 // ACPI_EVAL_OUTPUT_BUFFER
@@ -72,6 +93,17 @@
 DEFINE_GUID(
     ACPI_DEVICE_PROPERTIES_DSD_GUID,
     0xDAFFD814, 0x6EBA, 0x4D8C, 0x8A, 0x91, 0xBC, 0x9B, 0xBF, 0x4A, 0xA3, 0x01);
+
+_IRQL_requires_max_(APC_LEVEL)
+NTSTATUS
+AcpiSendIoctlSynchronously(
+	_In_ DEVICE_OBJECT* PdoPtr,
+	_In_ ULONG IoControlCode,
+	_In_reads_bytes_(InputBufferSize) ACPI_EVAL_INPUT_BUFFER* InputBufferPtr,
+	_In_ ULONG InputBufferSize,
+	_Out_writes_bytes_to_(OutputBufferSize, *BytesReturnedCountPtr) ACPI_EVAL_OUTPUT_BUFFER UNALIGNED* OutputBufferPtr,
+	_In_ ULONG OutputBufferSize,
+	_Out_opt_ ULONG* BytesReturnedCountPtr);
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 NTSTATUS
@@ -148,6 +180,12 @@ AcpiDevicePropertiesQueryIntegerArrayValue(
     _Inout_ UINT32* BufferPtr,
     _In_ UINT32 Length
 );
+
+_IRQL_requires_same_
+NTSTATUS
+AcpiPackageGetNextArgument(
+	_In_ const ACPI_METHOD_ARGUMENT UNALIGNED* PkgPtr,
+	_Inout_ const ACPI_METHOD_ARGUMENT UNALIGNED** ArgumentPptr);
 
 _IRQL_requires_max_(APC_LEVEL)
 NTSTATUS

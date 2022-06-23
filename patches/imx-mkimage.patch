@@ -1,0 +1,22 @@
+diff --git a/iMX8M/soc.mak b/iMX8M/soc.mak
+index 4bfdc37..461950e 100644
+--- a/iMX8M/soc.mak
++++ b/iMX8M/soc.mak
+@@ -43,7 +43,7 @@ PLAT = imx8mn
+ HDMI = no
+ SPL_LOAD_ADDR = 0x912000
+ SPL_FSPI_LOAD_ADDR = 0x912000
+-TEE_LOAD_ADDR = 0x56000000
++TEE_LOAD_ADDR = 0xbe000000
+ ATF_LOAD_ADDR = 0x00960000
+ VAL_BOARD = val
+ #define the F(Q)SPI header file
+@@ -56,7 +56,7 @@ PLAT = imx8mp
+ HDMI = no
+ SPL_LOAD_ADDR = 0x920000
+ SPL_FSPI_LOAD_ADDR = 0x920000
+-TEE_LOAD_ADDR =  0x56000000
++TEE_LOAD_ADDR =  0xfe000000
+ ATF_LOAD_ADDR = 0x00970000
+ VAL_BOARD = val
+ #define the F(Q)SPI header file

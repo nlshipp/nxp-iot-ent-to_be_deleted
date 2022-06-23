@@ -1,16 +1,32 @@
-/** @file
+/*
+* Copyright 2020, 2022 NXP
 *
-*  Copyright 2020 NXP
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
 *
-*  This program and the accompanying materials
-*  are licensed and made available under the terms and conditions of the BSD License
-*  which accompanies this distribution.  The full text of the license may be found at
-*  http://opensource.org/licenses/bsd-license.php
+* * Redistributions of source code must retain the above copyright
+*   notice, this list of conditions and the following disclaimer.
 *
-*  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-*  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+* * Redistributions in binary form must reproduce the above copyright
+*   notice, this list of conditions and the following disclaimer in the
+*   documentation and/or other materials provided with the distribution.
 *
-**/
+* * Neither the name of the copyright holder nor the
+*   names of its contributors may be used to endorse or promote products
+*   derived from this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS AND CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+*/
 
 #include <Uefi.h>
 #include <Library/DebugLib.h>
@@ -18,6 +34,7 @@
 #include <Library/TimerLib.h>
 #include "MipiDsi.h"
 #include "MipiDsiDphy.h"
+#include "clock.h"
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x)             (sizeof(x) / sizeof(x[0]))
@@ -31,37 +48,6 @@
 
 /* Macro for absolute value evaluation */
 #define ABS_VAL(x) (((int)(x) < 0) ? ( -(x)) : (x))
-
-/* Video PLL rates and parameters for required pixel clock derived from 24 MHz input clock */
-/* Fvco = Fin * ((m * 65536) + k) / p / 65536 */
-/* Simplify: if k = 0, Fvco = Fin * m / p */
-/* rate = Fout = Fvco / 2^s */
-/* Fvco = <1600 - 3200 MHz>, Fout <= 650 MHz, Fin = 24 MHz */
-/* ref_rate = reference clock for mipi-dsi phy pll */
-/* ref_rate - must be produced by integer divider from pll rate. */
-static struct videoPllRateTable videoPllTab24m[] = {
-/*       PCLK      rate (must be descending order), m, p, s, k, ref rate */
-  PLL_RATE(65000000U, 650000000U, 325, 3, 2, 0, 26000000U), /* 65 MHz pixel clock */
-  PLL_RATE(108000000U,648000000U, 216, 2, 2, 0, 27000000U), /* 108 MHz pixel clock  */
-  PLL_RATE(40500000U, 648000000U, 216, 2, 2, 0, 27000000U), /* 40.5 MHz pixel clock  */
-  PLL_RATE(40000000U, 640000000U, 320, 3, 2, 0, 25600000U), /* 40 MHz pixel clock */
-  PLL_RATE(31500000U, 630000000U, 210, 2, 2, 0, 25200000U), /* 31.5 MHz pixel clock */
-  PLL_RATE(25200000U, 630000000U, 210, 2, 2, 0, 25200000U), /* 25.2 MHz pixel clock */
-  PLL_RATE(101000000U,606000000U, 202, 2, 2, 0, 25250000U), /* 101 MHz pixel clock */
-  PLL_RATE(148500000U,594000000U, 198, 2, 2, 0, 27000000U), /* 148.5 MHz pixel clock */
-  PLL_RATE(75250000U, 594000000U, 198, 2, 2, 0, 27000000U), /* 75.25 MHz pixel clock */
-  PLL_RATE(27000000U, 594000000U, 198, 2, 2, 0, 27000000U), /* 27 MHz pixel clock */
-  PLL_RATE(49500000U, 594000000U, 198, 2, 2, 0, 27000000U), /* 49.5 MHz pixel clock */
-  PLL_RATE(28800000U, 576000000U, 192, 2, 2, 0, 24000000U), /* 28.8 MHz pixel clock */
-  PLL_RATE(28300000U, 566000000U, 283, 3, 2, 0, 28300000U), /* 28.3 MHz pixel clock */
-  PLL_RATE(135000000U,540000000U, 180, 2, 2, 0, 27000000U), /* 135 MHz pixel clock */
-  PLL_RATE(67500000U, 540000000U, 180, 2, 2, 0, 27000000U), /* 67.5 MHz pixel clock */
-  PLL_RATE(106500000U,426000000U, 284, 2, 3, 0, 28400000U), /* 106.50 MHz pixel clock */
-  PLL_RATE(121750000U,365250000U, 487, 2, 4, 0, 24350000U), /* 121.75 MHz pixel clock */
-  PLL_RATE(78800000U, 394000000U, 394, 3, 3, 0, 19700000U), /* 78.8 MHz pixel clock */
-  PLL_RATE(146250000U,292500000U, 390, 2, 4, 0, 22500000U), /* 146.25 MHz pixel clock */
-  PLL_RATE(0U, 0U, 0U, 0U, 0U, 0U, 0U), /* dummy entry to indicate end of the table */
-};
 
 /* Adjusted HBLANK parameters for ADV7535 converter - 4 lanes */
 static struct dsiHblankPar hblank_4l[] = {
@@ -311,208 +297,8 @@ static struct DSI_DPHY_TIMING dphyTiming[] = {
 
 
 static struct dsiHblankPar *MipiDsiGetHBlankParams(IMX_DISPLAY_TIMING *Timing, int lanes);
-static EFI_STATUS MipiDsiBitClockCalc(uint32_t* bit_clock, uint32_t pixelClock, uint32_t bpp, uint32_t num_lanes, imxMipiDsiToHdmiConverter MipiDsiConverter);
+static EFI_STATUS MipiDsiBitClockCalc(uint32_t* bit_clock, uint32_t pixelClock, uint32_t bpp, uint32_t num_lanes, imxConverter MipiDsiConverter);
 static EFI_STATUS MipiDsiPllParamCalc(uint32_t bitClockKhz, uint32_t phyRefClockHz, uint32_t *pmsk, uint32_t *bestDelta, uint32_t *bitClockRealKhz);
-
-#if 0
-VOID CcmClockDump (
-  VOID
-  )
-{
-  DebugPrint (0xFFFFFFFF, "---------------------------- CCM ------------------------\n");
-  DebugPrint (0xFFFFFFFF, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL);
-  DebugPrint (0xFFFFFFFF, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0);
-  DebugPrint (0xFFFFFFFF, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1);
-  DebugPrint (0xFFFFFFFF, "CCM_TARGET_ROOT_LCDIF_PIXEL    = 0x%08X\n", CCM_TARGET_ROOT_LCDIF_PIXEL);
-  DebugPrint (0xFFFFFFFF, "CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_PHY_REF);
-  DebugPrint (0xFFFFFFFF, "CCM_TARGET_ROOT_MIPI_DSI_CORE  = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_CORE);
-  DebugPrint (0xFFFFFFFF, "CCM_TARGET_ROOT_DISPLAY_AXI    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI);
-  DebugPrint (0xFFFFFFFF, "CCM_TARGET_ROOT_DISPLAY_APB    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB);
-  DebugPrint (0xFFFFFFFF, "-----------------------------------------------------\n");
-
-  DebugPrint (0xFFFFFFFF, "---------------------------- DISPMIX ------------------------\n");
-  DebugPrint (0xFFFFFFFF, "DISPLAY_MIX_SFT_RSTN_CSR   = 0x%08X\n", DISPLAY_MIX_SFT_RSTN_CSR);
-  DebugPrint (0xFFFFFFFF, "DISPLAY_MIX_CLK_EN_CSR  = 0x%08X\n", DISPLAY_MIX_CLK_EN_CSR);
-  DebugPrint (0xFFFFFFFF, "-----------------------------------------------------\n");
-
-  DebugPrint (0xFFFFFFFF, "---------------------------- GPC ------------------------\n");
-  DebugPrint (0xFFFFFFFF, "GPC_PGC_PU0_CTRL   = 0x%08X\n", GPC_PGC_PU0_CTRL);
-  DebugPrint (0xFFFFFFFF, "GPC_PGC_PU10_CTRL  = 0x%08X\n", GPC_PGC_PU10_CTRL);
-  DebugPrint (0xFFFFFFFF, "GPC_PU_PGC_SW_PUP_REQ   = 0x%08X\n", GPC_PU_PGC_SW_PUP_REQ);
-  DebugPrint (0xFFFFFFFF, "-----------------------------------------------------\n");
-
-}
-#endif
-/**
-  Calculation of PRE and POST dividers for required clock slice.
-
-  @param inputClock Input clock rate.
-  @param rateRequired Output clock rate.
-  @param prediv Calculated PRE dividider.
-  @param postdiv Calculated POST dividider.
-**/
-EFI_STATUS CcmClockSliceConfig (
-  uint32_t inputClock,
-  uint32_t rateRequired,
-  uint32_t *prediv,
-  uint32_t *postdiv,
-  uint32_t *rateReal
-  )
-{
-  EFI_STATUS status = EFI_SUCCESS;
-  uint32_t diff, diffTmp, rateTmp, div1, div2;
-
-  diff = inputClock;
-  *prediv = 1;
-  *postdiv = 1;
-  *rateReal = 0;
-  /* Slice output clock = Clock source / prediv / postdiv */
-  for (div1 = 1; div1 <= CCM_TARGET_ROOT_PRE_MAX_DIV; div1++) {
-    for (div2 = 1; div2 <= CCM_TARGET_ROOT_POST_MAX_DIV; div2++) {
-      rateTmp = (inputClock / div1) / div2;
-      if (rateRequired > rateTmp) {
-        diffTmp = rateRequired - rateTmp;
-      } else {
-        diffTmp = rateTmp - rateRequired;
-      }
-      if (diffTmp < diff) {
-        *prediv = div1;
-        *postdiv = div2;
-        diff = diffTmp;
-        *rateReal = rateTmp;
-      }
-    }
-  }
-
-  if (*rateReal == 0) {
-    DEBUG ((DEBUG_ERROR, "Unable to achieve required output clock.\n"));
-    status = EFI_DEVICE_ERROR;
-  }
-  return status;
-}
-
-
-EFI_STATUS MipiDsiDisplayClockConfig (
-  IMX_DISPLAY_TIMING *Timing
-  )
-{
-  EFI_STATUS status = EFI_SUCCESS;
-  int    idx = 0;
-  int    loop = 0;
-  uint32_t pllRate = 0;
-  uint32_t dsiPhyPllRate = 0;
-  uint32_t prediv, postdiv, rateReal;
-
-  /* For required pixel clock, look for suitable Video PLL and DPHY reference PLL rate */
-  while(videoPllTab24m[idx].pllRate != 0) {
-    if(videoPllTab24m[idx].pllRate % Timing->PixelClock == 0) {
-      pllRate = videoPllTab24m[idx].pllRate;
-      dsiPhyPllRate = videoPllTab24m[idx].dsiPhyRefRate;
-      DEBUG ((DEBUG_INFO, "Video Pll found. Pll rate=%dHz, DSI phy Pll rate=%dHz, idx=%d\n", pllRate, dsiPhyPllRate, idx));
-      break;
-    }
-    idx++;
-  }
-
-  if(pllRate == 0 || dsiPhyPllRate == 0) {
-    DEBUG ((DEBUG_ERROR, "Video Pll for required pixel clock not found\n"));
-    status = EFI_DEVICE_ERROR;
-    goto End;
-  }
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_LCDIF_PIXEL    = 0x%08X\n", CCM_TARGET_ROOT_LCDIF_PIXEL));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_PHY_REF));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_CORE  = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_CORE));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_AXI    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_APB    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
-
-  CCM_CCGR_DISPLAY = 0x00;
-
-  /* Video PLL configuration */
-  /* Bypass PLL */
-  CCM_ANALOG_VIDEO_PLL1_GEN_CTRL |= CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_BYPASS_MASK;
-  /* Reset PLL */
-  CCM_ANALOG_VIDEO_PLL1_GEN_CTRL &= ~CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_RST_MASK;
-
-  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_MAIN_DIV(videoPllTab24m[idx].mdiv) |
-                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_PRE_DIV(videoPllTab24m[idx].pdiv) |
-                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_POST_DIV(videoPllTab24m[idx].sdiv);
-
-  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1_PLL_DSM(videoPllTab24m[idx].kdiv);
-
-  /* Deasert reset */
-  CCM_ANALOG_VIDEO_PLL1_GEN_CTRL |= CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_RST_MASK;
-
-  /* Wait for PLL to lock */
-  while((CCM_ANALOG_VIDEO_PLL1_GEN_CTRL & CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_LOCK_MASK) == 0) {
-    if(loop > CCM_PLL_LOCK_TIMEOUT) {
-      DEBUG ((DEBUG_ERROR, "Video Pll not locked.\n"));
-      status = EFI_DEVICE_ERROR;
-      goto End;
-    }
-    MicroSecondDelay(1);
-    loop++;
-  }
-
-  /* Disable PLL bypass */
-  CCM_ANALOG_VIDEO_PLL1_GEN_CTRL &= ~CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_BYPASS_MASK;
-
-  DEBUG ((DEBUG_INFO, "Video Pll ready.\n"));
-
-  /* Enable LCDIF pixel clock */
-  if((status = CcmClockSliceConfig(videoPllTab24m[idx].pllRate, Timing->PixelClock, &prediv, &postdiv, &rateReal)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "Unable to calculate pixel clock.\n"));
-    goto End;
-  }
-
-  CCM_TARGET_ROOT_LCDIF_PIXEL = (CCM_TARGET_ROOT_MUX(1) | /* Set MUX to VIDEO_PLL_CLK */
-                   CCM_TARGET_ROOT_PRE_PODF(prediv - 1) |
-                   CCM_TARGET_ROOT_POST_PODF(postdiv - 1) |
-                   CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "PIXEL clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
-
-  /* Set DSI_PHY_REF slice */
-  if((status = CcmClockSliceConfig(videoPllTab24m[idx].pllRate, videoPllTab24m[idx].dsiPhyRefRate, &prediv, &postdiv, &rateReal)) != EFI_SUCCESS) {
-    DEBUG ((DEBUG_ERROR, "Unable to calculate DSI_PHY_REF clock.\n"));
-    goto End;
-  }
-
-  CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = (CCM_TARGET_ROOT_MUX(7) | /* Set MUX to VIDEO_PLL_CLK */
-                   CCM_TARGET_ROOT_PRE_PODF(prediv - 1) |
-                   CCM_TARGET_ROOT_POST_PODF(postdiv - 1) |
-                   CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "DSI_PHY_REF clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
-
-  /* Set MIPI_DSI_CORE_CLK_ROOT clock root to SYSTEM_PLL1_DIV3 => 266.6MHz */
-  CCM_TARGET_ROOT_MIPI_DSI_CORE = (CCM_TARGET_ROOT_MUX(1)    /* Set MUX to SYSTEM_PLL1_DIV3 */
-                   | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
-
-  /* Set DISPLAY_AXI_CLK_ROOT clock root to SYSTEM_PLL2_CLK => 1000MHz */
-  CCM_TARGET_ROOT_DISPLAY_AXI = (CCM_TARGET_ROOT_MUX(1)    /* Set MUX to SYSTEM_PLL2_CLK */
-                 | CCM_TARGET_ROOT_PRE_PODF(1)   /* Set PRE_PODF post divider to /2 to reach 500MHz */
-                 | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
-
-  /* Set DISPLAY_APB_CLK_ROOT clock root to SYSTEM_PLL1_CLK => 800MHz */
-  CCM_TARGET_ROOT_DISPLAY_APB = (CCM_TARGET_ROOT_MUX(2)    /* Set MUX to SYSTEM_PLL2_CLK */
-                 | CCM_TARGET_ROOT_PRE_PODF(3)   /* Set PRE_PODF post divider to /4 to reach 200MHz */
-                 | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
-
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_LCDIF_PIXEL      = 0x%08X\n", CCM_TARGET_ROOT_LCDIF_PIXEL));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_PHY_REF));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_CORE    = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_CORE));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_AXI      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_APB      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
-
-  /* Enable CCGR93(IMX_CCM_CCGR_DISPLAY) common for both DISPLAY_AXI_CLK_ROOT & DISPLAY_APB_CLK_ROOT clock roots */
-  CCM_CCGR_DISPLAY = 0x03;
-End:
-  return status;
-}
 
 /**
   Reset MIPI DSI block.
@@ -522,6 +308,33 @@ MipiDsiReset (
   VOID   
   )
 {
+#if defined(CPU_IMX8MP)
+    uint32_t tmp;
+
+    /* De-assert LCDIF and MIPI_DSI resets within MEDIA_MIX block.*/
+    tmp = MEDIA_BLK_CTRL_SFT_RSTN;
+    tmp |= (MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_BUS_BLK_CLK_RESETN_MASK |
+            MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_MIPI_DSI_PCLK_RESETN_MASK |
+            MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_MIPI_DSI_CLKREF_RESETN_MASK |
+            MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_LCDIF_PIXEL_CLK_RESETN_MASK |
+            MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_LCDIF_APB_CLK_RESETN_MASK |
+            MEDIA_BLK_CTRL_SFT_RSTN_SFT_EN_LCDIF_AXI_CLK_RESETN_MASK);
+    MEDIA_BLK_CTRL_SFT_RSTN = tmp;
+    /* Enable LCDIF and MIPI_DSI clocks within MEDIA_MIX block. */
+    tmp = MEDIA_BLK_CTRL_CLK_EN;
+    tmp |= (MEDIA_BLK_CTRL_CLK_EN_SFT_EN_BUS_BLK_CLK_MASK |
+            MEDIA_BLK_CTRL_CLK_EN_SFT_EN_MIPI_DSI_PCLK_MASK |
+            MEDIA_BLK_CTRL_CLK_EN_SFT_EN_MIPI_DSI_CLKREF_MASK |
+            MEDIA_BLK_CTRL_CLK_EN_SFT_EN_LCDIF_PIXEL_CLK_MASK |
+            MEDIA_BLK_CTRL_CLK_EN_SFT_EN_LCDIF_APB_CLK_MASK |
+            MEDIA_BLK_CTRL_CLK_EN_SFT_EN_LCDIF_AXI_CLK_MASK);
+    MEDIA_BLK_CTRL_CLK_EN = tmp;
+
+    tmp = MEDIA_BLK_CTRL_MIPI_RESET_DIV;
+    tmp |= MEDIA_BLK_CTRL_MIPI_RESET_DIV_GPR_MIPI_S_RESETN_MASK | MEDIA_BLK_CTRL_MIPI_RESET_DIV_GPR_MIPI_M_RESETN_MASK;
+    MEDIA_BLK_CTRL_MIPI_RESET_DIV = tmp;
+#endif
+
   /* Disable data transfer */
   MIPI_DSI_DSI_MDRESOL &= ~MIPI_DSI_DSI_MDRESOL_MainStandby_MASK;
 
@@ -604,7 +417,7 @@ static EFI_STATUS MipiDsiBitClockCalc (
   uint32_t pixelClock,
   uint32_t bpp, 
   uint32_t num_lanes,
-  imxMipiDsiToHdmiConverter MipiDsiConverter
+  imxConverter MipiDsiConverter
   )
 {
   uint32_t pixelClockKhz, bit_clock_exact, bit_clock_kHz;
@@ -787,7 +600,7 @@ static EFI_STATUS MipiDsiGetPhyTiming(uint32_t key, struct DSI_DPHY_TIMING **mat
 EFI_STATUS
 MipiDsiConfig (
   IMX_DISPLAY_TIMING* Timing,
-  imxMipiDsiToHdmiConverter MipiDsiConverter 
+  imxConverter MipiDsiConverter
   )
 {
   uint8_t lanes;
@@ -813,12 +626,7 @@ MipiDsiConfig (
   }
 
   /* Get phy ref clock for given pixelclock */
-  for (uint32_t idx = 0U; videoPllTab24m[idx].pixClockRate != 0U; idx++) {
-    if (videoPllTab24m[idx].pixClockRate == Timing->PixelClock) {
-      phyRefClockHz = videoPllTab24m[idx].dsiPhyRefRate;
-    }
-  }
-  if (phyRefClockHz == 0) {
+  if ((CcmGetDsiPhyRefClk(Timing, &phyRefClockHz) != EFI_SUCCESS) || (phyRefClockHz == 0)) {
     DEBUG ((DEBUG_ERROR, "MIPI DSI PHY REF CLOCK not found.\n"));
     return EFI_DEVICE_ERROR;
   }

@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 NXP
+* Copyright 2019,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -388,30 +388,6 @@ void MII_StateEngine(NDIS_HANDLE MiniportAdapterHandle)
                     DBG_PHY_DEV_PRINT_LINK_PROPERTIES("LinkPartnerLinkProperties ", pPHYDev->PHYDev_LinkPartnerLinkProperties);
                     PHYDev_NextState = MP_PHY_STATE_LINK_UP;
                     LinkStateChanged = TRUE;
-                    if (pPHYDev->PHYDev_LinkPropertiesToAdvertise.R & IMX_MII_LINK_PROPERTIES_AUTO_NEGOTIATION) {                  // Is auto-negotiation enabled?
-                        if (pPHYDev->PHYDev_LinkPropertiesToAdvertise.R & IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK) {           // Is 1Gbps supported by local device?
-                            IMX_MII_LINK_PROPERTIES_t tmpLinkPropToAdvertise;
-                            if (pPHYDev->PHYDev_AdvertisedLinkProperties.R & pPHYDev->PHYDev_LinkPartnerLinkProperties.R & IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK) {  // Was 1Gbps speed selected?
-                                if (!(pPHYDev->PHYDev_LinkPartnerLinkProperties.R & IMX_MII_LINK_PROPERTIES_PAUSE)) {                                                      // Does link partner supports pause frame reception?
-                                    DBG_PHY_DEV_PRINT_TRACE("Link is up, 1 Gbps speed is selected but link partner doesnt support pause frames, 1 Gbps will be disabled and auto-negotiation will be restarted.");
-                                    tmpLinkPropToAdvertise.R = pPHYDev->PHYDev_LinkPropertiesToAdvertise.R & ~IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK;
-                                    MII_SetLinkPropertiesCmd(pPHYDev, tmpLinkPropToAdvertise);
-                                    LinkStateChanged = FALSE;
-                                    PHYDev_NextState = MP_PHY_STATE_LINK_DOWN;
-                                }
-                            } else {
-                                if ((pPHYDev->PHYDev_LinkPartnerLinkProperties.R & (IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK | IMX_MII_LINK_PROPERTIES_PAUSE)) ==
-                                    (IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK | IMX_MII_LINK_PROPERTIES_PAUSE)) {  // Does link partner supports 1Gbps and pause frame reception?
-                                    DBG_PHY_DEV_PRINT_TRACE("Link is up, 1 Gbps speed is not selected but link partner Support pause frames, 1 Gbps will be enabled and auto-negotiation will be restarted.");
-                                    tmpLinkPropToAdvertise.R = pPHYDev->PHYDev_LinkPropertiesToAdvertise.R | IMX_MII_LINK_PROPERTIES_BASE_T_1000_FD_MASK;
-                                    MII_SetLinkPropertiesCmd(pPHYDev, tmpLinkPropToAdvertise);
-                                    LinkStateChanged = FALSE;
-                                    PHYDev_NextState = MP_PHY_STATE_LINK_DOWN;
-                                }
-
-                            }
-                        }
-                    }
                 } else {                                // UP -> DOWN
                     PHYDev_NextState = MP_PHY_STATE_LINK_DOWN;
                 }

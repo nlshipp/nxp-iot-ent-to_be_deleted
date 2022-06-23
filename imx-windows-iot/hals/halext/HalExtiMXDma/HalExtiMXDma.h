@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Module Name:
@@ -202,6 +203,8 @@ typedef enum _SDMA_REQ_LINE_ID {
     SDMA_REQ_ENET2_EV1 = 97,
     SDMA_REQ_EXT3 = 98,
     SDMA_REQ_EXT4 = 99,
+    SDMA_REQ_SAI7_TX = 100,
+    SDMA_REQ_SAI7_RX = 101,
     SDMA_REQ__MAX,
 
 } SDMA_REQ_LINE_ID;

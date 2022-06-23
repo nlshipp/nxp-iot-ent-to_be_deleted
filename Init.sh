@@ -41,12 +41,23 @@ echo "Populating source files in submodules ..."
 git submodule update --init --recursive
 
 echo "Patching external submodules ..."
-top=$(pwd);
-for patch_name in patches/patch_*;
+patch_dir=$(pwd)/patches;
+
+declare -A patches=( 
+    ["imx-atf"]="imx-atf"
+    ["imx-mkimage"]="imx-mkimage"
+    ["imx-optee-os"]="imx-optee-os"
+    ["MU_BASECORE-USB_xHCI"]="mu_platform_nxp/MU_BASECORE"
+    ["uboot-imx"]="uboot-imx"
+    # Uncoment TCG2_PHYSICAL_PRESENCE_FLAGS_VARIABLE patch to enable TPM/BitLocker workaround.
+    # ["MU_BASECORE-TCG2_PHYSICAL_PRESENCE_FLAGS_VARIABLE"]="mu_platform_nxp/MU_BASECORE"
+)
+
+for patch_name in "${!patches[@]}";
 do
-    module=$(echo $patch_name | cut -d _ -f 2 | cut -d . -f 1) ;
-    pushd $module;
-        git apply $top/$patch_name;
+    module_path="${patches[$patch_name]}";
+    pushd $module_path;
+        git apply $patch_dir/${patch_name}.patch;
         git add -A -f .
         git commit -m "NXP i.MX BSP support patch" 2>/dev/null || echo "Failed to commit patch to your local copy of $module. Fix errors and commit patch to $module submodule manually. Shell command: pushd $module; git commit -m \"NXP i.MX BSP support patch\"; popd;"
     popd;

@@ -1,5 +1,5 @@
 /*
-* Copyright 2018 NXP
+* Copyright 2018,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -434,12 +434,19 @@ void MpTxFillEnetTxBD(_In_ PMP_ADAPTER pAdapter, _In_ PMP_TX_BD pMpTxBD)
     volatile ENET_BD    *pFreeEnetBD = &pAdapter->Tx_DmaBDT[EnetFreeBDIdx];    // First free Ethernet packet hw buffer descriptor address
     USHORT               ControlStatus;
     ULONG                bytesToSent;
+    USHORT               EtherType;
+    USHORT               IpHeaderStart;
+    USHORT               IpHeaderLength;
+    ULONG                ChksumPos;
+    USHORT               Checksum;
+    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumInfo = { 0 };
 
     ASSERT(sgListPtr != NULL);
     ASSERT(sgListPtr->NumberOfElements > 0);
 
     DBG_ENET_DEV_TX_METHOD_BEG();
     bytesToSent = MpCopyNetBuffer(pMpTxBD, &pAdapter->Tx_EnetSwExtBDT[EnetFreeBDIdx]);          // Copy data to driver provided buffer
+    UCHAR *buffer = pAdapter->Tx_EnetSwExtBDT[EnetFreeBDIdx].pBuffer;
     ASSERT(bytesToSent);
     ASSERT(!(pFreeEnetBD->ControlStatus & ENET_TX_BD_R_MASK));
     pAdapter->Tx_EnetSwExtBDT[EnetFreeBDIdx].pMpBD = pMpTxBD;                                   // Associate sw MP_TxBD with current hw ENET_TxBD
@@ -452,8 +459,74 @@ void MpTxFillEnetTxBD(_In_ PMP_ADAPTER pAdapter, _In_ PMP_TX_BD pMpTxBD)
     pAdapter->Tx_EnetFreeBDCount--;
 
     pFreeEnetBD->DataLen        = (USHORT)sgListPtr->Elements[0].Length;                       // Set ENET_TxBD data length
-    pFreeEnetBD->BufferAddress  = NdisGetPhysicalAddressLow(sgListPtr->Elements[0].Address);   // Set ENET_TxBD data address
-    pFreeEnetBD->ControlStatus  = ControlStatus;                                               // Write ControlStatus word of BD as last step
+#ifdef ENET_ENHANCED_BD
+    pFreeEnetBD->EnhancedStatus = ENET_TX_BD_ESTATUS_INT;                                      // Generate TX interrupt
+
+    // Get checksum offload OOB data
+    checksumInfo.Value = NET_BUFFER_LIST_INFO(pMpTxBD->pNBL, TcpIpChecksumNetBufferListInfo);
+    if (checksumInfo.Value) {
+        DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] checksumInfo.Value 0x%08X", checksumInfo.Value);
+    }
+    if (checksumInfo.Transmit.IsIPv4 || checksumInfo.Transmit.IsIPv6) {
+        // Ip Header checksum
+        if (checksumInfo.Transmit.IpHeaderChecksum) {
+            DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] Enabling HW IP protocol checksum");
+            pFreeEnetBD->EnhancedStatus = pFreeEnetBD->EnhancedStatus | ENET_TX_BD_ESTATUS_IINS;
+        }
+        //UDP checksum
+        ASSERT(buffer != NULL);
+        if (checksumInfo.Transmit.UdpChecksum) {
+            DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] Enabling HW UDP protocol checksum");
+            // Read the Ethernet type
+            EtherType = (USHORT)buffer[ETH_FRAME_TYPE_POS] << 8U | buffer[ETH_FRAME_TYPE_POS + 1U];
+            IpHeaderStart = ETH_IP_HEADER_START;
+            // Increase offset of the IP header in case of VLAN frames
+            if (EtherType == ETH_VLAN_TAGGED_FRAME) {
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] VLAN tagged frame");
+                IpHeaderStart += ETH_VLAN_TAG_LENGTH;
+            }
+            if (checksumInfo.Transmit.IsIPv4) {
+                IpHeaderLength = buffer[IpHeaderStart + IPV4_HEADER_LENGTH_OFFSET] & IPV4_HEADER_LENGTH_MASK; // Length of the IPv4 Header in 32-bit words
+                IpHeaderLength *= 4U; // Length in bytes
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] IPv4 IpHeaderLength in bytes %d", IpHeaderLength);
+            } else {
+                IpHeaderLength = IPV6_HEADER_LENTH;
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] IPv6 IpHeaderLength in bytes %d", IpHeaderLength);
+            }
+            //Calculate UDP checksum possition within buffer and get checksum calculated by NDIS
+            ChksumPos = (IpHeaderStart + IpHeaderLength + ETH_UDP_CHECKSUM_OFFSET) - 1U;
+            Checksum = (USHORT)buffer[ChksumPos] << 8U | buffer[ChksumPos + 1U];
+            // WORKARROUND - clear the checksum field becauses HW expects this field cleared but NDIS TCP/IP transport 
+            //               calculates the one's complement sum for the TCP pseudoheader and insert this in the Checksum field
+            if (Checksum) {
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_WARNING("[TX] UDP checksum passed from NDIS not cleared to zero : 0x % 04X", Checksum);
+                buffer[ChksumPos] = 0x00U;
+                buffer[ChksumPos + 1U] = 0x00U;
+            }
+            // Enable HW protocol checksum calculation
+            pFreeEnetBD->EnhancedStatus = pFreeEnetBD->EnhancedStatus | ENET_TX_BD_ESTATUS_PINS;
+        }
+        //TCP checksum
+        if (checksumInfo.Transmit.TcpChecksum) {
+            DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[TX] Enabling HW TCP protocol checksum");
+            // Calculate TCP checksum possition within buffer and get checksum calculated by NDIS
+            ChksumPos = checksumInfo.Transmit.TcpHeaderOffset + ETH_TCP_CHECKSUM_OFFSET;
+            Checksum = (USHORT)buffer[ChksumPos] << 8U | buffer[ChksumPos + 1U];
+            // WORKARROUND - clear the checksum field becauses HW expects this field cleared but NDIS TCP/IP transport 
+            //               calculates the one's complement sum for the TCP pseudoheader and insert this in the Checksum field
+            if (Checksum) {
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_WARNING("[TX] TCP checksum passed from NDIS not cleared to zero : 0x % 04X", Checksum);
+                buffer[ChksumPos] = 0x00U;
+                buffer[ChksumPos + 1] = 0x00U;
+            }
+            // Enable HW protocol checksum calculation
+            pFreeEnetBD->EnhancedStatus = pFreeEnetBD->EnhancedStatus | ENET_TX_BD_ESTATUS_PINS;
+        }
+    }
+#endif
+    pFreeEnetBD->BufferAddress = NdisGetPhysicalAddressLow(sgListPtr->Elements[0].Address);   // Set ENET_TxBD data address
+    pFreeEnetBD->ControlStatus = ControlStatus;                                               // Write ControlStatus word of BD as last step
+
     _DataSynchronizationBarrier();                                                             // Wait for read is finished
     ControlStatus = pFreeEnetBD->ControlStatus;                                                // Read ControlStatus back
     _DataSynchronizationBarrier();                                                             // Wait for read is finished
@@ -771,6 +844,9 @@ void MpRxInit(PMP_ADAPTER pAdapter)
         pDmaBD->BufferAddress = pRxFrameBD->BufferPa.LowPart;                             // Fill DmaBD data buffer address
         pDmaBD->ControlStatus = ENET_RX_BD_E_MASK | ENET_RX_BD_L_MASK;                    // Fill DMaBD Status (Mark DmaBD as ready to receive data)
         /* MS-temp */ NdisAdjustMdlLength(pRxFrameBD->pMdl, ENET_RX_FRAME_SIZE);
+#ifdef ENET_ENHANCED_BD
+		pDmaBD->EnhancedStatus |= ENET_RX_BD_ESTATUS_INT;
+#endif
     }
     if (pDmaBD) {
         pDmaBD->ControlStatus |= ENET_RX_BD_W_MASK;                                       // Mark last DmaBD
@@ -901,6 +977,7 @@ void MpHandleRecvInterrupt(PMP_ADAPTER pAdapter, PULONG pMaxNBLsToIndicate, PNDI
     PNET_BUFFER_LIST pSyncNBLTail      = NULL;
     ULONG            SyncNBLItemCount = 0;
     LONG             Rx_EnetPendingBDIdx;
+    NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO checksumInfo = { 0 };
 
     DBG_ENET_DEV_DPC_RX_METHOD_BEG();
     NdisDprAcquireSpinLock(&pAdapter->Rx_SpinLock);
@@ -934,6 +1011,44 @@ void MpHandleRecvInterrupt(PMP_ADAPTER pAdapter, PULONG pMaxNBLsToIndicate, PNDI
         MP_NB_SET_DmaIdx(pCurrentNBL->FirstNetBuffer, Rx_EnetPendingBDIdx);                        // for debug only
         #endif
         NET_BUFFER_DATA_LENGTH(pCurrentNBL->FirstNetBuffer) = realFrameLength;                     // Save real data length
+        
+        if (pDmaBD->ControlStatus & ENET_RX_BD_L_MASK) {
+            // RX checksum offload
+            checksumInfo.Value = NET_BUFFER_LIST_INFO(pCurrentNBL, TcpIpChecksumNetBufferListInfo);
+            DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[RX] ENHANCED BD STATUS: 0x%08X", (ULONG)pDmaBD->EnhancedStatus);
+            // Check IP header checksum
+            if (pAdapter->IPChecksumOffloadIPv4 >= RxChksumOffloadEnabled) {
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[RX] IP header checksum validation in miniport driver");
+                if (pDmaBD->EnhancedStatus & ENET_RX_BD_ESTATUS_ICE) {
+                    DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[RX] IP header checksum invalid");
+                    checksumInfo.Receive.IpChecksumFailed    = 1U;
+                    checksumInfo.Receive.IpChecksumSucceeded = 0U;
+                } else {
+                    checksumInfo.Receive.IpChecksumFailed    = 0U;
+                    checksumInfo.Receive.IpChecksumSucceeded = 1U;
+                }
+            }
+            // Check protocol checksum
+            if ((pAdapter->TCPChecksumOffloadIPv4 >= RxChksumOffloadEnabled) ||
+                (pAdapter->TCPChecksumOffloadIPv6 >= RxChksumOffloadEnabled) ||
+                (pAdapter->UDPChecksumOffloadIPv4 >= RxChksumOffloadEnabled) ||
+                (pAdapter->UDPChecksumOffloadIPv6 >= RxChksumOffloadEnabled)) {
+                DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[RX] Protocol checksum validation in miniport driver");
+                if (pDmaBD->EnhancedStatus & ENET_RX_BD_ESTATUS_PCR) {
+                    checksumInfo.Receive.TcpChecksumFailed    = 1U;
+                    checksumInfo.Receive.UdpChecksumFailed    = 1U;
+                    checksumInfo.Receive.TcpChecksumSucceeded = 0U;
+                    checksumInfo.Receive.UdpChecksumSucceeded = 0U;
+                    DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("[RX] Protocol checksum invalid");
+                } else {
+                    checksumInfo.Receive.TcpChecksumFailed    = 0U;
+                    checksumInfo.Receive.UdpChecksumFailed    = 0U;
+                    checksumInfo.Receive.TcpChecksumSucceeded = 1U;
+                    checksumInfo.Receive.UdpChecksumSucceeded = 1U;
+                }
+            }
+        }
+
         // Is this packet completed and has error bits set?
         if (pDmaBD->ControlStatus & (ENET_RX_BD_TR_MASK | ENET_RX_BD_OV_MASK | ENET_RX_BD_NO_MASK | ENET_RX_BD_CR_MASK)) {
             /* MS-temp */ NdisAdjustMdlLength(pRxFrameBD->pMdl, ENET_RX_FRAME_SIZE);

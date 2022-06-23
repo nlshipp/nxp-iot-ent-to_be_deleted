@@ -53,6 +53,7 @@ usage() { echo "Usage: $0 [-b BOARD_1] [-b BOARD_2] [-t TARGET_1] .. [-c]"      
           echo "              8M, NXPEVK_iMX8M_4GB,"                              1>&2
           echo "              8Mm, NXPEVK_iMX8M_Mini_2GB"                         1>&2
           echo "              8Mn, EVK_iMX8MN_2GB }"                              1>&2
+          echo "              8Mp, EVK_iMX8MP_6GB }"                              1>&2
           echo ""                                                                 1>&2
           echo "          [-t|-target_app] "                                      1>&2
           echo "            { all, u|uboot, optee, apps|tee_apps,"                1>&2
@@ -81,6 +82,7 @@ script_name=$0
 build_8m=0
 build_8m_mini=0
 build_8m_nano=0
+build_8m_plus=0
 
 clean=0
 build_uboot=0
@@ -196,10 +198,14 @@ do
             8Mn|EVK_iMX8MN_2GB)
                 build_8m_nano=1
                 ;;
+            8Mp|EVK_iMX8MP_6GB)
+                build_8m_plus=1
+                ;;
             all)
                 build_8m=1
                 build_8m_mini=1
                 build_8m_nano=1
+                build_8m_plus=1
                 ;;
             *)
                 echo "Unknown option ${2} specified for -b --build" 
@@ -359,7 +365,7 @@ build_board () {
             make clean
         fi
         make $uboot_defconfig || exit $?
-        make -s -j2 || exit $?
+        make -s -j12 || exit $?
         popd
     fi
 
@@ -378,18 +384,17 @@ build_board () {
         pushd imx-optee-os || exit $?
         if [ $clean -eq 1 ]; then
             make clean PLATFORM=imx PLATFORM_FLAVOR=$optee_plat || exit $?
-            rm -f ./out/arm-plat-imx/tee.bin
+            rm -r ./out
         fi
-        make -s -j2 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat CFG_TEE_CORE_DEBUG=n CFG_TEE_CORE_LOG_LEVEL=2 CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
+        make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat CFG_TEE_CORE_DEBUG=n TRACE_LEVEL=0 DEBUG=n CFG_TEE_CORE_LOG_LEVEL=0 CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
 
         # debug
-        # make PLATFORM=imx PLATFORM_FLAVOR=mx8mqevk \
+        # make PLATFORM=imx -j12 PLATFORM_FLAVOR=$optee_plat \
         #  CFG_TEE_CORE_DEBUG=y CFG_TEE_CORE_LOG_LEVEL=3 \
         #  CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n \
         #  CFG_TA_DEBUG=y CFG_TEE_CORE_TA_TRACE=1 CFG_TEE_TA_LOG_LEVEL=2 \
         #  CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072
 
-        ${CROSS_COMPILE64}objcopy -O binary ./out/arm-plat-imx/core/tee.elf ./out/arm-plat-imx/tee.bin || exit $?
         popd
         export CROSS_COMPILE=$AARCH64_TOOLCHAIN_PATH
         export ARCH=arm64
@@ -424,7 +429,7 @@ build_board () {
         cp -f ../../firmware-imx/firmware/ddr/synopsys/lpddr4_pmu_train_*.bin . && \
         cp -f ../../firmware-imx/firmware/ddr/synopsys/ddr4_*.bin .             && \
         cp -f ../../firmware-imx/firmware/hdmi/cadence/signed_hdmi_imx8m.bin .  && \
-        cp -f ../../imx-optee-os/out/arm-plat-imx/tee.bin .              && \
+        cp -f ../../imx-optee-os/out/arm-plat-imx/core/tee-raw.bin ./tee.bin    && \
         cp -f ../../imx-atf/build/"$atf_plat"/release/bl31.bin .                    && \
         cp -f ../../uboot-imx/u-boot-nodtb.bin  .                    && \
         cp -f ../../uboot-imx/spl/u-boot-spl.bin .                   && \
@@ -534,7 +539,7 @@ build_board () {
 #
 #   7.1. echo selected configuration
 
-echo building bootloader image for Windows 10 IOT core
+echo building bootloader image for Windows 10 IOT Enterprise
 echo "Build Configuration: " $build_configuration
 echo -----------------
 echo 
@@ -568,6 +573,7 @@ echo
 #   1) i.MX 8MQ EVK config
 #   2) i.MX 8M Mini EVK config
 #   3) i.MX 8M Nano EVK config
+#   3) i.MX 8M Plus EVK config
 
 # i.MX 8MQ EVK config
 if [ $build_8m -eq 1 ]; then
@@ -585,7 +591,7 @@ if [ $build_8m -eq 1 ]; then
     optee_plat="mx8mqevk"
     uboot_dtb="imx8mq-evk.dtb"
     mkimage_SOC="iMX8M"
-    uefi_offset_kb=1500
+    uefi_offset_kb=1940
     
     build_board
     # check return value
@@ -610,7 +616,7 @@ if [ $build_8m_mini -eq 1 ]; then
     optee_plat="mx8mmevk"
     uboot_dtb="imx8mm-evk.dtb"
     mkimage_SOC="iMX8MM"
-    uefi_offset_kb=1500
+    uefi_offset_kb=1940
     
     build_board
     # check return value
@@ -635,7 +641,33 @@ echo "Board type IMX8MN EVK"
     optee_plat="mx8mnevk"
     uboot_dtb="imx8mn-ddr4-evk.dtb"
     mkimage_SOC="iMX8MN"
-    uefi_offset_kb=1500
+    uefi_offset_kb=1940
+    
+    build_board
+    # check return value
+    echo Build has returned $? !
+    if [ $? -gt 0 ]; then
+        exit $?
+    fi
+fi
+
+# i.MX 8M Plus EVK config
+if [ $build_8m_plus -eq 1 ]; then
+echo "Board type IMX8MP EVK"
+    bsp_folder="EVK_iMX8MP_6GB"
+    uefi_folder=${bsp_folder}
+    uboot_defconfig="imx8mp_evk_nt_defconfig"
+    if [ $build_uboot_with_uuu_support -eq 1 ]; then
+        uboot_defconfig="imx8mp_evk_nt_uuu_defconfig"
+        if [ $build_uboot -eq 1 ]; then
+            echo -e "$(tput setaf 1) Building uBoot image with uuu support! Defconfig: $uboot_defconfig $(tput sgr 0)"
+        fi
+    fi
+    atf_plat="imx8mp"
+    optee_plat="mx8mpevk"
+    uboot_dtb="imx8mp-evk.dtb"
+    mkimage_SOC="iMX8MP"
+    uefi_offset_kb=1940
     
     build_board
     # check return value

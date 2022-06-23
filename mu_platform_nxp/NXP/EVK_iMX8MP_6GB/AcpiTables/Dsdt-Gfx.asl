@@ -1,0 +1,45 @@
+/** @file
+*
+*  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
+*  Copyright 2019 NXP
+*
+*  This program and the accompanying materials
+*  are licensed and made available under the terms and conditions of the BSD License
+*  which accompanies this distribution.  The full text of the license may be found at
+*  http://opensource.org/licenses/bsd-license.php
+*
+*  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+*
+**/
+
+// Description: Graphics Processing Unit (GPU)
+Device (GPU0)
+{
+  Name (_HID, "VERI7001")
+  Name (_CID, "VERI7001")
+  Name (_UID, 0)
+
+  Method (_STA) {
+    Return (0xf)
+  }
+
+  Name (_CRS, ResourceTemplate () {
+    // GPU REG
+    MEMORY32FIXED( ReadWrite, 0x38000000, 0x10000, )
+    // LCDIF1 reg
+    MEMORY32FIXED (ReadWrite, 0x32E80000, 0x10000, )
+    // LCDIF2 reg
+    MEMORY32FIXED (ReadWrite, 0x32E90000, 0x10000, )
+    // MIPI-DSI reg
+    MEMORY32FIXED (ReadWrite, 0x32E60000, 0x10000, )
+    // MEDIA BLK_CTL reg
+    MEMORY32FIXED (ReadWrite, 0x32EC0000, 0x10000, )
+    // GPU interrupt
+    Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 35 }
+    // LCDIF1 interrupt
+    Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 37 }
+    // LCDIF2 interrupt
+    Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 38 }
+  })
+}

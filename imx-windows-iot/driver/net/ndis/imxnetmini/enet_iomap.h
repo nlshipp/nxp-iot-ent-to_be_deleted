@@ -1,5 +1,5 @@
 /*
-* Copyright 2018 NXP
+* Copyright 2018,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -70,6 +70,18 @@
 #define ENET_MAC_TX_SECTION_EMPTY_MAX_VALUE        0x1FF
 
 #define BIT_FIELD_VAL(_bit_field_name,_val_) (((_val_)<<_bit_field_name##_SHIFT) & (_bit_field_name##_MASK))
+
+typedef enum {
+    ChksumOffloadDisabled    = 0,
+    TxChksumOffloadEnabled   = 1,
+    RxChksumOffloadEnabled   = 2,
+    TxRxChksumOffloadEnabled = 3,
+} ENET_CHECKSUM_OFFLOAD_MODE;
+
+typedef enum {
+    RxFrameDiscardDisabled = 0,
+    RxFrameDiscardEnabled  = 1,
+} ENET_RX_FRAME_DISCARD_MODE;
 
 /*
  * ENET_EIR - ENET Interrupt Event Register
@@ -463,7 +475,10 @@ typedef struct {
     UINT32  IEEE_R_OCTETS_OK;   // 2E0
 } CSP_ENET_REGS, *PCSP_ENET_REGS;
 
-// the buffer descriptor structure for the ENET Legacy Buffer Descriptor
+#pragma pack(push, 1)
+#define ENET_ENHANCED_BD 1U
+#ifndef ENET_ENHANCED_BD
+// The buffer descriptor structure for the ENET Legacy Buffer Descriptor
 typedef struct  _ENET_BD {
     USHORT  DataLen;
     union {
@@ -498,6 +513,120 @@ typedef struct  _ENET_BD {
     };
     ULONG BufferAddress;
 } ENET_BD, *PENET_BD;
+#else
+// The buffer descriptor structure for the ENET Enhanced Buffer Descriptor
+typedef struct  _ENET_BD {
+    USHORT  DataLen;                    // Data Lenght, written by MAC in RX mode, written by user in TX mode
+    union {
+        USHORT  ControlStatus;          // Basic constrol/status bitfield
+        //RX:
+        struct {
+            USHORT  RX_TR       : 1;    // Frame truncated
+            USHORT  RX_OV       : 1;    // Overrun
+            USHORT  RX_CR       : 1;    // Receive CRC or frame error
+            USHORT  RX_res_3    : 1;    // Reserved
+            USHORT  RX_NO       : 1;    // Receive non-octed aligned frame
+            USHORT  RX_LG       : 1;    // receive frame length violation
+            USHORT  RX_MC       : 1;    // Multicast frame
+            USHORT  RX_BC       : 1;    // Broadcast frame
+            USHORT  RX_M        : 1;    // Miss
+            USHORT  RX_res_9_10 : 2;    // Reserved
+            USHORT  RX_L        : 1;    // Last in frame
+            USHORT  RX_RO2      : 1;    // Receive SW ownership 2
+            USHORT  RX_W        : 1;    // Wrap
+            USHORT  RX_RO1      : 1;    // Receive SW ownership 1
+            USHORT  RX_E        : 1;    // Empty
+        } ControlStatus_rx;
+        //TX:
+        struct {
+            USHORT  TX_res_0_9 : 10;    // Reserved
+            USHORT  TX_TC      : 1;     // Transmit CRC
+            USHORT  TX_L       : 1;     // Last in frame
+            USHORT  TX_TO2     : 1;     // Transmit SW owneship 2
+            USHORT  TX_W       : 1;     // Wrap
+            USHORT  TX_TO1     : 1;     // Transmit SW ownership 
+            USHORT  TX_R       : 1;     // Ready
+        } ControlStatus_tx;
+    };
+    ULONG BufferAddress;                // Address of the associated data buffer
+    union {
+        ULONG  EnhancedStatus;          // Enhanced status
+        //RX:
+        struct {
+            USHORT  RX_FRAG      : 1;   // IPv4 fragment
+            USHORT  RX_IPV6      : 1;   // IPv6 frame received
+            USHORT  RX_VLAN      : 1;   // Received frame has a VLAN tag
+            USHORT  RX_res_3     : 1;   // Reserved
+            USHORT  RX_PCR       : 1;   // Protocol checksum error
+            USHORT  RX_ICE       : 1;   // IP header checksum error
+            USHORT  RX_res_6_15  : 10;  // Reserved
+            USHORT  RX_res_16_22 : 7;   // Reserved
+            USHORT  RX_INT       : 1;   // Generate RXB/RXF interrupt
+            USHORT  RX_UC        : 1;   // Unicast frame received
+            USHORT  RX_CE        : 1;   // Collision
+            USHORT  RX_PE        : 1;   // PHY error
+            USHORT  RX_res_27_30 : 4;   // Reserved
+            USHORT  RX_ME        : 1;   // MAC error
+        } EnhancedStatus_rx;
+        //TX:
+        struct {
+            USHORT  TX_res_0_7   : 8;   // Reserved
+            USHORT  TX_TSE       : 1;   // Timestamp error
+            USHORT  TX_OE        : 1;   // Overflow error
+            USHORT  TX_LCE       : 1;   // Late collision error
+            USHORT  TX_FE        : 1;   // Frame with error
+            USHORT  TX_EE        : 1;   // Excess collision error
+            USHORT  TX_UE        : 1;   // Underflow error
+            USHORT  TX_res_14    : 1;   // Reserved
+            USHORT  TX_TXE       : 1;   // Transmit error occured
+            USHORT  TX_res_16_26 : 11;  // Reserved
+            USHORT  TX_IINS      : 1;   // Insert IP header checksum
+            USHORT  TX_PINS      : 1;   // Insert protocol specific checksum
+            USHORT  TX_TS        : 1;   // Timestamp
+            USHORT  TX_INT       : 1;   // Generate interrupts flags
+            USHORT  TX_res_31    : 1;   // Reserved
+        } EnhancedStatus_tx;
+    };
+    USHORT  PayloadChecksum;            // RX payload checksum
+    UCHAR  ProtocolType;                // RX protocol type
+    UCHAR  HeaderLength;                // RX Header length
+    USHORT  Reserved_1;                 // Reserved
+    union {
+        USHORT  Bdu;                    // BDU - last buffer descriptor update done
+        struct {
+            USHORT  BDU_res_0_14 : 15;  // Reserved
+            USHORT  BDU          : 1;   // BDU
+        } Bdu_rx_tx;
+    };
+    ULONG Timestamp;                    // Timestamp
+    USHORT Reserved_2[4];               // Reserved
+} ENET_BD, *PENET_BD;
+
+#define ENET_RX_BD_ESTATUS_ME             (1 << 31) // MAC Error
+#define ENET_RX_BD_ESTATUS_PE             (1 << 26) // PHY Error
+#define ENET_RX_BD_ESTATUS_CE             (1 << 25) // Collision detected
+#define ENET_RX_BD_ESTATUS_UC             (1 << 24) // Unicast frame
+#define ENET_RX_BD_ESTATUS_INT            (1 << 23) // Generate RXB/RXF interrupt
+#define ENET_RX_BD_ESTATUS_ICE            (1 << 5)  // IP header checksum error
+#define ENET_RX_BD_ESTATUS_PCR            (1 << 4)  // Protocol checksum error
+#define ENET_RX_BD_ESTATUS_VLAN           (1 << 2)  // Frame has a VLAN tag
+#define ENET_RX_BD_ESTATUS_IPV6           (1 << 1)  // Frame has a IPv6 frame type
+#define ENET_RX_BD_ESTATUS_FRAG           (1 << 0)  // Frame is an IPv4 fragment frame
+
+#define ENET_TX_BD_ESTATUS_INT            (1 << 30) // Generate interrupt
+#define ENET_TX_BD_ESTATUS_TS             (1 << 29) // Generate timestamp frame
+#define ENET_TX_BD_ESTATUS_PINS           (1 << 28) // Insert protocol checksum
+#define ENET_TX_BD_ESTATUS_IINS           (1 << 27) // Insert IP header checksum
+#define ENET_TX_BD_ESTATUS_TXE            (1 << 15) // Transmit error occured
+#define ENET_TX_BD_ESTATUS_UE             (1 << 13) // Underflow error
+#define ENET_TX_BD_ESTATUS_EE             (1 << 12) // Excess Collision error
+#define ENET_TX_BD_ESTATUS_FE             (1 << 11) // Frame with error
+#define ENET_TX_BD_ESTATUS_LCE            (1 << 10) // Late collision error
+#define ENET_TX_BD_ESTATUS_OE             (1 << 9)  // Overflow error
+#define ENET_TX_BD_ESTATUS_TSE            (1 << 8)  // Timestamp error
+
+#endif /* ENET_ENHANCED_BD */
+#pragma pack(pop)
 
 #define ENET_RX_BD_E_MASK            ((USHORT)0x8000)
 #define ENET_RX_BD_W_MASK            ((USHORT)0x2000)

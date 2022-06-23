@@ -16,7 +16,6 @@
 #include <Library/DebugLib.h>
 #include <Library/IoLib.h>
 #include <Library/TimerLib.h>
-
 #include "iMX8HdmiCdn.h"
 
 VOID HdmiCdnGeneralReadRegister(UINT32 address, UINT32 *value)
@@ -72,7 +71,6 @@ VOID HdmiCdnGeneralWriteRegister(UINT32 address, UINT32 value)
     // Write value
     IMX_HDMICDN_APB_WRITE32(value);
 }
-
 
 VOID HdmiCdnOn(VOID)
 {

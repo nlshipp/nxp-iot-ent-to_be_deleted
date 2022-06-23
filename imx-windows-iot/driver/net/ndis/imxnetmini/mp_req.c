@@ -1,6 +1,6 @@
 /*
 * Copyright (c) Microsoft Corporation.  All rights reserved.
-* Copyright 2019-2020 NXP
+* Copyright 2019-2020,2022 NXP
 *
 * Use of this sample source code is subject to the terms of the Microsoft
 * license agreement under which you licensed this sample source code. If
@@ -462,6 +462,12 @@ NDIS_STATUS MpQueryInformation(NDIS_HANDLE MiniportAdapterContext, PNDIS_OID_REQ
             ulBytesAvailable = sizeof(ndisIntModParams);
             break;
 
+        case OID_TCP_OFFLOAD_CURRENT_CONFIG:
+            break;
+
+        case OID_OFFLOAD_ENCAPSULATION:
+            break;
+
         default:
             Status = NDIS_STATUS_NOT_SUPPORTED;
             DBG_ENET_DEV_OIDS_PRINT_INFO("%s not supported", Dbg_GetNdisOidName(Oid));
@@ -582,6 +588,38 @@ NDIS_STATUS MpSetInformation(NDIS_HANDLE MiniportAdapterContext, PNDIS_OID_REQUE
           if ((Status == NDIS_STATUS_SUCCESS) || (Status == NDIS_STATUS_PENDING)) {
               BytesRead = sizeof(NDIS_DEVICE_POWER_STATE);
           }
+          break;
+
+      case OID_TCP_OFFLOAD_PARAMETERS:
+          DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("OID_TCP_OFFLOAD_PARAMETERS");
+          break;
+      case OID_OFFLOAD_ENCAPSULATION:
+          DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("OID_OFFLOAD_ENCAPSULATION");
+
+          if (InformationBufferLength != sizeof(NDIS_OFFLOAD_ENCAPSULATION)) {  // Verify the Length
+              BytesNeeded = sizeof(NDIS_OFFLOAD_ENCAPSULATION);
+              Status = NDIS_STATUS_INVALID_LENGTH;
+              break;
+          }
+
+          NdisMoveMemory(&pAdapter->OffloadEncapsulation,
+              InformationBuffer,
+              sizeof(NDIS_OFFLOAD_ENCAPSULATION));
+          BytesRead = sizeof(NDIS_OFFLOAD_ENCAPSULATION);
+          Status = NDIS_STATUS_SUCCESS;
+#ifdef DBG_ENET_DEV_CHKSUM_OFFLOAD
+          if (pAdapter->OffloadEncapsulation.IPv4.Enabled == NDIS_OFFLOAD_SET_ON) {
+              DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("Enable IPv4 offload");
+          } else if (pAdapter->OffloadEncapsulation.IPv4.Enabled == NDIS_OFFLOAD_SET_OFF) {
+              DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("Disable IPv4 offload");
+          }
+          
+          if (pAdapter->OffloadEncapsulation.IPv6.Enabled == NDIS_OFFLOAD_SET_ON) {
+              DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("Enable IPv6 offload");
+          } else if (pAdapter->OffloadEncapsulation.IPv6.Enabled == NDIS_OFFLOAD_SET_OFF) {
+              DBG_ENET_DEV_CHKSUM_OFFLOAD_PRINT_TRACE("Disable IPv6 offload");
+          }
+#endif
           break;
         default:
             Status = NDIS_STATUS_NOT_SUPPORTED;

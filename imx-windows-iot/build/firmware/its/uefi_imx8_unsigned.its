@@ -8,7 +8,7 @@
 			description = "UEFI";
 			data = /incbin/("./IMXBOARD_EFI.fd");
 			type = "kernel";
-			arch = "arm";
+			arch = "arm64";
 			os = "linux";
 			compression = "none";
 			load = <0x50004000>;

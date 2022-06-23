@@ -132,9 +132,17 @@
   #  PcdDisplayEnable      - enable display, default enabled
   #  PcdDisplayInterface   - default display interface, 0=HDMI, 1=MIPI_DSI
   #  PcdDisplayI2CBaseAddr - use I2C2 on iMX8M Mini
+  #  PcdDisplayReadEDID    - TRUE = read EDID from display if available. If not available, set fixed resolution (default 1920x1080@60)
+  #                        - FALSE = skip EDID reading (even if available) and set fixed resolution (default 1920x1080@60)
+  #  PcdDisplayForceConverterMaxResolution - mipi-hdmi and lvds-hdmi converters have max allowed resolution 1920x1080
+  #                                        - TRUE - if EDID data read exceeds the limit, force set fixed resolution for converters only (default 1920x1080@60)
+  #                                        - FALSE - Use EDID data read even if exceeds converter limit
+  #                                        - if PcdDisplayReadEDID = FALSE, this option has no effect
   giMX8TokenSpaceGuid.PcdDisplayEnable|TRUE
   giMX8TokenSpaceGuid.PcdDisplayInterface|1
   giMX8TokenSpaceGuid.PcdDisplayI2CBaseAddr|0x30A30000
+  giMX8TokenSpaceGuid.PcdDisplayReadEDID|TRUE
+  giMX8TokenSpaceGuid.PcdDisplayForceConverterMaxResolution|TRUE
 
   #
   # iMXPlatformPkg

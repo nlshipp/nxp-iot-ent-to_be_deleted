@@ -47,6 +47,7 @@ set TARGET_DRIVE=
 if not (%1)==() goto GETOPTS
 
 set FIRMWARE="%DEVICE_TYPE%\%SIGNED_FW%firmware.bin"
+set FLASHBIN="..\..\components\Arm64BootFirmware\%DEVICE_TYPE%\%SIGNED_FW%flash.bin"
 
 if not exist %FIRMWARE% (
   echo The device type is incorrect.
@@ -54,13 +55,7 @@ if not exist %FIRMWARE% (
   echo script with the /device flag.
   goto:eof
 )
-:FLASH_SD_CARD
-:: Write firmware to a drive plugged into PC using Cfimager. (https://www.nxp.com/webapp/Download?colCode=CF_IMAGER&appType=license&location=null)
-:: Alternatively dd if="%FIRMWARE%" of="\\.\PhysicalDrive%DISK_NUM%" bs=512 seek=%SEEK% skip=0 .
-if "%TARGET_DRIVE%"=="" (
-  goto:FLASH_eMMC
-)
-   
+
 if "%DEVICE_TYPE%" == "NXPEVK_iMX8M_4GB" (
   :: 66*512=0x8400
   set CF_IMAGER_OFFSET=0x8400
@@ -71,12 +66,25 @@ if "%DEVICE_TYPE%" == "NXPEVK_iMX8M_4GB" (
     if "%DEVICE_TYPE%" == "EVK_iMX8MN_2GB" (
       :: 64*512=0x8000
       set CF_IMAGER_OFFSET=0x8000
+      set UUU_LOAD2M=1
     ) else (
-      echo Error. The /device %DEVICE_TYPE% is not valid.
-      goto:eof
+      if "%DEVICE_TYPE%" == "EVK_iMX8MP_6GB" (
+        set CF_IMAGER_OFFSET=0x8000
+        set UUU_LOAD2M=1
+      ) else (
+        echo Error. The /device %DEVICE_TYPE% is not valid.
+        goto:eof
+      )
     )
   )
 )
+
+:: Write firmware to a drive plugged into PC using Cfimager. (https://www.nxp.com/webapp/Download?colCode=CF_IMAGER&appType=license&location=null)
+:: Alternatively dd if="%FIRMWARE%" of="\\.\PhysicalDrive%DISK_NUM%" bs=512 seek=%SEEK% skip=0 .
+if "%TARGET_DRIVE%"=="" (
+  goto:FLASH_eMMC
+)
+   
 cfimager.exe -raw -offset %CF_IMAGER_OFFSET% -f %FIRMWARE% -d %TARGET_DRIVE% || ^
 echo Failed to write boot firmware to the "%TARGET_DRIVE%". Check the NXP cfimager.exe is available (eg. in path), TARGET_DRIVE is present and is not write protected.
 
@@ -98,7 +106,15 @@ IF "%device_mode%" == "none" (
 
 ECHO Device in %device_mode% download mode, start flash!!
 ECHO.
-tools\uuu\uuu.exe -b emmc %FIRMWARE%
+if not "%UUU_LOAD2M%" == "" (
+  tools\uuu\uuu.exe SDPS: boot -f %FLASHBIN%
+  tools\uuu\uuu.exe FB: ucmd setenv fastboot_buffer ${loadaddr}
+  tools\uuu\uuu.exe FB: download -f %FIRMWARE%
+  tools\uuu\uuu.exe FB: ucmd mmc dev 2 1
+  tools\uuu\uuu.exe FB: ucmd mmc write ${loadaddr} 0x0 0x1FC0
+) else (
+  tools\uuu\uuu.exe -b emmc %FIRMWARE%
+)
 pause
 goto:eof
 
@@ -121,7 +137,7 @@ echo flash_bootloader.cmd /device <NAME> [/signed] [/target_drive]
 echo.
 echo Flashes a firmware image
 echo Options:
-echo    /device                      {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB, EVK_iMX8MN_2GB}
+echo    /device                      {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB, EVK_iMX8MN_2GB, EVK_iMX8MP_6GB}
 echo                                 Specifies the device
 echo.
 echo Optional options:

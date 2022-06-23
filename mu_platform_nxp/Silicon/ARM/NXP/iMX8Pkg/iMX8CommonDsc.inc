@@ -1,7 +1,7 @@
 #
 #  Copyright (c) 2018, Microsoft Corporation. All rights reserved.
 #  Copyright (c) 2011-2018, ARM Limited. All rights reserved.
-#  Copyright 2019 NXP
+#  Copyright 2019,2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -99,6 +99,8 @@
   !if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
     # iMX8MN and iMX8M Mini
     LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8LcdHwLib.inf
+  !elseif ($(IMX_FAMILY) == IMX8MP)
+    LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8Lcdifv3HwLib.inf
   !else
     # iMX8MQ
     LcdHwLib|iMX8Pkg/Library/iMX8HdmiHwLib/iMX8HdmiHwLib.inf
@@ -462,10 +464,9 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   #  DEBUG_VERBOSE   0x00400000  // Detailed debug messages that may
   #                              // significantly impact boot performance
   #  DEBUG_ERROR     0x80000000  // Error
-#  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8012004F
+  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80000002
 # Turn on FixedDebugPrintErrorLevel for more debug!!!
-#  gEfiMdePkgTokenSpaceGuid.PcdFixedDebugPrintErrorLevel|0x80080246
-  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80080246
+  gEfiMdePkgTokenSpaceGuid.PcdFixedDebugPrintErrorLevel|0x80000002
   gEfiMdePkgTokenSpaceGuid.PcdReportStatusCodePropertyMask|0x07
 
   #
@@ -513,20 +514,20 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # |                   |  v
   # +-------------------+===> (0xBE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
   # | TZ Private Memory |  ^
-  # | (OPTEE)           |  |  (0x01E00000) PcdTrustZonePrivateMemorySize 30MB
+  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
   # |                   |  v
-  # +-------------------+===> (0xBFE00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
+  # +-------------------+===> (0xBFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
   # | TZ Shared Memory  |  ^
-  # |                   |  |  (0x00200000) PcdTrustZoneSharedMemorySize 2MB
+  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
   # |                   |  v
   # +-------------------|===>
 
 !if $(CONFIG_OPTEE) == TRUE
   gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xBE000000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01E00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
 
   #
-  # TrustZone shared memory (2Mb)
+  # TrustZone shared memory (4Mb)
   # This memory is managed by the normal world but shared with the OpTEE OS.
   # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
   #    CFG_SHMEM_START & CFG_SHMEM_SIZE
@@ -534,10 +535,10 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # and we should not touch it. We will skip the first 4K of SHMEM and take that
   # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
   #
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xBFE00000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00200000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xBFC00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
 !endif
-!else  # IMX8MQ
+!else  # IMX8MQ + IMX8MP
   #
   # iMX8 Plaform Memory Layout
   #                                        PcdSystemMemoryBase
@@ -556,20 +557,20 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # |                   |  v
   # +-------------------+===> (0xFE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
   # | TZ Private Memory |  ^
-  # | (OPTEE)           |  |  (0x01E00000) PcdTrustZonePrivateMemorySize 30MB
+  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
   # |                   |  v
-  # +-------------------+===> (0xFFE00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
+  # +-------------------+===> (0xFFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
   # | TZ Shared Memory  |  ^
-  # |                   |  |  (0x00200000) PcdTrustZoneSharedMemorySize 2MB
+  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
   # |                   |  v
   # +-------------------|===>
 
 !if $(CONFIG_OPTEE) == TRUE
   gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xFE000000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01E00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
 
   #
-  # TrustZone shared memory (2Mb)
+  # TrustZone shared memory (4Mb)
   # This memory is managed by the normal world but shared with the OpTEE OS.
   # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
   #    CFG_SHMEM_START & CFG_SHMEM_SIZE
@@ -577,8 +578,8 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # and we should not touch it. We will skip the first 4K of SHMEM and take that
   # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
   #
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xFFE00000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00200000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xFFC00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
 !endif
 !endif
 
@@ -616,7 +617,7 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
 !endif
 
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
+!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
   # SDHC memory
   giMXPlatformTokenSpaceGuid.PcdSdhc1Base|0x30B40000
   giMXPlatformTokenSpaceGuid.PcdSdhc2Base|0x30B50000
@@ -846,7 +847,7 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # Usb Support
   #
 !if $(CONFIG_USB) == TRUE
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
+!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
   # TODO : add Ehci packages
 !else
   MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf

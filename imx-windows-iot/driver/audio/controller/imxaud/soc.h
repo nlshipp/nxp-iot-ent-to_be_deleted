@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -91,20 +92,70 @@ public:
 public:
     NTSTATUS InitSsiBlock
     (
-        _In_ PSAI_REGISTERS SaiRegisters, 
-        _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR descriptor,
+        _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR registersDescriptor,
+        _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR interruptDescriptor,
         _In_ PDEVICE_OBJECT PDO
     )
     {
-        m_pSaiRegisters = SaiRegisters;
-        m_pDescriptor = descriptor;
-        m_pPDO = PDO;
+		IO_CONNECT_INTERRUPT_PARAMETERS intParameters;
+		NTSTATUS ntStatus = STATUS_SUCCESS;
+		
+		ASSERT(m_pSaiRegisters == NULL);
+		if (registersDescriptor->u.Memory.Length >= sizeof(SaiRegisters))
+		{
+			m_pSaiRegisters = (PSAI_REGISTERS)MmMapIoSpaceEx(registersDescriptor->u.Memory.Start,
+				sizeof(SaiRegisters),
+				PAGE_READWRITE | PAGE_NOCACHE);
+			ASSERT(m_pSaiRegisters);
+			if (m_pSaiRegisters == NULL)
+			{
+				ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+				goto Done;
+			}
+		}
+		else {
+			ntStatus = STATUS_INSUFFICIENT_RESOURCES;
+			goto Done;
+		}
 
-        m_Buffer[0].Init(SaiRegisters);
-        m_Buffer[1].Init(SaiRegisters);
+		m_pPDO = PDO;
 
-        return SetupClocks();
-    }
+		ASSERT(m_pInterruptObject == NULL);
+
+		intParameters.Version = CONNECT_FULLY_SPECIFIED;
+		intParameters.FullySpecified.PhysicalDeviceObject = m_pPDO;
+		intParameters.FullySpecified.InterruptObject = &m_pInterruptObject;
+		intParameters.FullySpecified.ServiceRoutine = &CSoc::ISR;
+		intParameters.FullySpecified.ServiceContext = this;
+		intParameters.FullySpecified.SpinLock = NULL;
+		intParameters.FullySpecified.SynchronizeIrql = (KIRQL)interruptDescriptor->u.Interrupt.Level;
+		intParameters.FullySpecified.FloatingSave = FALSE;
+		intParameters.FullySpecified.ShareVector = FALSE;
+		intParameters.FullySpecified.Vector = interruptDescriptor->u.Interrupt.Vector;
+		intParameters.FullySpecified.Irql = (KIRQL)interruptDescriptor->u.Interrupt.Level;
+		intParameters.FullySpecified.InterruptMode = LevelSensitive;
+		intParameters.FullySpecified.ProcessorEnableMask = interruptDescriptor->u.Interrupt.Affinity;
+		intParameters.FullySpecified.Group = 0;
+
+		ntStatus = IoConnectInterruptEx(&intParameters);
+		if (ntStatus != STATUS_SUCCESS)
+		{
+			goto Done;
+		}
+
+        m_Buffer[0].Init(m_pSaiRegisters);
+        m_Buffer[1].Init(m_pSaiRegisters);
+
+		ntStatus = SetupClocks();
+
+	Done:
+		// Cleanup
+		if (ntStatus != STATUS_SUCCESS)
+		{
+			CleanUp();
+		}
+		return ntStatus;
+	}
 
     NTSTATUS RegisterStream
     (
@@ -141,13 +192,13 @@ private:
     BOOLEAN m_bIsCaptureActive;
 
     volatile PSAI_REGISTERS          m_pSaiRegisters;
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR  m_pDescriptor;
     PDEVICE_OBJECT                   m_pPDO;
 
     PKINTERRUPT                         m_pInterruptObject;
     static KSERVICE_ROUTINE             ISR;
 
-    NTSTATUS SetupClocks();
+	VOID CleanUp();
+	NTSTATUS SetupClocks();
 
     VOID DisableInterrupts();
     VOID EnableInterrupts();

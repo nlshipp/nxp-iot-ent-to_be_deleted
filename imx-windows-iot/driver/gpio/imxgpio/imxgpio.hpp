@@ -85,6 +85,17 @@ enum {
     IMX8MM_GPIO_PULL_MASK = (0b101 << IMX8MM_GPIO_PULL_SHIFT)
 };
 
+enum {
+    // i.MX8MP specifics
+    IMX8MP_GPIO_PINS_PER_BANK = 32,
+    IMX8MP_GPIO_BANK_COUNT = 5,
+    IMX8MP_GPIO_PIN_COUNT = IMX_MAKE_PIN_1(5, 29) + 1, // 157 pins
+    IMX8MP_GPIO_BANK_STRIDE = 0x10000,
+    IMX8MP_GPIO_PULL_SHIFT = 6,
+    IMX8MP_GPIO_PULL_MASK = (0b101 << IMX8MP_GPIO_PULL_SHIFT)
+};
+
+
 // Determine the maximum size of pin count and bank count for structure creation at compile time.
 #define IMX_GPIO_BYTES_PER_BANK 32
 #define IMX_GPIO_PINS_PER_BANK 32
@@ -108,6 +119,8 @@ enum IMX_GPIO_PULL {
     IMX8M_GPIO_PULL_UP = 0x1,  // 0b001 PUE=1 (no pull down implemented for iMX8M)
     IMX8MM_GPIO_PULL_UP = 0x5,   // 0b101 PE=1 (Pull enabled) PUE=1 (Pull up)
     IMX8MM_GPIO_PULL_DOWN = 0x4, // 0b100 PE=1 (Pull enabled) PUE=0 (Pull down)
+    IMX8MP_GPIO_PULL_UP = 0x5,   // 0b101 PE=1 (Pull enabled) PUE=1 (Pull up)
+    IMX8MP_GPIO_PULL_DOWN = 0x4, // 0b100 PE=1 (Pull enabled) PUE=0 (Pull down)
     IMX_GPIO_PULL_INVALID = 0xFFFFFFFE,
     IMX_GPIO_PULL_DEFAULT = 0xFFFFFFFF  // Set to HW default
 };

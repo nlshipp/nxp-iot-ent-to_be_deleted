@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -27,9 +28,9 @@ Abstract:
 //   
 
 class CAdapterCommon : 
-    public IAdapterCommon,
-    public IAdapterPowerManagement,
-    public CUnknown    
+    public IAdapterCommon,                       // common.h
+    public IAdapterPowerManagement,              // portcls.h
+    public CUnknown                              // stdunk.h
 {
     private:
         CSoc                    m_Soc;
@@ -339,7 +340,7 @@ Return Value:
     //
     *Unknown = PUNKNOWN((PADAPTERCOMMON)(p));
     (*Unknown)->AddRef(); 
-    ntStatus = STATUS_SUCCESS; 
+	ntStatus = STATUS_SUCCESS;
 
 Done:    
     return ntStatus;
@@ -503,8 +504,7 @@ Return Value:
 
     NTSTATUS                        ntStatus    = STATUS_SUCCESS;
     ULONG                           index       = 0;
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR descriptor, interruptDescriptor;
-    PSAI_REGISTERS pSaiRegisters;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR registersDescriptor, interruptDescriptor;
 
     m_pServiceGroupWave     = NULL;
     m_pDeviceObject         = DeviceObject;
@@ -549,7 +549,7 @@ Return Value:
     // Find the interrupt resource descriptor for use by the soc class.
     //
     interruptDescriptor = ResourceList->FindTranslatedEntry(CmResourceTypeInterrupt, 0);
-    ASSERT(interruptDescriptor);
+	ASSERT(interruptDescriptor);
 
     if (interruptDescriptor == NULL)
     {
@@ -559,24 +559,12 @@ Return Value:
 
     for (index = 0; index < ResourceList->NumberOfEntries(); index++)
     {
-        descriptor = ResourceList->FindTranslatedEntry(CmResourceTypeMemory, index);
-        if (descriptor != NULL)
-        {
-            if (descriptor->u.Memory.Length >= sizeof(SaiRegisters))
-            {
-                pSaiRegisters = (PSAI_REGISTERS) MmMapIoSpaceEx(descriptor->u.Memory.Start, 
-                                                                               sizeof(SaiRegisters), 
-                                                                               PAGE_READWRITE | PAGE_NOCACHE);
-                ASSERT(pSaiRegisters);
-                if (pSaiRegisters == NULL)
-                {
-                    ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-                    goto Done;
-                }
-                m_Soc.InitSsiBlock(pSaiRegisters, interruptDescriptor, m_pPhysicalDeviceObject);
-            }
-        }
-    }
+		registersDescriptor = ResourceList->FindTranslatedEntry(CmResourceTypeMemory, index);
+		if (registersDescriptor != NULL)
+		{
+			ntStatus = m_Soc.InitSsiBlock(registersDescriptor, interruptDescriptor, m_pPhysicalDeviceObject);
+		}
+	}
 
 Done:
 
@@ -696,28 +684,28 @@ Return Value:
 
     if (IsEqualGUIDAligned(Interface, IID_IUnknown))
     {
-        *Object = PVOID(PUNKNOWN(PADAPTERCOMMON(this)));
+		*Object = PVOID(PUNKNOWN(PADAPTERCOMMON(this)));
     }
     else if (IsEqualGUIDAligned(Interface, IID_IAdapterCommon))
     {
-        *Object = PVOID(PADAPTERCOMMON(this));
+		*Object = PVOID(PADAPTERCOMMON(this));
     }
     else if (IsEqualGUIDAligned(Interface, IID_IAdapterPowerManagement))
     {
-        *Object = PVOID(PADAPTERPOWERMANAGEMENT(this));
+		*Object = PVOID(PADAPTERPOWERMANAGEMENT(this));
     }
     else
     {
         *Object = NULL;
-    }
+	}
 
     if (*Object)
     {
         PUNKNOWN(*Object)->AddRef();
-        return STATUS_SUCCESS;
+		return STATUS_SUCCESS;
     }
 
-    return STATUS_INVALID_PARAMETER;
+	return STATUS_INVALID_PARAMETER;
 }
 
 //=============================================================================

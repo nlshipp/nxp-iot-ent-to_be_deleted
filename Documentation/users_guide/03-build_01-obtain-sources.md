@@ -49,14 +49,14 @@ To prepare sources for building BSP follow these steps:
     rm cst-3.1.0.tgz
     ```
 
- 6) Download and extract the [iMX firmware](https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-imx-8.3.bin) from NXP's website and place it to firmware-imx.
+ 6) Download and extract the [iMX firmware](https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-imx-8.14.bin) from NXP's website and place it to firmware-imx.
     Extract the tool inside bsp repository, and rename the newly created folder to `firmware-imx` to get `<BSP_DIR>/firmware-imx/firmware/ddr/` in directory tree:
 
     ```bash
-    chmod +x firmware-imx-8.3.bin
-    ./firmware-imx-8.3.bin
-    mv firmware-imx-8.3 firmware-imx
-    rm firmware-imx-8.3.bin
+    chmod +x firmware-imx-8.14.bin
+    ./firmware-imx-8.14.bin
+    mv firmware-imx-8.14 firmware-imx
+    rm firmware-imx-8.14.bin
     ```
 
  7) At this point your directory structure should contain the following folders.

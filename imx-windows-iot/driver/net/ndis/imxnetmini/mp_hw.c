@@ -1,5 +1,5 @@
 /*
-* Copyright 2018-2020 NXP
+* Copyright 2018-2020,2022 NXP
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -384,6 +384,10 @@ void EnetInit(PMP_ADAPTER pAdapter, MP_MDIO_PHY_INTERFACE_TYPE EnetPhyInterfaceT
     } else {                                      // MII mode
     }
 
+#ifdef ENET_ENHANCED_BD
+    ECR_RegMask |= ENET_ECR_EN1588_EN_MASK;
+#endif
+
     ENETRegBase->ECR.U  = ECR_RegMask;
     ENETRegBase->RCR.U  = RCR_RegMask;
     ENETRegBase->TCR.U  = 0;
@@ -415,6 +419,11 @@ void EnetInit(PMP_ADAPTER pAdapter, MP_MDIO_PHY_INTERFACE_TYPE EnetPhyInterfaceT
     ENETRegBase->TAFL   = ENET_MAC_TX_ALMOST_FULL_DEFAULT_VALUE;   // min 4
     ENETRegBase->TSEM   = ENET_MAC_TX_SECTION_EMPTY_DEFAULT_VALUE; // 8~480?
 #endif
+
+    // Discard frames with wrong Protocol or IPv4 header checksums based on INF configuration 
+    ENETRegBase->RACC.B.IPDIS = pAdapter->DiscardRxFrameWithWrongIPv4HeaderChecksum;
+    ENETRegBase->RACC.B.PRODIS = pAdapter->DiscardRxFrameWithWrongProtocolChecksum;
+
     SetUnicast(pAdapter);
     //Dbg_DumpFifoTrasholdsAndPauseFrameDuration(pAdapter);
     DBG_SM_METHOD_END();
