@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="..\..\..\shared\OperatorNew.cpp" />
     <ClCompile Include="basetopo.cpp" />
     <ClCompile Include="kshelper.cpp" />
     <ClCompile Include="minwavert.cpp" />
@@ -25,5 +26,8 @@
     <ClInclude Include="micinwavtable.h" />
     <ClInclude Include="minipairs.h" />
     <ClInclude Include="imx_audio.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\OperatorNew.hpp" />
   </ItemGroup>
 </Project>

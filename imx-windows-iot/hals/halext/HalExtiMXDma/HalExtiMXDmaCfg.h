@@ -9,7 +9,7 @@ Abstract:
 
     This file includes the types/enums definitions associated with the
     i.MX SDMA HAL extension specific configuration.
-    This file is intended to be used by external components that are iMX6 DMA aware
+    This file is intended to be used by external components that are iMX8M DMA aware
     like iMX device drivers for applying specific SDMA configuration settings.
 
 Environment:

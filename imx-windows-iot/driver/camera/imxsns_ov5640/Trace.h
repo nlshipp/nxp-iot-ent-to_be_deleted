@@ -31,7 +31,7 @@ extern "C" {
         WPP_DEFINE_BIT(TRACE_QUEUE)                                    \
         WPP_DEFINE_BIT(TRACE_IOTARGETS)                                \
         WPP_DEFINE_BIT(TRACE_FSLOV5640)                               \
-        )                             
+        )
 
         //WPP_DEFINE_BIT(MYDRIVER_ALL_INFO)
 #define WPP_FLAG_LEVEL_LOGGER(flag, level)                                  \
@@ -43,11 +43,11 @@ extern "C" {
 
 #define WPP_LEVEL_FLAGS_LOGGER(lvl,flags) \
            WPP_LEVEL_LOGGER(flags)
-               
+
 #define WPP_LEVEL_FLAGS_ENABLED(lvl, flags) \
            (WPP_LEVEL_ENABLED(flags) && WPP_CONTROL(WPP_BIT_ ## flags).Level >= lvl)
 
-//           
+//
 // WPP orders static parameters before dynamic parameters. To support the Trace function
 // defined below which sets FLAGS=MYDRIVER_ALL_INFO, a custom macro must be defined to
 // reorder the arguments to what the .tpl configuration file expects.

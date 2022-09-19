@@ -44,7 +44,7 @@ LcdGetBpp (
 
   ASSERT (Bpp != NULL);
 
-  *Bpp = LCD_BITS_PER_PIXEL_24;
+  *Bpp = LcdBitsPerPixel_24;
 
   return EFI_SUCCESS;
 }

@@ -16,6 +16,12 @@
 [Defines]
   INCLUDE_TFTP_COMMAND  = FALSE
 
+  # Firmware update related settings
+  DEFINE CAPSULE_ENABLE = FALSE
+  FIRMWARE_VER = 2020-06-07
+  FIRMWARE_VER_LOWEST_SUPPORTED = 2020-01-01
+  DEFINE FMP_IMX_DEVICE = 806AB34B-EC97-4fA3-9928-FFF95E768b7D
+
 [BuildOptions]
   GCC:*_*_ARM_PLATFORM_FLAGS = -march=armv8-a -fno-inline -fno-inline-smallfunctions -fno-inline-functions-called-once
 #
@@ -88,7 +94,17 @@
   ResetSystemLib|MdeModulePkg/Library/DxeResetSystemLib/DxeResetSystemLib.inf
   SecurityLockAuditLib|MdeModulePkg/Library/SecurityLockAuditLibNull/SecurityLockAuditLibNull.inf
 
+!if $(CAPSULE_ENABLE) == TRUE
+  CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibFmp/DxeCapsuleLib.inf
+  BmpSupportLib|MdeModulePkg/Library/BaseBmpSupportLib/BaseBmpSupportLib.inf
+  DisplayUpdateProgressLib|MdeModulePkg/Library/DisplayUpdateProgressLibGraphics/DisplayUpdateProgressLibGraphics.inf
+  ResetUtilityLib|MdeModulePkg/Library/ResetUtilityLib/ResetUtilityLib.inf
+  FmpDependencyLib|FmpDevicePkg/Library/FmpDependencyLib/FmpDependencyLib.inf
+  FmpDependencyCheckLib|FmpDevicePkg/Library/FmpDependencyCheckLib/FmpDependencyCheckLib.inf
+  FmpDependencyDeviceLib|FmpDevicePkg/Library/FmpDependencyDeviceLibNull/FmpDependencyDeviceLibNull.inf
+!else
   CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull.inf
+!endif
 
   # USB Requirements
 !if $(CONFIG_USB) == TRUE
@@ -136,6 +152,16 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   UefiDriverEntryPoint|MdePkg/Library/UefiDriverEntryPoint/UefiDriverEntryPoint.inf
   UefiRuntimeLib|MdePkg/Library/UefiRuntimeLib/UefiRuntimeLib.inf
   UefiRuntimeServicesTableLib|MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib.inf
+
+!if $(CAPSULE_ENABLE) == TRUE
+  FmpAuthenticationLib|SecurityPkg/Library/FmpAuthenticationLibPkcs7/FmpAuthenticationLibPkcs7.inf
+  FmpDeviceLib|iMX8Pkg/Library/iMX8FmpDeviceLib/iMX8FmpDeviceLib.inf
+  FmpPayloadHeaderLib|FmpDevicePkg/Library/FmpPayloadHeaderLibV1/FmpPayloadHeaderLibV1.inf
+  CapsuleUpdatePolicyLib|iMX8Pkg/Library/iMX8CapsuleUpdatePolicyLib/iMX8CapsuleUpdatePolicyLib.inf
+  FltUsedLib|MdePkg/Library/FltUsedLib/FltUsedLib.inf
+  ResetUtilityLib|MdeModulePkg/Library/ResetUtilityLib/ResetUtilityLib.inf
+  CapsulePersistLib|MdeModulePkg/Library/CapsulePersistLibNull/CapsulePersistLibNull.inf
+!endif
 
   #
   # Human Interface Infrastructure (HII)
@@ -227,7 +253,11 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 
   # MU_CHANGE - Updates for 1911.
   MemoryTypeInformationChangeLib|MdeModulePkg/Library/MemoryTypeInformationChangeLibNull/MemoryTypeInformationChangeLibNull.inf
-  MuVariablePolicyHelperLib|MdeModulePkg/Library/MuVariablePolicyHelperLib/MuVariablePolicyHelperLib.inf
+
+  VariablePolicyHelperLib|MdeModulePkg/Library/VariablePolicyHelperLib/VariablePolicyHelperLib.inf
+  VariablePolicyLib|MdeModulePkg/Library/VariablePolicyLib/VariablePolicyLibRuntimeDxe.inf
+  OrderedCollectionLib|MdePkg/Library/BaseOrderedCollectionRedBlackTreeLib/BaseOrderedCollectionRedBlackTreeLib.inf
+
 
 [LibraryClasses.common.SEC]
   ArmGicArchLib|ArmPkg/Library/ArmGicArchSecLib/ArmGicArchSecLib.inf
@@ -289,6 +319,7 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 [LibraryClasses.common.DXE_CORE]
   HobLib|MdePkg/Library/DxeCoreHobLib/DxeCoreHobLib.inf
   MemoryAllocationLib|MdeModulePkg/Library/DxeCoreMemoryAllocationLib/DxeCoreMemoryAllocationLib.inf
+  MemoryProtectionHobLib|MdeModulePkg/Library/DxeSmmMemoryProtectionHobLib/DxeSmmMemoryProtectionHobLib.inf
   DxeCoreEntryPoint|MdePkg/Library/DxeCoreEntryPoint/DxeCoreEntryPoint.inf
   ExtractGuidedSectionLib|MdePkg/Library/DxeExtractGuidedSectionLib/DxeExtractGuidedSectionLib.inf
   DxeServicesLib|MdePkg/Library/DxeServicesLib/DxeServicesLib.inf
@@ -299,6 +330,7 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   SecurityManagementLib|MdeModulePkg/Library/DxeSecurityManagementLib/DxeSecurityManagementLib.inf
   PerformanceLib|MdeModulePkg/Library/DxePerformanceLib/DxePerformanceLib.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+  PcdDatabaseLoaderLib|MdeModulePkg/Library/PcdDatabaseLoaderLib/Dxe/PcdDatabaseLoaderLibDxe.inf   # MU_CHANGE
 
   #
   # Security libraries
@@ -350,7 +382,9 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
 
 [LibraryClasses.common.DXE_RUNTIME_DRIVER]
-  CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull.inf
+!if $(CAPSULE_ENABLE) == TRUE  
+  CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibFmp/DxeRuntimeCapsuleLib.inf
+!endif
 !if $(TARGET) != RELEASE
   DebugLib|MdePkg/Library/DxeRuntimeDebugLibSerialPort/DxeRuntimeDebugLibSerialPort.inf
 !endif
@@ -404,21 +438,28 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 
   gEmbeddedTokenSpaceGuid.PcdPrePiProduceMemoryTypeInformationHob|TRUE
 
-  gEfiMdeModulePkgTokenSpaceGuid.PcdTurnOffUsbLegacySupport|TRUE
+  gEfiMdeModulePkgTokenSpaceGuid.PcdTurnOffUsbLegacySupport|FALSE
 
   ## Indicates if S3 performance data will be supported in ACPI FPDT table.
   #   TRUE  - S3 performance data will be supported in ACPI FPDT table.
   #   FALSE - S3 performance data will not be supported in ACPI FPDT table.
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwarePerformanceDataTableS3Support|FALSE
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSupportUpdateCapsuleReset|TRUE
 
 [PcdsFixedAtBuild.common]
-!ifdef $(FIRMWARE_VER)
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"$(FIRMWARE_VER)"
-!endif
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionLowestSupportedString|L"$(FIRMWARE_VER_LOWEST_SUPPORTED)"
+
+  # SmBios FirmwareRevision 1.0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareRevision|0x00010000
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
 
   gArmPlatformTokenSpaceGuid.PcdSystemMemoryUefiRegionSize|0x01000000
+
+!if $(CAPSULE_ENABLE) == TRUE
+  !include BaseTools/Source/Python/Pkcs7Sign/TestRoot.cer.gFmpDevicePkgTokenSpaceGuid.PcdFmpDevicePkcs7CertBufferXdr.inc
+!endif
 
   gEfiMdePkgTokenSpaceGuid.PcdMaximumUnicodeStringLength|1000000
   gEfiMdePkgTokenSpaceGuid.PcdMaximumAsciiStringLength|1000000
@@ -429,7 +470,12 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   gEfiMdePkgTokenSpaceGuid.PcdPostCodePropertyMask|0
   gEfiMdePkgTokenSpaceGuid.PcdUefiLibMaxPrintBufferSize|320
 
+
+!if $(CONFIG_USB) == TRUE
+  gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|3
+!else
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|0
+!endif
 
   # DEBUG_ASSERT_ENABLED       0x01
   # DEBUG_PRINT_ENABLED        0x02
@@ -645,23 +691,15 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # GUID of the UI app
   gEfiMdeModulePkgTokenSpaceGuid.PcdBootManagerMenuFile|{ 0x21, 0xaa, 0x2c, 0x46, 0x14, 0x76, 0x03, 0x45, 0x83, 0x6e, 0x8a, 0xb6, 0xf4, 0x66, 0x23, 0x31 }
 
-  #
-  # Enable strict image permissions for all images. (This applies
-  # only to images that were built with >= 4 KB section alignment.)
-  #
-  gEfiMdeModulePkgTokenSpaceGuid.PcdImageProtectionPolicy|0x3
 
   #
-  # Enable NX memory protection for all non-code regions, including OEM and OS
-  # reserved ones, with the exception of LoaderData regions, of which OS loaders
-  # (i.e., GRUB) may assume that its contents are executable.
+  # Firmware Management Protocol
   #
-  gEfiMdeModulePkgTokenSpaceGuid.PcdDxeNxMemoryProtectionPolicy|0xC000000000007FD1
-
-  #
-  # Enable the non-executable DXE stack. (This gets set up by DxeIpl)
-  #
-  gEfiMdeModulePkgTokenSpaceGuid.PcdSetNxForStack|TRUE
+!if $(CAPSULE_ENABLE) == TRUE
+  gFmpDevicePkgTokenSpaceGuid.PcdFmpDeviceImageIdName|L"iMX8 Firmware Device"
+  gFmpDevicePkgTokenSpaceGuid.PcdFmpDeviceImageTypeIdGuid|{0xa3, 0x20, 0xaf, 0x62, 0x16, 0x70, 0x4a, 0x42, 0x9b, 0xf8, 0x9c, 0xcc, 0x86, 0x58, 0x40, 0x90}
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSystemFmpCapsuleImageTypeIdGuid|{0xa3, 0x20, 0xaf, 0x62, 0x16, 0x70, 0x4a, 0x42, 0x9b, 0xf8, 0x9c, 0xcc, 0x86, 0x58, 0x40, 0x90}
+!endif
 
 !if TRUE == FALSE
 [PcdsDynamicHii.common.DEFAULT]
@@ -786,6 +824,23 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # FV Filesystem
   MdeModulePkg/Universal/FvSimpleFileSystemDxe/FvSimpleFileSystemDxe.inf
 
+!if $(CAPSULE_ENABLE) == TRUE
+  # Firmware/Capsule updates
+  FmpDevicePkg/CapsuleUpdatePolicyDxe/CapsuleUpdatePolicyDxe.inf
+  FmpDevicePkg/FmpDxe/FmpDxe.inf {
+    <Defines>
+      #
+      # ESRT and FMP GUID for device capsule update
+      #
+      FILE_GUID = $(FMP_IMX_DEVICE)
+  }
+  MdeModulePkg/Universal/EsrtDxe/EsrtDxe.inf
+  MdeModulePkg/Universal/EsrtFmpDxe/EsrtFmpDxe.inf
+  MdeModulePkg/Library/DxeCapsuleLibFmp/DxeCapsuleLib.inf
+
+  MdeModulePkg/Application/CapsuleApp/CapsuleApp.inf
+!endif
+
   # Unicode support (required)
   MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
@@ -847,8 +902,8 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # Usb Support
   #
 !if $(CONFIG_USB) == TRUE
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
-  # TODO : add Ehci packages
+!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
+  MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
 !else
   MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
 !endif
@@ -919,7 +974,6 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 !else
   MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf {
     <LibraryClasses>
-      NULL|MdeModulePkg/Universal/Variable/RuntimeDxe/PropertyBasedVarLockLib.inf
 
     <PcdsFixedAtBuild>
     #

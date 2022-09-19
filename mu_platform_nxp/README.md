@@ -84,9 +84,9 @@ Since mu_environment has a dependency on mu_python_library, it should be updated
     - Set GCC5_AARCH64_PREFIX to this path
         - `tar -xf gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu.tar.gz`
         - `export GCC5_AARCH64_PREFIX=$PWD/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-`
-- `python3 NXP/MCIMX8M_EVK_4GB/PlatformBuild.py --setup`
+- `python3 NXP/MX8M_EVK/PlatformBuild.py --setup`
     - This fetches any dependencies via NuGet and synchronizes submodules
-- `rm -r Build; rm -r Conf; python3 NXP/MCIMX8M_EVK_4GB/PlatformBuild.py TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD"`
+- `rm -r Build; rm -r Conf; python3 NXP/MX8M_EVK/PlatformBuild.py TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD"`
     - Removing Build and Conf directories ensures that you aren't accidentally keeping around configuration files and autogen build files that need to be updated.
     - Specify the `TOOL_CHAIN_TAG` either here or in `NXP/Conf/Target.template.ms`
     - Build reports are placed in the `Build` folder on a successful build and contain a complete list of every module that was built and what the PCDs were set to.

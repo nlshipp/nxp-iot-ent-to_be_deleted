@@ -7,6 +7,7 @@ Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
 Provider=%ProviderName%
+PnpLockdown = 1
 CatalogFile=imxecspi.cat ; VS requirement to have catalog file entry
 
 [DestinationDirs]

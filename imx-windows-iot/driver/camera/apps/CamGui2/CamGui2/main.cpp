@@ -80,7 +80,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 // LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
-HWND hWnd;
+// HWND hWnd;
 
 // Util ---
 
@@ -196,6 +196,24 @@ bool loadTestFile() {
 }
 
 
+char cfg[200];
+unsigned readCfg() {
+    const char* const file = "cfg.txt";
+    FILE* f;
+    errno_t e = fopen_s(&f, file, "rt");
+    if (e != 0) {
+        volatile auto error = GetLastError();
+        error;
+        return 0;
+    }
+
+    unsigned loaded = (unsigned)fread(cfg, sizeof(char), sizeof(cfg), f);
+    // fclose(f);
+    // printf("Loaded %d (max %d) from %s.\n", loaded, bmi.bmiHeader.biSizeImage, file);
+    return loaded;
+}
+
+
 template<class Interface>
 inline void SafeRelease(
 	Interface **ppInterfaceToRelease
@@ -225,13 +243,26 @@ EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
 #endif
 
+// Peroformance counter, FPS report --
+LARGE_INTEGER cnt, StartingTime, EndingTime, ElapsedMicroseconds;
+#define FILTER_LEN 30
+unsigned sumElapsedMs[FILTER_LEN];
+unsigned filter_cnt = 0;
+unsigned long elapsedSeconds = 0;
+LARGE_INTEGER Frequency;
+
 // Camera controls ---
 UINT8 csiLanes = 2;
 // camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatUYVY , kVIDEO_PixelFormatUYVY, 25, 1, csiLanes, 0x9 };
-// camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, 0x9 };
+// camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 0, csiLanes, 0x9 };
+// 
+camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatNV12, 25, 0, csiLanes };
+// camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatUYVY, 25, 0, csiLanes, 0x9 };
+// camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 0, csiLanes, 0x9 };
+
 // camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatNV12 , kVIDEO_PixelFormatNV12, 25, 1, csiLanes, 0x9 };
 // camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB565 , kVIDEO_PixelFormatRGB565, 25, 1, csiLanes, 0x9 };
-camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB888 , kVIDEO_PixelFormatRGB888, 25, 1, csiLanes, 0x9 };
+// camera_config_t cam_cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB888 , kVIDEO_PixelFormatRGB888, 25, 1, csiLanes, 0x9 };
 
 void ReportError(char *msg = "")
 {
@@ -261,7 +292,7 @@ void ReportError(char *msg = "")
 const wchar_t CameraDevicePath[] = L"\\\\?\\ACPI#NXP5640A#0#{3b4611d3-4330-4800-8a7a-855f98444a59}";
 wchar_t Camera_driver_id_str = '0'; // User can specify instance
 
-
+#if 0
 bool Camera_do_write_irp(UCHAR *Value, DWORD NumBytes, DWORD CtlCode)
 {
 	bool Status = 0;
@@ -319,12 +350,13 @@ bool CameraStart() {
 	//camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB565 , kVIDEO_PixelFormatRGB565, 15, 1, 2, 0x12 };
 	// cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
 
-	return Camera_do_write_irp((PUCHAR)&cam_cfg, sizeof(cam_cfg), IOCTL_SNS0_DRIVER_CONFIGURE);
+	return Camera_do_write_irp((PUCHAR)&cam_cfg, sizeof(cam_cfg), IOCTL_SNS_CONFIGURE);
 }
-
+#endif
 // CSI controls --
 FileHandle CsiHandle;
 FileHandle MipiHandle;
+FileHandle CamHandle;
 HANDLE CsiOverlappedEvent = NULL;
 auto CsiOverlappedContext = OVERLAPPED();
 
@@ -461,6 +493,52 @@ FileHandle OpenMipiHandle(DWORD additionalFlags = 0, const wchar_t id = 0)
 	return fileHandle;
 }
 
+FileHandle OpenCameraHandle(DWORD additionalFlags = 0, const wchar_t id = 0)
+{
+	auto interfacePath = GetInterfacePath(GUID_DEVINTERFACE_SNS0_DRIVER);
+	if (id != 0) {
+		interfacePath.back() = id;
+	}
+	printf("  Opening device %S\n", interfacePath.c_str());
+
+	FileHandle fileHandle(CreateFile(// CreateFile2
+		interfacePath.c_str(),
+		GENERIC_READ | GENERIC_WRITE,
+		0,          // dwShareMode
+		nullptr,    // lpSecurityAttributes
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL | additionalFlags,
+		nullptr));  // hTemplateFile
+
+	if (!fileHandle.IsValid()) {
+		if (GetLastError() == ERROR_ACCESS_DENIED) {
+			// Try opening read-only
+			fileHandle.Attach(CreateFile(
+				interfacePath.c_str(),
+				GENERIC_READ,
+				0,          // dwShareMode
+				nullptr,    // lpSecurityAttributes
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | additionalFlags,
+				nullptr));  // hTemplateFile
+
+			if (fileHandle.IsValid()) {
+				return fileHandle;
+			}
+		}
+
+		throw wexception::make(
+			HRESULT_FROM_WIN32(GetLastError()),
+			L"Failed to open a handle to the VPU device. "
+			L"(hr = 0x%x, interfacePath = %s)",
+			HRESULT_FROM_WIN32(GetLastError()),
+			interfacePath.c_str());
+	}
+
+	return fileHandle;
+}
+
+
 void CsiRequest(
 	_In_ HANDLE hDevice,
 	_In_ DWORD dwIoControlCode,
@@ -514,9 +592,9 @@ void requestFrame(bool Wait = false) {
 	DWORD NumberOfBytesReturned;
 	DWORD NumberOfBytesTransferred;
 
-	FrameInfo_t fInfo{ 0 };
+    FrameInfo_t fInfo;
 
-	fInfo.Virtual = (PUCHAR)1;
+	fInfo.m_Virtual = (PUCHAR)1;
 
 	CsiRequest(CsiHandle.Get(), IOCTL_CSI_DRIVER_GET_FRAME,
 		&fInfo, sizeof(fInfo),
@@ -563,50 +641,86 @@ bool testInitCsi() {
 
 		CsiHandle = OpenCsiHandle(FILE_FLAG_OVERLAPPED); // , Camera_driver_id_str + 1);
 		MipiHandle = OpenMipiHandle(0);
+		CamHandle = OpenCameraHandle(0);
+
 		CsiOverlappedEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
 		CsiOverlappedContext.hEvent = CsiOverlappedEvent;
 		DWORD NumberOfBytesTransferred;
 		if (CsiOverlappedEvent == NULL) {
 			throw wexception::make(HRESULT_FROM_WIN32(GetLastError()), L"Failed to create event for overlapped IO. " L"(hr = 0x%x)", HRESULT_FROM_WIN32(GetLastError()));
 		}
+        ULONG output;
+        {
+            // camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, 0x9 /* 0x12 */ };
+            // camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB888 , kVIDEO_PixelFormatRGB888, 25, 1, csiLanes, 0x9 /* 0x12 */ };
+            // camera_config_t cfg{ resolution, cameraPixelFormat , resultPixelFormat, framePerSec, mipiChannel, csiLanes, tHsSettle_EscClk, InterfaceMIPI,  };
 
-		{
-			// camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, 0x9 /* 0x12 */ };
-			// camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatRGB888 , kVIDEO_PixelFormatRGB888, 25, 1, csiLanes, 0x9 /* 0x12 */ };
-			// camera_config_t cfg{ resolution, cameraPixelFormat , resultPixelFormat, framePerSec, mipiChannel, csiLanes, tHsSettle_EscClk, InterfaceMIPI,  };
+            // cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
+            // ULONG output;
+        }
+        {
+            video_pixel_format_t requiredCameraFmt = kVIDEO_PixelFormatNone;
+            try
+            {
+                CsiRequest(CsiHandle.Get(), IOCTL_CSI_REQUIRED_FMT, (LPVOID)&cam_cfg.resultPixelFormat, sizeof(cam_cfg.resultPixelFormat), &requiredCameraFmt, sizeof(requiredCameraFmt), &NumberOfBytesReturned, &NumberOfBytesTransferred, true);
+                cam_cfg.cameraPixelFormat = requiredCameraFmt;
+            }
+            catch (const std::exception&)
+            {
+                printf("Failed IOCTL_CSI_REQUIRED_FMT\n");
+            }
+            
+            printf("IOCTL_CSI_REQUIRED_FMT done\n");
+        // }
+		// {
+			DWORD bytes = 0;
 
-			// cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
-			ULONG output;
-
-			CsiRequest(CsiHandle.Get(), IOCTL_CSI_DRIVER_INIT,
-				(LPVOID)&cam_cfg, sizeof(cam_cfg),
-				&output, sizeof(output),
-				&NumberOfBytesReturned, &NumberOfBytesTransferred, true);
-
-			printf("Mipi IOCTL_CONFIGURE\n");
-
-			{
-				DWORD bytes;
-				output = 0;
-				if (!DeviceIoControl(MipiHandle.Get(), IOCTL_CONFIGURE,
-					(LPVOID)&cam_cfg, sizeof(cam_cfg),
-					&output, sizeof(output),
-					&bytes, nullptr
-				)) {
-					throw wexception::make(
-						HRESULT_FROM_WIN32(GetLastError()),
-						L"IOCTL_CONFIGURE failed. "
-						L"(hr = 0x%x, bytes = %d of %d)",
-						HRESULT_FROM_WIN32(GetLastError()),
-						bytes, sizeof(output));
-				}
-				else
-				{
-					printf("    IOCTL_CONFIGURE output = %d\n", output);
-				}
+			output = 0;
+			if (!DeviceIoControl(MipiHandle.Get(), IOCTL_MIPI_REQUIRED_FMT, (PUCHAR)&cam_cfg.cameraPixelFormat, sizeof(cam_cfg.cameraPixelFormat), &requiredCameraFmt, sizeof(requiredCameraFmt), &bytes, nullptr )) {
+				// throw wexception::make( HRESULT_FROM_WIN32(GetLastError()), L"IOCTL_CONFIGURE failed. " L"(hr = 0x%x, bytes = %d of %d)", HRESULT_FROM_WIN32(GetLastError()), bytes, sizeof(output));
+                printf("Failed IOCTL_CSI_REQUIRED_FMT\n");
 			}
-			printf("Test: IOCTL_CSI_DRIVER_FRAME_FILL\n");
-		}
+			else {
+                cam_cfg.cameraPixelFormat = requiredCameraFmt;
+			}
+            printf("IOCTL_MIPI_REQUIRED_FMT done\n");
+
+
+            bytes = 0;
+            output = 0;
+            UINT32 mipiLaneClk = 0;
+            if (!DeviceIoControl(CamHandle.Get(), IOCTL_SNS_CONFIGURE, (PUCHAR)&cam_cfg, sizeof(cam_cfg), &mipiLaneClk, sizeof(mipiLaneClk), &bytes, nullptr)) {
+                throw wexception::make( HRESULT_FROM_WIN32(GetLastError()), L"IOCTL_SNS_CONFIGURE failed. " L"(hr = 0x%x, bytes = %d of %d)", HRESULT_FROM_WIN32(GetLastError()), bytes, sizeof(output));
+            }
+            else {
+                printf("mipiLaneClk %d\n", mipiLaneClk);
+                cam_cfg.mipiLaneClk = mipiLaneClk;
+            }
+            printf("IOCTL_SNS_CONFIGURE done\n");
+
+
+            bytes = 0;
+            output = 0;
+            if (!DeviceIoControl(MipiHandle.Get(), IOCTL_MIPI_CONFIGURE, (LPVOID)&cam_cfg, sizeof(cam_cfg), &output, sizeof(output), &bytes, nullptr)) {
+                throw wexception::make(HRESULT_FROM_WIN32(GetLastError()), L"IOCTL_MIPI_CONFIGURE failed. " L"(hr = 0x%x, bytes = %d of %d)", HRESULT_FROM_WIN32(GetLastError()), bytes, sizeof(output));
+            }
+            else {
+                printf("    IOCTL_MIPI_CONFIGURE output = %d\n", output);
+            }
+
+            CsiRequest(CsiHandle.Get(), IOCTL_CSI_DRIVER_INIT, (LPVOID)&cam_cfg, sizeof(cam_cfg), &output, sizeof(output), &NumberOfBytesReturned, &NumberOfBytesTransferred, true);
+
+            bytes = 0;
+            output = 0;
+            if (!DeviceIoControl(CamHandle.Get(), IOCTL_SNS_START, NULL, 0, NULL, 0, &bytes, nullptr)) {
+                throw wexception::make(HRESULT_FROM_WIN32(GetLastError()), L"IOCTL_SNS_START failed. " L"(hr = 0x%x, bytes = %d of %d)", HRESULT_FROM_WIN32(GetLastError()), bytes, sizeof(output));
+            }
+            else {
+                printf("    IOCTL_SNS_START output = %d\n", output);
+            }
+        }
+		printf("Test: IOCTL_CSI_DRIVER_FRAME_FILL\n");
+		
 
 		printf("    IOCTL_CSI_DRIVER_FRAME_FILL Test Default image: 0x%x\n", *(PUINT32)image);
 		for (int i = 0; i < 3; ++i) {
@@ -762,6 +876,80 @@ void uyvyToRgba(PUINT8 rgb_image, PUINT8 yuyv_image, unsigned width, unsigned he
 	}
 }
 
+void yuyvToRgba(PUINT8 rgb_image, PUINT8 yuyv_image, unsigned width, unsigned height) {
+    int y;
+    int y1;
+    int y2;
+    int cr;
+    int cb;
+
+    double r;
+    double g;
+    double b;
+
+    for (unsigned i = 0, j = 0; i < width * height * 4; i += 8, j += 4) {
+        //first pixel
+        y1 = yuyv_image[j];
+        cr = yuyv_image[j + 1];
+        y2 = yuyv_image[j + 2];
+        cb = yuyv_image[j + 3];
+
+        // y1 = yuyv_image[j + 1];
+        // cr = yuyv_image[j];
+        // cb = yuyv_image[j + 2];
+        // y2 = yuyv_image[j + 3];
+
+        y = max(min(y1, 235), 16);
+        cb = max(min(cb, 240), 16);
+        cr = max(min(cr, 240), 16);
+
+        r = y + (1.4015 * (cr - 128));
+        g = y - (0.3455 * (cb - 128)) - (0.7169 * (cr - 128));
+        b = y + (1.7790 * (cb - 128));
+        // r = b = g = y;
+        //This prevents colour distortions in your rgb image
+        if (r < 0) r = 0;
+        else if (r > 255) r = 255;
+        if (g < 0) g = 0;
+        else if (g > 255) g = 255;
+        if (b < 0) b = 0;
+        else if (b > 255) b = 255;
+
+        rgb_image[i + 2] = (unsigned char)r;
+        rgb_image[i + 1] = (unsigned char)g;
+        rgb_image[i + 0] = (unsigned char)b;
+
+        //second pixel
+        // cb = yuyv_image[j + 1];
+        // y = yuyv_image[j + 2];
+        // cr = yuyv_image[j + 3];
+        // cb = yuyv_image[j];
+        // y = yuyv_image[j + 3];
+        // cr = yuyv_image[j + 2];
+
+        y = max(min(y2, 235), 16);
+        cb = max(min(cb, 240), 16);
+        cr = max(min(cr, 240), 16);
+
+        r = y + (1.4065 * (cr - 128));
+        g = y - (0.3455 * (cb - 128)) - (0.7169 * (cr - 128));
+        b = y + (1.7790 * (cb - 128));
+
+        if (r < 0) r = 0;
+        else if (r > 255) r = 255;
+        if (g < 0) g = 0;
+        else if (g > 255) g = 255;
+        if (b < 0) b = 0;
+        else if (b > 255) b = 255;
+        // r = b = g = y;
+
+        rgb_image[i + 6] = (unsigned char)r;
+        rgb_image[i + 5] = (unsigned char)g;
+        rgb_image[i + 4] = (unsigned char)b;
+    }
+}
+
+
 void resample(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
  // https://stackoverflow.com/questions/9570895/image-downscaling-algorithm
 	int l_src;
@@ -813,7 +1001,7 @@ void resample(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
 	}
 }
 
-void resampleRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
+void resample1bRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
 	// https://stackoverflow.com/questions/9570895/image-downscaling-algorithm
 	int l_src;
 	int c_src;
@@ -848,7 +1036,7 @@ void resampleRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh
 
 			// a[i][j]
 			{
-				PUCHAR src1 = (src + 4 * ((l_src * oldw) + c_src));
+				PUCHAR src1 = (src + 1 * ((l_src * oldw) + c_src));
 				PUCHAR dst1 = (dst + 4 * ((l_dst * neww) + c_dst));
 
 				*dst1 = *src1;
@@ -862,6 +1050,109 @@ void resampleRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh
 
 		}
 	}
+}
+
+void resample2bRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
+    // https://stackoverflow.com/questions/9570895/image-downscaling-algorithm
+    int l_src;
+    int c_src;
+
+    int l_dst;
+    int c_dst;
+    float tmp;
+
+    for (l_dst = 0; l_dst < newh; l_dst++) {
+        for (c_dst = 0; c_dst < neww; c_dst++) {
+            tmp = (float)(l_dst) / (float)(newh - 1) * (oldh - 1);
+            l_src = (int)floor(tmp);
+            if (l_src < 0) {
+                l_src = 0;
+            }
+            else {
+                if (l_src >= oldh - 1) {
+                    l_src = oldh - 2;
+                }
+            }
+
+            tmp = (float)(c_dst) / (float)(neww - 1) * (oldw - 1);
+            c_src = (int)floor(tmp);
+            if (c_src < 0) {
+                c_src = 0;
+            }
+            else {
+                if (c_src >= oldw - 1) {
+                    c_src = oldw - 2;
+                }
+            }
+
+            // a[i][j]
+            {
+                PUCHAR src1 = (src + 4 * ((l_src * oldw) + c_src));
+                PUCHAR dst1 = (dst + 4 * ((l_dst * neww) + c_dst));
+
+                *dst1 = *src1;
+                *(dst1 + 1) = *(src1 + 1);
+                *(dst1 + 2) = *(src1 + 2);
+
+            }
+            // p2 = *(a + (l * oldw) + c + 1);
+            // p3 = *(a + ((l + 1)* oldw) + c + 1);
+            // p4 = *(a + ((l + 1)* oldw) + c);
+
+        }
+    }
+}
+
+void resample4bRgba(PUCHAR dst, PUCHAR src, int oldw, int oldh, int neww, int newh) {
+    // https://stackoverflow.com/questions/9570895/image-downscaling-algorithm
+    int l_src;
+    int c_src;
+
+    int l_dst;
+    int c_dst;
+    float tmp;
+
+    for (l_dst = 0; l_dst < newh; l_dst++) {
+        for (c_dst = 0; c_dst < neww; c_dst++) {
+            tmp = (float)(l_dst) / (float)(newh - 1) * (oldh - 1);
+            l_src = (int)floor(tmp);
+            if (l_src < 0) {
+                l_src = 0;
+            }
+            else {
+                if (l_src >= oldh - 1) {
+                    l_src = oldh - 2;
+                }
+            }
+
+            tmp = (float)(c_dst) / (float)(neww - 1) * (oldw - 1);
+            c_src = (int)floor(tmp);
+            if (c_src < 0) {
+                c_src = 0;
+            }
+            else {
+                if (c_src >= oldw - 1) {
+                    c_src = oldw - 2;
+                }
+            }
+
+            // a[i][j]
+            {
+                PUCHAR src1 = (src + 4 * ((l_src * oldw) + c_src));
+                PUCHAR dst1 = (dst + 4 * ((l_dst * neww) + c_dst));
+
+                *dst1 = *src1;
+                *(dst1 + 1) = *(src1 + 1);
+                *(dst1 + 2) = *(src1 + 2);
+                *(dst1 + 3) = *(src1 + 3);
+
+            }
+            // p2 = *(a + (l * oldw) + c + 1);
+            // p3 = *(a + ((l + 1)* oldw) + c + 1);
+            // p4 = *(a + ((l + 1)* oldw) + c);
+
+        }
+    }
 }
 
 class DemoApp
@@ -908,16 +1199,20 @@ private:
 private:
 	HWND m_hwnd;
 	ID2D1Factory* m_pDirect2dFactory;
+    IDWriteFactory* m_pWriteFactory;
 	ID2D1HwndRenderTarget* m_pRenderTarget;
 	ID2D1SolidColorBrush* m_pLightSlateGrayBrush;
 	ID2D1SolidColorBrush* m_pCornflowerBlueBrush;
 
 	ID2D1Bitmap* m_pBitmap;
+    IDWriteTextFormat *m_WriteTextFormat;
+    RECT m_rc;
 };
 
 DemoApp::DemoApp() :
 	m_hwnd(NULL),
 	m_pDirect2dFactory(NULL),
+    m_pWriteFactory(NULL),
 	m_pRenderTarget(NULL),
 	m_pLightSlateGrayBrush(NULL),
 	m_pCornflowerBlueBrush(NULL)
@@ -928,10 +1223,16 @@ DemoApp::DemoApp() :
 DemoApp::~DemoApp()
 {
 	SafeRelease(&m_pDirect2dFactory);
+	SafeRelease(&m_pWriteFactory);
 	SafeRelease(&m_pRenderTarget);
 	SafeRelease(&m_pLightSlateGrayBrush);
 	SafeRelease(&m_pCornflowerBlueBrush);
 }
+
+static wchar_t tittleW[100]; // = "Cam 720p 10000000 fps";
+bool updateTitle = false;
+unsigned tittleLen = 0;
+
 
 void DemoApp::RunMessageLoop()
 {
@@ -975,8 +1276,50 @@ void DemoApp::RunMessageLoop()
 						// uyvyToRgba(lpvBits, dump, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight);
 						// resample(screen, lpvBits, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
 						// resampleRgba(screen, lpvBits, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
-						resampleRgba(screen, dump, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
-						InvalidateRect(hWnd, NULL, TRUE);
+                        if (cam_cfg.resultPixelFormat == kVIDEO_PixelFormatNV12) {
+                            resample1bRgba(screen, dump, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
+                        }
+                        else {
+                            resample4bRgba(lpvBits, dump, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
+                            if (cam_cfg.resultPixelFormat == kVIDEO_PixelFormatUYVY) {
+                                uyvyToRgba(screen, lpvBits, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
+                            }
+                            else if (cam_cfg.resultPixelFormat == kVIDEO_PixelFormatYUYV) {
+                                yuyvToRgba(screen, lpvBits, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
+                            }
+                            // uyvyToRgba(lpvBits, dump, bmi2.bmiHeader.biWidth, bmi2.bmiHeader.biHeight);
+                        }
+                        
+                        {
+                            
+
+                            StartingTime = EndingTime;
+                            QueryPerformanceCounter(&EndingTime);
+                            ElapsedMicroseconds.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
+                            ElapsedMicroseconds.QuadPart *= 1000;
+                            ElapsedMicroseconds.QuadPart /= Frequency.QuadPart;
+                            cnt.QuadPart += ElapsedMicroseconds.QuadPart;
+
+                            // sumElapsedMs[0] += () ElapsedMicroseconds.QuadPart;
+                            ++filter_cnt;
+
+                            if (cnt.QuadPart > 3000) {
+                                // ++elapsedSeconds;
+                                elapsedSeconds += 3;
+
+                                float fps = (float)filter_cnt / ((float)(cnt.QuadPart/1000));
+                                filter_cnt = 0;
+                                cnt.QuadPart = 0;
+                                // sumElapsedMs[0] = 0;
+
+
+                                tittleLen = _snwprintf_s(tittleW, 100, _TRUNCATE, L"Cam 720p %5.2f fps", fps);
+                                updateTitle = true;
+                                // SetWindowTextA(m_hwnd, tittle);
+                            }
+                        }
+                        InvalidateRect(m_hwnd, NULL, TRUE);
+
 						// i = 10;
 					}
 					else {
@@ -1108,9 +1451,9 @@ HRESULT DemoApp::InitCameras()
 		// 	throw wexception::make(HRESULT_FROM_WIN32(GetLastError()),
 		// 		L"Failed to loadTestFile. ");
 
-		if (!CameraStart())
-			throw wexception::make(HRESULT_FROM_WIN32(GetLastError()),
-				L"Failed to CameraStart. ");
+		// if (!CameraStart())
+		// 	throw wexception::make(HRESULT_FROM_WIN32(GetLastError()),
+		// 		L"Failed to CameraStart. ");
 		if (!testInitCsi())
 			throw wexception::make(HRESULT_FROM_WIN32(GetLastError()),
 				L"Failed to testInitCsi. ");
@@ -1172,8 +1515,10 @@ HRESULT DemoApp::Initialize()
 
 		// The factory returns the current system DPI. This is also the value it will use
 		// to create its own windows.
-		m_pDirect2dFactory->GetDesktopDpi(&dpiX, &dpiY);
-
+		// m_pDirect2dFactory->GetDesktopDpi(&dpiX, &dpiY);
+          dpiX = 100;
+          dpiY = 100;
+          // DisplayInformation::LogicalDpi()
 		// Create the window.
 		m_hwnd = CreateWindow(
 			L"D2DDemoApp",
@@ -1188,7 +1533,7 @@ HRESULT DemoApp::Initialize()
 			HINST_THISCOMPONENT,
 			this
 		);
-		
+
 
 		hr = m_hwnd ? S_OK : E_FAIL;
 		if (SUCCEEDED(hr))
@@ -1207,6 +1552,12 @@ HRESULT DemoApp::CreateDeviceIndependentResources()
 
 	// Create a Direct2D factory.
 	hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pDirect2dFactory);
+    hr = DWriteCreateFactory(
+        DWRITE_FACTORY_TYPE_SHARED,
+        __uuidof(IDWriteFactory),
+        reinterpret_cast<IUnknown**>(&m_pWriteFactory)
+    );
+	// hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pWriteFactory);
 
 	return hr;
 }
@@ -1217,12 +1568,12 @@ HRESULT DemoApp::CreateDeviceResources()
 
 	if (!m_pRenderTarget)
 	{
-		RECT rc;
-		GetClientRect(m_hwnd, &rc);
+		
+		GetClientRect(m_hwnd, &m_rc);
 
 		D2D1_SIZE_U size = D2D1::SizeU(
-			rc.right - rc.left,
-			rc.bottom - rc.top
+            m_rc.right - m_rc.left,
+            m_rc.bottom - m_rc.top
 		);
 
 		// Create a Direct2D render target.
@@ -1232,6 +1583,20 @@ HRESULT DemoApp::CreateDeviceResources()
 			&m_pRenderTarget
 		);
 
+        
+        if (SUCCEEDED(hr))
+        {
+            hr = m_pWriteFactory->CreateTextFormat(
+                L"Times New Roman",
+                NULL,
+                DWRITE_FONT_WEIGHT_NORMAL,
+                DWRITE_FONT_STYLE_NORMAL,
+                DWRITE_FONT_STRETCH_NORMAL,
+                14.0f,
+                L"EN-US",
+                &m_WriteTextFormat
+            );
+        }
 		if (SUCCEEDED(hr))
 		{
 			// FIXME replace brushes
@@ -1249,6 +1614,14 @@ HRESULT DemoApp::CreateDeviceResources()
 				&m_pCornflowerBlueBrush
 			);
 		}
+        if (SUCCEEDED(hr))
+        {
+            hr = m_pRenderTarget->CreateBitmap(
+                D2D1_SIZE_U{ screen_wi , screen_he },// size, 
+                D2D1_BITMAP_PROPERTIES{ D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_IGNORE), 300, 300 },
+                &m_pBitmap
+            );
+        }
 	}
 
 	return hr;
@@ -1335,7 +1708,20 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 			case WM_PAINT:
 			{
 				pDemoApp->OnRender();
+               
 				ValidateRect(hwnd, NULL);
+                auto r = WaitForSingleObject(hRequestedMutex, 10000);
+                if (r == WAIT_OBJECT_0) {
+                    if (!requested) {
+                        // run--;
+                        requested = true;
+                        requestFrame();
+                    }
+                    else {
+                        // WaitFrame = false;
+                    }
+                }
+                ReleaseMutex(hRequestedMutex);
 			}
 			result = 0;
 			wasHandled = true;
@@ -1371,22 +1757,18 @@ HRESULT DemoApp::OnRender()
 
 		m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
 
-		m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+		// m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
 		D2D1_SIZE_F rtSize = m_pRenderTarget->GetSize();
 
 		// Paint a grid background.
-		m_pRenderTarget->FillRectangle(
-			D2D1::RectF(0.0f, 0.0f, rtSize.width, rtSize.height),
-			m_pLightSlateGrayBrush
-		);
+		// m_pRenderTarget->FillRectangle(
+		// 	D2D1::RectF(0.0f, 0.0f, rtSize.width, rtSize.height),
+		// 	m_pLightSlateGrayBrush
+		// );
 
 		// Create a blue brush.
-		hr = m_pRenderTarget->CreateBitmap(
-			D2D1_SIZE_U{ screen_wi , screen_he },// size, 
-			D2D1_BITMAP_PROPERTIES{ D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_IGNORE), 300, 300 },
-			&m_pBitmap
-		);
+
 		if (SUCCEEDED(hr))
 		{
 			hr = m_pBitmap->CopyFromMemory(NULL, screen, bmi2.bmiHeader.biWidth * 4);
@@ -1401,6 +1783,27 @@ HRESULT DemoApp::OnRender()
 					// rtSize.height)
 			);
 		}
+
+        if (updateTitle) {
+            // updateTitle = true;
+            D2D1_RECT_F layoutRect = D2D1::RectF((float)m_rc.top, (float)m_rc.left, 200, 20);
+
+            // IDWriteTextFormat* pTextFormat;
+            // ::CreateTextFormat(
+            //     L"Gabriola",
+            //     NULL,
+            //     DWRITE_FONT_WEIGHT_REGULAR,
+            //     DWRITE_FONT_STYLE_NORMAL,
+            //     DWRITE_FONT_STRETCH_NORMAL,
+            //     72.0f,
+            //     L"en-us",
+            //     &pTextFormat
+            // );
+            m_pRenderTarget->DrawTextW(tittleW, tittleLen, m_WriteTextFormat, layoutRect, m_pLightSlateGrayBrush);
+            //  DrawText(hdc, L"Hello World!", -1, &rect, DT_SINGLELINE | DT_NOCLIP);
+            // SetWindowTextA(hwnd, tittle);
+            // TextOut(hdc, rect.right / 2, rect.bottom / 2, text.c_str(), 1);
+        }
 
 
 #if 0
@@ -1456,18 +1859,7 @@ HRESULT DemoApp::OnRender()
 		hr = S_OK;
 		DiscardDeviceResources();
 	}
-	auto r = WaitForSingleObject(hRequestedMutex, 10000);
-	if (r == WAIT_OBJECT_0) {
-		if (!requested) {
-			// run--;
-			requested = true;
-			requestFrame();
-		}
-		else {
-			// WaitFrame = false;
-		}
-	}
-	ReleaseMutex(hRequestedMutex);
+
 	return hr;
 }
 
@@ -1495,6 +1887,24 @@ int WINAPI WinMain(
 	// The return value is ignored, because we want to continue running in the
 	// unlikely event that HeapSetInformation fails.
 	HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+
+    if (readCfg() > 0) {
+        switch (*((UINT32*)cfg)) {
+        case 'vyuy': // YUYV
+            cam_cfg.resultPixelFormat = kVIDEO_PixelFormatYUYV;
+            break;
+        case 'yvyu': // UYVY
+            cam_cfg.resultPixelFormat = kVIDEO_PixelFormatUYVY;
+            break;
+        case '21VN': // NV12
+            cam_cfg.resultPixelFormat = kVIDEO_PixelFormatNV12;
+            break;
+        default:
+            break;
+        }
+    }
+    QueryPerformanceFrequency(&Frequency);
+    QueryPerformanceCounter(&EndingTime);
 
 	if (SUCCEEDED(CoInitialize(NULL)))
 	{

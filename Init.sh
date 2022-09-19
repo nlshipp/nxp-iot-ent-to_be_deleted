@@ -1,6 +1,6 @@
 #!/bin/bash
 # 
-# Copyright 2020 NXP 
+# Copyright 2022 NXP 
 # All rights reserved. 
 #  
 # Redistribution and use in source and binary forms, with or without modification, 
@@ -47,10 +47,8 @@ declare -A patches=(
     ["imx-atf"]="imx-atf"
     ["imx-mkimage"]="imx-mkimage"
     ["imx-optee-os"]="imx-optee-os"
-    ["MU_BASECORE-USB_xHCI"]="mu_platform_nxp/MU_BASECORE"
+    ["MU_BASECORE-USB_eHCI"]="mu_platform_nxp/MU_BASECORE"
     ["uboot-imx"]="uboot-imx"
-    # Uncoment TCG2_PHYSICAL_PRESENCE_FLAGS_VARIABLE patch to enable TPM/BitLocker workaround.
-    # ["MU_BASECORE-TCG2_PHYSICAL_PRESENCE_FLAGS_VARIABLE"]="mu_platform_nxp/MU_BASECORE"
 )
 
 for patch_name in "${!patches[@]}";

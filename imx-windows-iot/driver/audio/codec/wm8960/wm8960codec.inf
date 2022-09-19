@@ -6,6 +6,7 @@ Signature="$Windows NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%ProviderName%
+PnpLockdown = 1
 DriverVer= ; 
 CatalogFile=Wm8960Codec.cat ; VS requirement to have catalog file entry
 

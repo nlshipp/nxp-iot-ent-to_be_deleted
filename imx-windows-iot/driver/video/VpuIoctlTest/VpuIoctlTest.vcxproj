@@ -14,7 +14,6 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{EB5BDCE9-25B2-4D0A-932D-4E88DC0490D1}</ProjectGuid>
     <RootNamespace>VpuIoctlTest</RootNamespace>
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">

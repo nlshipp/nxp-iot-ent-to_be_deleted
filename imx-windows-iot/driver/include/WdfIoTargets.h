@@ -40,12 +40,6 @@
 #include "Trace.h"
 #include "WdfIoTargets.tmh"
 
-#if (DBG)
-#define _DbgKdPrint KdPrint
-#else // !DBG
-#define _DbgKdPrint(...)
-#endif // !DBG
-
 #define I2C_SYNCHRONOUS_TIMEOUT 300
 
 template <typename T>
@@ -137,13 +131,13 @@ public:
 				}
 				if (isOwned) {
 					if (RemoveEntryList(pEntry) > 0 && len > 1) {
-						_DbgKdPrint(("Error: list::pop when empty - but nonzero len.\r\n"));
+						KdPrint(("Warning: list_t::pop when empty - but nonzero len.\r\n"));
 					}
 					--len;
 					retval = CONTAINING_RECORD(pEntry, T, ListEntry);
 				}
 				else {
-					_DbgKdPrint(("Error list_t::Pop called on foreign entry.\r\n"));
+					KdPrint(("Warning: list_t::Pop called on foreign entry.\r\n"));
 				}
 			}
 		}
@@ -244,7 +238,7 @@ protected:
 	const WDFDEVICE m_ParentWdfDevice;
 	DECLARE_UNICODE_STRING_SIZE(m_usDevicePath, RESOURCE_HUB_PATH_SIZE);      /* Create the device path using the connection ID. */
 
-	io(const WDFDEVICE &ParentWdfDevice) : m_ParentWdfDevice(ParentWdfDevice) {};
+	io(const WDFDEVICE &ParentWdfDevice) : m_ParentWdfDevice(ParentWdfDevice), m_WdfIoTarget(NULL) {};
 public:
 
 	struct ctx_acpi_csr_stub
@@ -270,7 +264,8 @@ public:
 	void IoTargetClose()
 	{
 		if (m_WdfIoTarget != NULL) {
-			WdfObjectDelete(m_WdfIoTarget);
+			WdfIoTargetClose(m_WdfIoTarget);
+			// WdfObjectDelete(m_WdfIoTarget);
 			m_WdfIoTarget = NULL;
 		}
 	}
@@ -351,22 +346,18 @@ class AcpiDsdRes_t
 public:
 	struct _DSDVAL_GET_DESCRIPTOR {
 		PCSTR ValueName;
-		UINT32 *const DestinationPtr;
+		void *const DestinationPtr;
 		const SIZE_T DestinationSize;
-		// const union
-		// {
-		// 	UINT32 DefaultUlong;
-		// 	PCSTR DefaultString;
-		// };
 		const USHORT Type;
 
 		_DSDVAL_GET_DESCRIPTOR(const char *const ValueName, UINT32 *(&&DestinationPtr), USHORT &&Type)
-			:ValueName(ValueName), DestinationPtr(DestinationPtr), Type(Type), DestinationSize(sizeof(UINT32)) {};
+			:ValueName(ValueName), DestinationPtr((void*)DestinationPtr), Type(Type), DestinationSize(sizeof(UINT32)) {};
+
+		_DSDVAL_GET_DESCRIPTOR(const char* const ValueName, UINT8* (&& DestinationPtr), USHORT&& Type)
+			:ValueName(ValueName), DestinationPtr((void*)DestinationPtr), Type(Type), DestinationSize(sizeof(UINT8)) {};
 
 		_DSDVAL_GET_DESCRIPTOR(const char *const ValueName, UINT32 *(&&DestinationPtr), SIZE_T &&DestinationSize, USHORT &&Type)
-			:ValueName(ValueName), DestinationPtr(DestinationPtr), DestinationSize(DestinationSize), Type(Type) {};
-		// _DSDVAL_GET_DESCRIPTOR(const char *const ValueName, UINT32 *(&&DestinationPtr), SIZE_T &&DestinationSize, USHORT &&Type)
-		// 	:ValueName(ValueName), DestinationPtr(DestinationPtr), DestinationSize(DestinationSize), Type(Type) {};
+			:ValueName(ValueName), DestinationPtr((void*)DestinationPtr), DestinationSize(DestinationSize), Type(Type) {};
 		
 	};
 	const ACPI_METHOD_ARGUMENT UNALIGNED* m_DevicePropertiesPkgPtr;
@@ -378,6 +369,8 @@ public:
 	void Cleanup();
 	// Load values from ACPI DSD
 	NTSTATUS GetString(const CHAR* ValueName, SIZE_T DestinationSize, UINT32* Length, PCHAR DestinationPtr);
+	NTSTATUS GetInteger(const CHAR* ValueName, UINT32* DestinationPtr);
+	NTSTATUS GetInteger(const CHAR* ValueName, UINT8* DestinationPtr);
 	NTSTATUS GetDsdResources(const _DSDVAL_GET_DESCRIPTOR ValDescriptor[], UINT16 DescriptorLen);
 
 	NTSTATUS EvalMethodSync(const WDFDEVICE &WdfDevice, ACPI_EVAL_INPUT_BUFFER* InputBufferPtr, SIZE_T InputBufferSize, PACPI_EVAL_OUTPUT_BUFFER *OutBufferPtr);
@@ -413,7 +406,8 @@ public:
 	NTSTATUS Write(CODEC_COMMAND *CodecCommand);
 	NTSTATUS WriteBytes(_In_ PVOID Buffer, _In_ ULONG Number);
 
-	NTSTATUS Read(_In_ UINT16 Address, PVOID pBuff, _In_ ULONG Length);
+	NTSTATUS ReadAddr8(_In_ UINT8 Address, PVOID pBuff, _In_ ULONG Length);
+	NTSTATUS ReadAddr16(_In_ UINT16 Address, PVOID pBuff, _In_ ULONG Length);
 
 	NTSTATUS WriteArray(CODEC_COMMAND CodecCommand[], USHORT NumCommands);
 	NTSTATUS ReadArray(_In_ USHORT Address, PVOID pBuff, size_t BuffLength);

@@ -54,7 +54,6 @@ DriverEntry(
     //
     // Initialize WPP Tracing
     WPP_INIT_TRACING(DriverObject, RegistryPath);
-	DbgPrint("DriverEntry  %wZ\r\n", RegistryPath);
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     //
@@ -64,18 +63,18 @@ DriverEntry(
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.EvtCleanupCallback = SNS0_ctx::EvtDriverObjCtxCleanup;
 
-	{
-		WDF_DRIVER_CONFIG wdfDriverConfig;
-		WDF_DRIVER_CONFIG_INIT(&wdfDriverConfig, SNS0_ctx::EvtDeviceAdd);
-		wdfDriverConfig.DriverPoolTag = IMX_OV5640_POOL_TAG;
+    {
+        WDF_DRIVER_CONFIG wdfDriverConfig;
+        WDF_DRIVER_CONFIG_INIT(&wdfDriverConfig, SNS0_ctx::EvtDeviceAdd);
+        wdfDriverConfig.DriverPoolTag = IMX_OV5640_POOL_TAG;
 
-		Status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &wdfDriverConfig, WDF_NO_HANDLE);
-		if (!NT_SUCCESS(Status)) {
-			TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", Status);
-			WPP_CLEANUP(DriverObject);
-			return Status;
-		}
-	}
+        Status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &wdfDriverConfig, WDF_NO_HANDLE);
+        if (!NT_SUCCESS(Status)) {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", Status);
+            WPP_CLEANUP(DriverObject);
+            return Status;
+        }
+    }
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
     return Status;
@@ -87,7 +86,7 @@ DriverEntry(
 
 VOID SNS0_ctx::EvtDriverObjCtxCleanup(_In_ WDFOBJECT WdfDriver) /* Free all the resources allocated in DriverEntry. --*/
 {
-	PAGED_CODE();
+    PAGED_CODE();
 
-	WPP_CLEANUP(WdfDriver); //  driverObjectPtr);
+    WPP_CLEANUP(WdfDriver);
 }

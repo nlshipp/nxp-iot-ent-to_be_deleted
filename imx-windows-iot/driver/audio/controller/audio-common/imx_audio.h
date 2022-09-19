@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -11,6 +12,7 @@ Abstract:
 #include <portcls.h>
 #pragma warning(push)
 #pragma warning(disable:4595)
+#include "OperatorNew.hpp"
 #include <stdunk.h>
 #pragma warning(pop)
 #include <ksdebug.h>

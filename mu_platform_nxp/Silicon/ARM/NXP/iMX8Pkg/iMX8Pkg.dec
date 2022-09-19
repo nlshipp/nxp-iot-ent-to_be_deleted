@@ -1,7 +1,7 @@
 #
 #  Copyright (c) Microsoft Corporation. All rights reserved.
 #  Copyright (c) 2013-2018, ARM Limited. All rights reserved.
-#  Copyright 2019-2020,2022 NXP
+#  Copyright 2019-2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -33,9 +33,12 @@
 
 [Protocols.common]
   gEfiSdhcProtocolGuid = { 0x46055b0f, 0x992a, 0x4ad7, { 0x8f, 0x81, 0x14, 0x81, 0x86, 0xff, 0xdf, 0x72 } }
+  gEfiSdMmcPartProtocolGuid = { 0x210FE553, 0xEB14, 0x4fB1, { 0xA8, 0xC4, 0x93, 0x8E, 0x12, 0x6e, 0x9A, 0xBD }}
 
 [Guids.common]
   giMX8TokenSpaceGuid = { 0x4F3BDBA2, 0x496B, 0x64BB, { 0xFA, 0xB3, 0x19, 0x9D, 0x81, 0xAA, 0xE5, 0xA2 } }
+  gEfiBlockIoProtocolGuid = { 0x964E5B21, 0x6459, 0x11D2, { 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B }}
+  gEfiMdeModulePkgTokenSpaceGuid = { 0xA1AFF049, 0xFDEB, 0x442a, { 0xB3, 0x20, 0x13, 0xAB, 0x4C, 0xB7, 0x2B, 0xBC }}
 
 [PcdsFeatureFlag.common]
   giMX8TokenSpaceGuid.PcdPciMaxPayloadFixup|FALSE|BOOLEAN|0x00000004
@@ -74,8 +77,9 @@
   giMX8TokenSpaceGuid.PcdPcie2ResetGpioIoNumber|0|UINT32|0x0000001A
 
   #
-  giMX8TokenSpaceGuid.PcdUsb1XhciBaseAddress|0x38100000|UINT64|0x0000001B
-  giMX8TokenSpaceGuid.PcdUsb2XhciBaseAddress|0x38200000|UINT64|0x0000001C
+  giMX8TokenSpaceGuid.PcdUsb1EhciBaseAddress|0x00000000|UINT64|0x00000041
+  giMX8TokenSpaceGuid.PcdUsb1XhciBaseAddress|0x00000000|UINT64|0x0000001B
+  giMX8TokenSpaceGuid.PcdUsb2XhciBaseAddress|0x00000000|UINT64|0x0000001C
 
   # MaxMode must be one number higher than the actual max mode,
   # i.e. for actual maximum mode 2, set the value to 3.
@@ -117,6 +121,22 @@
   giMX8TokenSpaceGuid.PcdCAN1XTALEnable|FALSE|BOOLEAN|0x00000032
   giMX8TokenSpaceGuid.PcdCAN2XTALEnable|FALSE|BOOLEAN|0x00000033
 
+  # Firmware update
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"2020-01-01"|VOID*|0x00000034
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionLowestSupportedString|L"2020-01-01"|VOID*|0x00000035  
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareImageOffset|0x8000|UINT64|0x00000036
+
+  # Enable PMIC overdrive
+  giMX8TokenSpaceGuid.PcdPmicOverDriveEnable|FALSE|BOOLEAN|0x00000037
+
   # Camera subsystem
   giMX8TokenSpaceGuid.PcdMipiCsiDeviceMemorySize|0x10000|UINT64|0x0000003B
-
+  giMX8TokenSpaceGuid.PcdIsiChannelMemorySize|0x100|UINT64|0x0000003C
+  # Define Camera type per MIPI CSI interface
+  # Posible values are:
+  #                    5640 - stands for OV5640
+  #                    10635 - stand for OV10635 + MAX9286
+  giMX8TokenSpaceGuid.PcdCsi1CameraOv5640|0x1|UINT64|0x0000003D
+  giMX8TokenSpaceGuid.PcdCsi1CameraOv10635|0x0|UINT64|0x0000003E
+  giMX8TokenSpaceGuid.PcdCsi2CameraOv5640|0x0|UINT64|0x0000003F
+  giMX8TokenSpaceGuid.PcdCsi2CameraOv10635|0x0|UINT64|0x00000040

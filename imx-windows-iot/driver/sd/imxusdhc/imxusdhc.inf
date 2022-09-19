@@ -7,6 +7,7 @@ Signature = "$Windows NT$"
 Class = SDHost
 ClassGUID = {a0a588a4-c46f-4b37-b7ea-c82fe89870c6}
 Provider = %ProviderName%
+PnpLockdown = 1
 BootCritical = 1 ; warning 2004: Use of BootCritical directive not recommended.
 CatalogFile=imxusdhc.cat ; VS requirement to have catalog file entry
 
@@ -42,11 +43,6 @@ imxusdhc.sys,,,0x100
 
 [USDHC_Device.NT.AddReg]
 HKR,,Driver,,"imxusdhc.sys"
-;warning 2083: Section [usdhc_device.hw] not referenced or used.
-[USDHC_Device.HW]
-AddReg=USDHC_Device.HW.AddReg
-
-[USDHC_Device.HW.AddReg]
 HKR,,UINumberDescFormat,,%SDHCSlot%
 
 ;*****************************************

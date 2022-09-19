@@ -32,43 +32,103 @@
 :: Run this script in order to deploy boot firmware.
 ::
 
+setlocal enableextensions
+setlocal enabledelayedexpansion
+
 :: Clear options
 set DEVICE_TYPE=
-set SIGNED_FW=
 set TARGET_DRIVE=
+set UUU_LOAD2M=
+set FIRMWARE_DIR=
+set FIRMWARE=
 
 :GETOPTS
  if /I "%~1" == "/?" goto USAGE
  if /I "%~1" == "/Help" goto USAGE
  if /I "%~1" == "/device" set DEVICE_TYPE=%2& shift
- if /I "%~1" == "/signed" set SIGNED_FW=signed_& shift
+ if /I "%~1" == "/directory" set FIRMWARE_DIR=%2& shift
  if /I "%~1" == "/target_drive" set TARGET_DRIVE=%2& shift
+ if /I "%~1" == "/firmware" set FIRMWARE=%2& shift
  shift
 if not (%1)==() goto GETOPTS
 
-set FIRMWARE="%DEVICE_TYPE%\%SIGNED_FW%firmware.bin"
-set FLASHBIN="..\..\components\Arm64BootFirmware\%DEVICE_TYPE%\%SIGNED_FW%flash.bin"
+if "%FIRMWARE_DIR%" == "" (
+  set FIRMWARE_DIR=%DEVICE_TYPE%
+)
 
-if not exist %FIRMWARE% (
-  echo The device type is incorrect.
-  echo Please verify if your device is a NXPEVK_iMX8M_4GB and pass it to
+if not exist %FIRMWARE_DIR% (
+  echo %FIRMWARE_DIR% does not exist.
+  exit /b 1
+)
+
+if "%FIRMWARE%" == "" (
+    set BIN_COUNT=0
+    for /f "tokens=*" %%i in ('dir !FIRMWARE_DIR!\*.bin /b') do (
+        set /a BIN_COUNT+=1
+    )
+    if !BIN_COUNT! == 0 (
+        echo No bin file was found in !FIRMWARE_DIR!\
+        exit /b 1
+    )
+
+    if !BIN_COUNT! NEQ 1 (
+        set BIN_COUNT=0
+        echo Multiple bin files were found in  !FIRMWARE_DIR!\.
+        echo Specify which firmware to use:
+        for /f "tokens=*" %%i in ('dir !FIRMWARE_DIR!\*.bin /b') do (
+            set /a BIN_COUNT+=1
+            echo !BIN_COUNT!. %%i
+        )
+        set /p BIN_IDX=Enter index:
+        if !BIN_IDX! gtr !BIN_COUNT! (
+            echo Selected index is out of range
+            exit /b 1
+        )
+        if !BIN_IDX! leq 0 (
+            echo Selected index is out of range
+            exit /b 1
+        )
+    ) else (
+        set BIN_IDX=1
+    )
+        
+    set BIN_COUNT=0
+    for /f "tokens=*" %%i in ('dir !FIRMWARE_DIR!\*.bin /b') do (
+        set /a BIN_COUNT+=1
+        if !BIN_COUNT! == !BIN_IDX! (
+            echo Selected: "%%i"
+            echo:
+            set FIRMWARE=!FIRMWARE_DIR!\%%i
+        )
+    )
+    
+)
+
+
+if not exist !FIRMWARE! (
+  echo !FIRMWARE! does not exist.
+  echo Please verify you used correct 
   echo script with the /device flag.
   goto:eof
 )
 
-if "%DEVICE_TYPE%" == "NXPEVK_iMX8M_4GB" (
+echo Device:    %DEVICE_TYPE%
+echo Firmware:  !FIRMWARE!
+echo.
+
+if "%DEVICE_TYPE%" == "MX8M_EVK" (
   :: 66*512=0x8400
   set CF_IMAGER_OFFSET=0x8400
 ) else (
-  if "%DEVICE_TYPE%" == "NXPEVK_iMX8M_Mini_2GB" (
+  if "%DEVICE_TYPE%" == "MX8M_MINI_EVK" (
     set CF_IMAGER_OFFSET=0x8400
   ) else (
-    if "%DEVICE_TYPE%" == "EVK_iMX8MN_2GB" (
+    if "%DEVICE_TYPE%" == "MX8M_NANO_EVK" (
       :: 64*512=0x8000
       set CF_IMAGER_OFFSET=0x8000
       set UUU_LOAD2M=1
     ) else (
-      if "%DEVICE_TYPE%" == "EVK_iMX8MP_6GB" (
+      if "%DEVICE_TYPE%" == "MX8M_PLUS_EVK" (
         set CF_IMAGER_OFFSET=0x8000
         set UUU_LOAD2M=1
       ) else (
@@ -80,12 +140,12 @@ if "%DEVICE_TYPE%" == "NXPEVK_iMX8M_4GB" (
 )
 
 :: Write firmware to a drive plugged into PC using Cfimager. (https://www.nxp.com/webapp/Download?colCode=CF_IMAGER&appType=license&location=null)
-:: Alternatively dd if="%FIRMWARE%" of="\\.\PhysicalDrive%DISK_NUM%" bs=512 seek=%SEEK% skip=0 .
+:: Alternatively dd if="!FIRMWARE!" of="\\.\PhysicalDrive%DISK_NUM%" bs=512 seek=%SEEK% skip=0 .
 if "%TARGET_DRIVE%"=="" (
   goto:FLASH_eMMC
 )
    
-cfimager.exe -raw -offset %CF_IMAGER_OFFSET% -f %FIRMWARE% -d %TARGET_DRIVE% || ^
+cfimager.exe -raw -offset %CF_IMAGER_OFFSET% -f !FIRMWARE! -d %TARGET_DRIVE% || ^
 echo Failed to write boot firmware to the "%TARGET_DRIVE%". Check the NXP cfimager.exe is available (eg. in path), TARGET_DRIVE is present and is not write protected.
 
 goto:eof
@@ -104,16 +164,20 @@ IF "%device_mode%" == "none" (
 	goto:eof
 )
 
+
+
 ECHO Device in %device_mode% download mode, start flash!!
 ECHO.
 if not "%UUU_LOAD2M%" == "" (
-  tools\uuu\uuu.exe SDPS: boot -f %FLASHBIN%
+  tools\uuu\uuu.exe -b emmc !FIRMWARE! >nul 2>nul
+  :: LIBUSB_ERROR_PIPE error workaround
   tools\uuu\uuu.exe FB: ucmd setenv fastboot_buffer ${loadaddr}
-  tools\uuu\uuu.exe FB: download -f %FIRMWARE%
+  tools\uuu\uuu.exe FB: download -f !FIRMWARE!
+  tools\uuu\uuu.exe FB: ucmd mmc partconf 2 0 1 0
   tools\uuu\uuu.exe FB: ucmd mmc dev 2 1
   tools\uuu\uuu.exe FB: ucmd mmc write ${loadaddr} 0x0 0x1FC0
 ) else (
-  tools\uuu\uuu.exe -b emmc %FIRMWARE%
+  tools\uuu\uuu.exe -b emmc !FIRMWARE!
 )
 pause
 goto:eof
@@ -133,25 +197,25 @@ IF %ERRORLEVEL% == 0  (
 SET %~1=none
 goto:eof
 :USAGE
-echo flash_bootloader.cmd /device <NAME> [/signed] [/target_drive]
+echo flash_bootloader.cmd /device <NAME> [/target_drive]
 echo.
 echo Flashes a firmware image
 echo Options:
-echo    /device                      {NXPEVK_iMX8M_4GB, NXPEVK_iMX8M_Mini_2GB, EVK_iMX8MN_2GB, EVK_iMX8MP_6GB}
+echo    /device                      {MX8M_EVK, MX8M_MINI_EVK, MX8M_NANO_EVK, MX8M_PLUS_EVK}
 echo                                 Specifies the device
 echo.
 echo Optional options:
-echo    /signed                      Specifies the signed firmware binary should be used.
-echo    /target_drive                Specifies the firmware binary should be written to this drive
+echo    /target_drive                Specifies whether the firmware binary should be written to this drive
 echo                                 instead of internal memory of the development board. Useful for
 echo                                 firmware development.
 echo                                 Caution, do not overwrite your system drive.
-echo.
+echo.  /directory                    Specifies directory in which firmware.bin is located.
+echo   /firmware                     Specifies absolute or relative path to firmware.
 echo Examples:
 echo.
 echo Flash the Windows Enterprise firmware to the MMC of a EVK board.
-echo    flash_bootloader.cmd /device NXPEVK_iMX8M_4GB /signed
+echo    flash_bootloader.cmd /device MX8M_EVK
 echo.
 echo Flash the Windows Enterprise firmware to an SD card.
-echo    flash_bootloader.cmd /device NXPEVK_iMX8M_4GB /target_drive f:
+echo    flash_bootloader.cmd /device MX8M_EVK /target_drive f:
 echo.

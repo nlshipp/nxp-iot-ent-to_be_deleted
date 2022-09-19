@@ -10,7 +10,10 @@ Caution: This module requires additional review when modified.
 This driver will have external input - variable data.
 This external input must be validated carefully to avoid security issues such as
 buffer overflow or integer overflow.
+
 Copyright (c), Microsoft Corporation. All rights reserved.
+Copyright 2022 NXP
+
 This program and the accompanying materials are licensed and made available under the
 terms and conditions of the BSD License which accompanies this distribution.
 The full text of the license may be found at
@@ -159,6 +162,37 @@ SecureBootHook(
 );
 
 EFI_HANDLE  mHandle = NULL;
+
+
+/**
+  Mark a variable that will become read-only after leaving the DXE phase of execution.
+
+  @param[in] This          The VARIABLE_LOCK_PROTOCOL instance.
+  @param[in] VariableName  A pointer to the variable name that will be made read-only subsequently.
+  @param[in] VendorGuid    A pointer to the vendor GUID that will be made read-only subsequently.
+
+  @retval EFI_SUCCESS           The variable specified by the VariableName and the VendorGuid was marked
+                                as pending to be read-only.
+  @retval EFI_INVALID_PARAMETER VariableName or VendorGuid is NULL.
+                                Or VariableName is an empty string.
+  @retval EFI_ACCESS_DENIED     EFI_END_OF_DXE_EVENT_GROUP_GUID or EFI_EVENT_GROUP_READY_TO_BOOT has
+                                already been signaled.
+  @retval EFI_OUT_OF_RESOURCES  There is not enough resource to hold the lock request.
+**/
+static EFI_STATUS
+EFIAPI
+VariableLockRequestToLock (
+  IN CONST EDKII_VARIABLE_LOCK_PROTOCOL *This,
+  IN       CHAR16                       *VariableName,
+  IN       EFI_GUID                     *VendorGuid
+  )
+{
+  DEBUG ((DEBUG_INFO, "Warning: Legacy VariableLock call (move to Variable Policy needed). Variable: %g %s\n", __FUNCTION__, VendorGuid, VariableName));
+
+  return EFI_SUCCESS;
+}
+
+EDKII_VARIABLE_LOCK_PROTOCOL        mVariableLock              = { VariableLockRequestToLock };
 
 /*
 OpTEE GP Client API state for the Auth Var TA communications.
@@ -1568,6 +1602,24 @@ VariableAuthOpteeRuntimeInitialize(
 
     goto Exit;
   }
+
+  //
+  // Install the Variable Lock Protocol for backward compatibility.
+  //
+  Status = gBS->InstallMultipleProtocolInterfaces (
+                  &mHandle,
+                  &gEdkiiVariableLockProtocolGuid,
+                  &mVariableLock,
+                  NULL
+                  );
+  if (EFI_ERROR(Status)) {
+    LOG_ERROR(
+      "InstallProtocolInterface(gEdkiiVariableLockProtocolGuid) failed. (Status=%r)",
+      Status);
+
+    goto Exit;
+  }
+
 
   //
   // Register the event to inform auth. variable that it is at runtime.

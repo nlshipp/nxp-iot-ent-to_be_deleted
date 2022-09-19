@@ -7,30 +7,23 @@
     <ClCompile Include="..\..\shared\acpi\acpiutil.cpp">
       <Filter>utils</Filter>
     </ClCompile>
-    <ClCompile Include="ov5640\ov5640.cpp">
-      <Filter>hardware</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\shared\OperatorNew.cpp">
       <Filter>utils</Filter>
     </ClCompile>
     <ClCompile Include="..\..\shared\WdfIoTargets.cpp">
       <Filter>utils</Filter>
     </ClCompile>
+    <ClCompile Include="ov5640\ImxOv5640.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="Public.h" />
-    <ClInclude Include="Queue.h" />
     <ClInclude Include="Trace.h">
       <Filter>utils</Filter>
     </ClInclude>
-    <ClInclude Include="ov5640\fsl_ov5640.h">
-      <Filter>hardware</Filter>
-    </ClInclude>
-    <ClInclude Include="ov5640\fsl_camera_dev_interface.h">
-      <Filter>hardware</Filter>
-    </ClInclude>
+    <ClInclude Include="ov5640\ImxCameraInterface.h" />
+    <ClInclude Include="ov5640\ImxOv5640.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="imxsns_ov5640.inf" />

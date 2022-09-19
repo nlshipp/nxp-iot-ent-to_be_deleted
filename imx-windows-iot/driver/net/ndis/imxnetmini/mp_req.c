@@ -66,12 +66,11 @@ NDIS_STATUS NICGetStatsCounters(PMP_ADAPTER pAdapter, NDIS_OID Oid, PULONG64 pCo
     *pCounter = 0;
     switch (Oid) {
         case OID_GEN_XMIT_OK:
-            *pCounter = pAdapter->TxdStatus.FramesXmitGood;
+            *pCounter = pAdapter->StatisticsAcc.ifHCOutUcastPkts;
             break;
 
         case OID_GEN_RCV_OK:
-            // Specifies the number of frames that are received without errors. However, the OID_GEN_STATISTICS does not include this information.
-            *pCounter = pAdapter->RcvStatus.FrameRcvGood;
+            *pCounter = pAdapter->StatisticsAcc.ifHCInUcastPkts;
             break;
 
         case OID_802_3_XMIT_MAX_COLLISIONS:
@@ -110,7 +109,7 @@ NDIS_STATUS NICGetStatsCounters(PMP_ADAPTER pAdapter, NDIS_OID Oid, PULONG64 pCo
                 if (!(ENETRegBase->ECR.U & ENET_ECR_ETHER_EN_MASK)) {       // Discard loop if ENET is disabled
                     break;
                 }
-            };       
+            };
             /* ifInDiscards - "The number of inbound packets which were chosen to be discarded even though no errors had been detected to prevent their being deliverable to a higher-layer protocol."
             OID_GEN_RCV_DISCARDS = OID_GEN_RCV_ERROR + OID_GEN_RCV_NO_BUFFER */
             pAdapter->StatisticsAcc.ifInDiscards += (ULONG64)ENETRegBase->RMON_R_CRC_ALIGN + ENETRegBase->RMON_R_UNDERSIZE + ENETRegBase->RMON_R_OVERSIZE + ENETRegBase->IEEE_R_MACERR;

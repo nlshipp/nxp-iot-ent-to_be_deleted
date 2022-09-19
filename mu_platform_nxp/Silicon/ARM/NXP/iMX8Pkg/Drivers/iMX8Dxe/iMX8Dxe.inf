@@ -1,6 +1,7 @@
 #
 #  Copyright (c) Microsoft Corporation. All rights reserved.
 #  Copyright (c) 2013-2015, ARM Limited. All rights reserved.
+#  Copyright 2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -65,6 +66,7 @@
 
   giMX8TokenSpaceGuid.PcdUsb1XhciBaseAddress
   giMX8TokenSpaceGuid.PcdUsb2XhciBaseAddress
+  giMX8TokenSpaceGuid.PcdUsb1EhciBaseAddress
 
 [Depex]
   # We depend on these protocols to create the default boot entries

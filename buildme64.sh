@@ -1,6 +1,6 @@
 #!/bin/bash
 # 
-# Copyright 2020 NXP 
+# Copyright 2022 NXP 
 # All rights reserved. 
 #  
 # Redistribution and use in source and binary forms, with or without modification, 
@@ -50,17 +50,19 @@ usage() { echo "Usage: $0 [-b BOARD_1] [-b BOARD_2] [-t TARGET_1] .. [-c]"      
           echo "Description:          "                                           1>&2
           echo "          [-b|-board]"                                            1>&2
           echo "            { all,"                                               1>&2
-          echo "              8M, NXPEVK_iMX8M_4GB,"                              1>&2
-          echo "              8Mm, NXPEVK_iMX8M_Mini_2GB"                         1>&2
-          echo "              8Mn, EVK_iMX8MN_2GB }"                              1>&2
-          echo "              8Mp, EVK_iMX8MP_6GB }"                              1>&2
+          echo "              8M, MX8M_EVK,"                                      1>&2
+          echo "              8Mm, MX8M_MINI_EVK"                                 1>&2
+          echo "              8Mn, MX8M_NANO_EVK }"                               1>&2
+          echo "              8Mp, MX8M_PLUS_EVK }"                               1>&2
           echo ""                                                                 1>&2
           echo "          [-t|-target_app] "                                      1>&2
           echo "            { all, u|uboot, optee, apps|tee_apps,"                1>&2
           echo "              uimg|uboot_image, tools|uefi_tools, uefi,"          1>&2
+          echo "              profile_dev, profile_secure, profile_frontpage,"    1>&2
           echo "              secured_efi|secured_uefi, s|sign_images }"          1>&2
           echo ""                                                                 1>&2
           echo "          [-fw|-fw_bin]"                                          1>&2
+          echo "          [-cap|-capsule]"                                        1>&2
           echo "          [-c|-clean]"                                            1>&2
           echo "          [-nu|-no_uuu]"                                          1>&2
           echo "          [-h|-help]"                                             1>&2
@@ -94,6 +96,7 @@ build_uefi_tools=0
 build_uefi=0
 build_sign_images=0
 build_fw_monolith=0
+build_capsule=0
 
 build_all_selected=0
 build_configuration=RELEASE
@@ -136,6 +139,9 @@ do
     -fw|-fw_bin)
         build_fw_monolith=1
         ;;
+    -cap|-capsule)
+        build_capsule=1
+        ;;
     -t|-target_app)
         case "${2}" in
             u|uboot)
@@ -166,6 +172,15 @@ do
             secured_efi|secured_uefi)
                 build_uefi_profile=SECURE
                 ;;
+            profile_secure)
+                build_uefi_profile=SECURE
+                ;;
+            profile_dev)
+                build_uefi_profile=DEV
+                ;;
+            profile_frontpage)
+                build_uefi_profile=FRONTPAGE
+                ;;
             s|sign_images)
                 build_sign_images=1
                 ;;
@@ -189,16 +204,16 @@ do
         ;;
     -b|-board)
         case "${2}" in
-            8M|NXPEVK_iMX8M_4GB)
+            8M|MX8M_EVK)
                 build_8m=1
                 ;;
-            8Mm|NXPEVK_iMX8M_Mini_2GB)
+            8Mm|MX8M_MINI_EVK)
                 build_8m_mini=1
                 ;;
-            8Mn|EVK_iMX8MN_2GB)
+            8Mn|MX8M_NANO_EVK)
                 build_8m_nano=1
                 ;;
-            8Mp|EVK_iMX8MP_6GB)
+            8Mp|MX8M_PLUS_EVK)
                 build_8m_plus=1
                 ;;
             all)
@@ -335,12 +350,30 @@ update_srkh_in_uboot_config () {
     rm $tmpfile
 }
 
+# Returns version string from iMX8CommonDsc.inc in hex format: 2022-01-03=>0x07E60103
+get_firmware_version()
+{
+    local DSCFILE=mu_platform_nxp/Silicon/ARM/NXP/iMX8Pkg/iMX8CommonDsc.inc
+    local tag=$1
+    local value=`cat ${DSCFILE} | grep "^ *$tag *=" | cut -d'=' -f2`
+
+    # Convert version string to hex number: 2022-01-03=>0x07E60103
+    local numbers=(${value//-/ }) #Convert to array 2022,01,03
+    local result=0
+    for i in "${numbers[@]}"; do
+        result=$((result<<8))
+        result=$((result + 10#$i))  #10# ... converts bash string to integer in decadic, otherwise 0x is considered octal
+    done
+    local result_string=$(printf "0x%08x" $result)
+    echo $result_string
+}
+
 # 6. definition of build board function
 
 build_board () {
     if [ -z "$AARCH64_TOOLCHAIN_PATH" ] ; then
         echo "AARCH64_TOOLCHAIN_PATH is not set."
-        echo "Example: export AARCH64_TOOLCHAIN_PATH=~/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-"
+        echo "Example: export AARCH64_TOOLCHAIN_PATH=~/gcc-linaro-7.4.1-2019.02-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-"
         exit
     fi
 
@@ -355,8 +388,8 @@ build_board () {
     else
         TARGET_WINDOWS_BSP_PREFIX=imx-windows-iot
     fi
-    TARGET_FIRMWARE_COMPONENTS_DIR="${TARGET_WINDOWS_BSP_PREFIX}/components/Arm64BootFirmware/$bsp_folder" # eg. imx-windows-iot/components/Arm64BootFirmware/NXPEVK_iMX8M_4GB
-    TARGET_FIRMWARE_DIR="${TARGET_WINDOWS_BSP_PREFIX}/BSP/firmware/$bsp_folder" # eg. imx-windows-iot/BSP/firmware/NXPEVK_iMX8M_4GB
+    TARGET_FIRMWARE_COMPONENTS_DIR="${TARGET_WINDOWS_BSP_PREFIX}/components/Arm64BootFirmware/$bsp_folder" # eg. imx-windows-iot/components/Arm64BootFirmware/MX8M_EVK
+    TARGET_FIRMWARE_DIR="${TARGET_WINDOWS_BSP_PREFIX}/BSP/firmware/$bsp_folder" # eg. imx-windows-iot/BSP/firmware/MX8M_EVK
 
     if [ $build_uboot -eq 1 ]; then
         pushd uboot-imx/ || exit $?
@@ -386,7 +419,7 @@ build_board () {
             make clean PLATFORM=imx PLATFORM_FLAVOR=$optee_plat || exit $?
             rm -r ./out
         fi
-        make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat CFG_TEE_CORE_DEBUG=n TRACE_LEVEL=0 DEBUG=n CFG_TEE_CORE_LOG_LEVEL=0 CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
+        make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat CFG_TEE_CORE_DEBUG=n TRACE_LEVEL=0 DEBUG=n CFG_TEE_CORE_LOG_LEVEL=0 CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
 
         # debug
         # make PLATFORM=imx -j12 PLATFORM_FLAVOR=$optee_plat \
@@ -530,6 +563,19 @@ build_board () {
             dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin of=${TARGET_FIRMWARE_DIR}/signed_firmware.bin bs=512 || exit $?
             dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_uefi.fit of=${TARGET_FIRMWARE_DIR}/signed_firmware.bin bs=1024 seek=$uefi_offset_kb || exit $?
         fi
+        
+        if [ $build_capsule -eq 1 ]; then
+            echo "building capsule from firmware.bin" || exit $?
+            PYTHON_TOOLS=mu_platform_nxp/MU_BASECORE/BaseTools/Source/Python
+            export PYTHONPATH=$PYTHONPATH:$PYTHON_TOOLS
+            capsule_guid='62AF20A3-7016-424A-9BF8-9CCC86584090'
+            fw_ver=$(get_firmware_version FIRMWARE_VER)
+            lsv=$(get_firmware_version FIRMWARE_VER_LOWEST_SUPPORTED)
+            
+            python3 $PYTHON_TOOLS/Capsule/GenerateCapsule.py -v --encode ${TARGET_FIRMWARE_DIR}/firmware.bin --fw-version ${fw_ver} --lsv ${lsv} \
+            --guid $capsule_guid --monotonic-count 2 --signer-private-cert $PYTHON_TOOLS/Pkcs7Sign/TestCert.pem \
+            --other-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestSub.pub.pem --trusted-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestRoot.pub.pem -o ${TARGET_FIRMWARE_DIR}/FirmwareCapsuleIMX.cap || exit $?
+        fi
     fi
     echo "Done"
 }
@@ -541,6 +587,7 @@ build_board () {
 
 echo building bootloader image for Windows 10 IOT Enterprise
 echo "Build Configuration: " $build_configuration
+echo "UEFI build profile:  " $build_uefi_profile
 echo -----------------
 echo 
 echo Selected configuration:
@@ -578,8 +625,8 @@ echo
 # i.MX 8MQ EVK config
 if [ $build_8m -eq 1 ]; then
     echo "Board type IMX8M EVK" 
-    bsp_folder="NXPEVK_iMX8M_4GB"
-    uefi_folder="MCIMX8M_EVK_4GB"
+    bsp_folder="MX8M_EVK"
+    uefi_folder="MX8M_EVK"
     uboot_defconfig="imx8mq_evk_nt_defconfig"
     if [ $build_uboot_with_uuu_support -eq 1 ]; then
         uboot_defconfig="imx8mq_evk_nt_uuu_defconfig"
@@ -603,8 +650,8 @@ fi
 # i.MX 8M Mini EVK config
 if [ $build_8m_mini -eq 1 ]; then
     echo "Board type IMX8MM EVK"
-    bsp_folder="NXPEVK_iMX8M_Mini_2GB"
-    uefi_folder="MCIMX8M_MINI_EVK_2GB"
+    bsp_folder="MX8M_MINI_EVK"
+    uefi_folder="MX8M_MINI_EVK"
     uboot_defconfig="imx8mm_evk_nt_defconfig"
     if [ $build_uboot_with_uuu_support -eq 1 ]; then
         uboot_defconfig="imx8mm_evk_nt_uuu_defconfig"
@@ -628,7 +675,7 @@ fi
 # i.MX 8M Nano EVK config
 if [ $build_8m_nano -eq 1 ]; then
 echo "Board type IMX8MN EVK"
-    bsp_folder="EVK_iMX8MN_2GB"
+    bsp_folder="MX8M_NANO_EVK"
     uefi_folder=${bsp_folder}
     uboot_defconfig="imx8mn_ddr4_evk_nt_defconfig"
     if [ $build_uboot_with_uuu_support -eq 1 ]; then
@@ -654,7 +701,7 @@ fi
 # i.MX 8M Plus EVK config
 if [ $build_8m_plus -eq 1 ]; then
 echo "Board type IMX8MP EVK"
-    bsp_folder="EVK_iMX8MP_6GB"
+    bsp_folder="MX8M_PLUS_EVK"
     uefi_folder=${bsp_folder}
     uboot_defconfig="imx8mp_evk_nt_defconfig"
     if [ $build_uboot_with_uuu_support -eq 1 ]; then

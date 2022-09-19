@@ -36,25 +36,25 @@
 #pragma pack( 4 )
 struct CSI_REGS
 {
-	/*__IO*/ UINT32 CR1;                               /**< CSI Control Register 1, offset: 0x0 */
-	/*__IO*/ UINT32 CR2;                               /**< CSI Control Register 2, offset: 0x4 */
-	/*__IO*/ UINT32 CR3;                               /**< CSI Control Register 3, offset: 0x8 */
-	/*__I */ UINT32 STATFIFO;                          /**< CSI Statistic FIFO Register, offset: 0xC */
-	/*__I */ UINT32 RFIFO;                             /**< CSI RX FIFO Register, offset: 0x10 */
-	/*__IO*/ UINT32 RXCNT;                             /**< CSI RX Count Register, offset: 0x14 */
-	/*__IO*/ UINT32 SR;                                /**< CSI status Register, offset: 0x18 */
-	/*    */ UINT8  RESERVED_0[4];
-	/*__IO*/ UINT32 DMASA_STATFIFO;                    /**< CSI DMA Start Address Register - for STATFIFO, offset: 0x20 */
-	/*__IO*/ UINT32 DMATS_STATFIFO;                    /**< CSI DMA Transfer Size Register - for STATFIFO, offset: 0x24 */
-	/*__IO*/ UINT32 DMASA_FB1;                         /**< CSI DMA Start Address Register - for Frame Buffer1, offset: 0x28 */
-	/*__IO*/ UINT32 DMASA_FB2;                         /**< CSI DMA Transfer Size Register - for Frame Buffer2, offset: 0x2C */
-	/*__IO*/ UINT32 FBUF_PARA;                         /**< CSI Frame Buffer Parameter Register, offset: 0x30 */
-	/*__IO*/ UINT32 IMAG_PARA;                         /**< CSI Image Parameter Register, offset: 0x34 */
-	/*    */ UINT8  RESERVED_1[16];
-	/*__IO*/ UINT32 CR18;                              /**< CSI Control Register 18, offset: 0x48 */
-	/*__IO*/ UINT32 CR19;                              /**< CSI Control Register 19, offset: 0x4C */
-	/*__IO*/ UINT32 CR20;                              /**< CSI Control Register 20, offset: 0x50 */
-	/*__IO*/ UINT32 CR[256];                           /**< CSI Control Register, array offset: 0x54, array step: 0x4 */
+    /*__IO*/ UINT32 CR1;                               /**< CSI Control Register 1, offset: 0x0 */
+    /*__IO*/ UINT32 CR2;                               /**< CSI Control Register 2, offset: 0x4 */
+    /*__IO*/ UINT32 CR3;                               /**< CSI Control Register 3, offset: 0x8 */
+    /*__I */ UINT32 STATFIFO;                          /**< CSI Statistic FIFO Register, offset: 0xC */
+    /*__I */ UINT32 RFIFO;                             /**< CSI RX FIFO Register, offset: 0x10 */
+    /*__IO*/ UINT32 RXCNT;                             /**< CSI RX Count Register, offset: 0x14 */
+    /*__IO*/ UINT32 SR;                                /**< CSI status Register, offset: 0x18 */
+    /*    */ UINT8  RESERVED_0[4];
+    /*__IO*/ UINT32 DMASA_STATFIFO;                    /**< CSI DMA Start Address Register - for STATFIFO, offset: 0x20 */
+    /*__IO*/ UINT32 DMATS_STATFIFO;                    /**< CSI DMA Transfer Size Register - for STATFIFO, offset: 0x24 */
+    /*__IO*/ UINT32 DMASA_FB1;                         /**< CSI DMA Start Address Register - for Frame Buffer1, offset: 0x28 */
+    /*__IO*/ UINT32 DMASA_FB2;                         /**< CSI DMA Transfer Size Register - for Frame Buffer2, offset: 0x2C */
+    /*__IO*/ UINT32 FBUF_PARA;                         /**< CSI Frame Buffer Parameter Register, offset: 0x30 */
+    /*__IO*/ UINT32 IMAG_PARA;                         /**< CSI Image Parameter Register, offset: 0x34 */
+    /*    */ UINT8  RESERVED_1[16];
+    /*__IO*/ UINT32 CR18;                              /**< CSI Control Register 18, offset: 0x48 */
+    /*__IO*/ UINT32 CR19;                              /**< CSI Control Register 19, offset: 0x4C */
+    /*__IO*/ UINT32 CR20;                              /**< CSI Control Register 20, offset: 0x50 */
+    /*__IO*/ UINT32 CR[256];                           /**< CSI Control Register, array offset: 0x54, array step: 0x4 */
 };
 #pragma pack( pop )
 
@@ -109,66 +109,68 @@ struct CSI_REGS
 
     const static UINT32 CR2_LVRM_MASK = 0x70000U;
     const static UINT32 CR2_LVRM(UINT32 LVRM)
+    /*! LVRM
+     *  0b000..512 x 384
+     *  0b001..448 x 336
+     *  0b010..384 x 288
+     *  0b011..384 x 256
+     *  0b100..320 x 240
+     *  0b101..288 x 216
+     *  0b110..400 x 300
+     */
     {
         return (LVRM << 16U) & CR2_LVRM_MASK;
     }
-        /*! LVRM
-         *  0b000..512 x 384
-         *  0b001..448 x 336
-         *  0b010..384 x 288
-         *  0b011..384 x 256
-         *  0b100..320 x 240
-         *  0b101..288 x 216
-         *  0b110..400 x 300
-         */
 
     const static UINT32 CR2_BTS_MASK = 0x180000U;
     const static UINT32 CR2_BTS(UINT32 BTS)
+    /*! BTS
+     *  0b00..GR
+     *  0b01..RG
+     *  0b10..BG
+     *  0b11..GB
+     */
     {
         return (BTS << 19U) & CR2_BTS_MASK;
     }
-         /*! BTS
-          *  0b00..GR
-          *  0b01..RG
-          *  0b10..BG
-          *  0b11..GB
-          */
+
     const static UINT32 CR2_SCE_BIT = 0x800000U; // Skip count enable
     const static UINT32 CR2_AFS_MASK = 0x3000000U;
     const static UINT32 CR2_AFS(UINT32 AFS)
+    /*! AFS
+     *  0b00..Abs Diff on consecutive green pixels
+     *  0b01..Abs Diff on every third green pixels
+     *  0b1x..Abs Diff on every four green pixels
+     */
     {
         return (AFS << 24U) & CR2_AFS_MASK;
     }
-       /*! AFS
-        *  0b00..Abs Diff on consecutive green pixels
-        *  0b01..Abs Diff on every third green pixels
-        *  0b1x..Abs Diff on every four green pixels
-        */
+
     const static UINT32 CR2_DRM_BIT = 0x4000000U; // 0 - Stats grid of 8 x 6, 1 - Stats grid of 8 x 12
-        /*! DRM
-         *  0b0..Stats grid of 8 x 6
-         *  0b1..Stats grid of 8 x 12
-         */
+    /*! DRM
+     *  0b0..Stats grid of 8 x 6
+     *  0b1..Stats grid of 8 x 12
+     */
     const static UINT32 CR2_DMA_BURST_TYPE_SFF_MASK = 0x3000000U;
     const static UINT32 CR2_DMA_BURST_TYPE_SFF(UINT32 DMA_BURST_TYPE_SFF)
+    /*! DMA_BURST_TYPE_SFF
+     *  0bx0..INCR8
+     *  0b01..INCR4
+     *  0b11..INCR16
+     */
     {
         return (DMA_BURST_TYPE_SFF << 28U) & CR2_DMA_BURST_TYPE_SFF_MASK;
     }
-         /*! DMA_BURST_TYPE_SFF
-          *  0bx0..INCR8
-          *  0b01..INCR4
-          *  0b11..INCR16
-          */
     const static UINT32 CR2_DMA_BURST_TYPE_RFF_MASK = 0xC0000000U;
     const static UINT32 CR2_DMA_BURST_TYPE_RFF(UINT32 DMA_BURST_TYPE_RFF)
+    /*! DMA_BURST_TYPE_RFF
+     *  0bx0..INCR8
+     *  0b01..INCR4
+     *  0b11..INCR16
+     */
     {
         return (DMA_BURST_TYPE_RFF << 30U) & CR2_DMA_BURST_TYPE_RFF_MASK;
     }
-      /*! DMA_BURST_TYPE_RFF
-       *  0bx0..INCR8
-       *  0b01..INCR4
-       *  0b11..INCR16
-       */
 
     /*! @} */
 
@@ -178,31 +180,31 @@ struct CSI_REGS
     const static UINT32 CR3_ECC_INT_EN_BIT = 0x2U; // Interrupt is generated when error is detected.
     const static UINT32 CR3_ZERO_PACK_EN_BIT = 0x4U; // Zero packing enabled
     const static UINT32 CR3_SENSOR_16BITS_BIT = 0x8U; // 0 - One 8-bit sensor is connected. 1 - One 16-bit sensor is connected.
-    const static UINT32 CR3_RxFF_LEVEL_MASK = 0x70U; 
-    const static UINT32 CR3_RxFF_LEVEL_SHIFT = 0x4U; 
-        /*! RxFF_LEVEL
-         *  0b000..4 Double words
-         *  0b001..8 Double words
-         *  0b010..16 Double words
-         *  0b011..24 Double words
-         *  0b100..32 Double words
-         *  0b101..48 Double words
-         *  0b110..64 Double words
-         *  0b111..96 Double words
-         */
+    const static UINT32 CR3_RxFF_LEVEL_MASK = 0x70U;
+    const static UINT32 CR3_RxFF_LEVEL_SHIFT = 0x4U;
+    /*! RxFF_LEVEL
+     *  0b000..4 Double words
+     *  0b001..8 Double words
+     *  0b010..16 Double words
+     *  0b011..24 Double words
+     *  0b100..32 Double words
+     *  0b101..48 Double words
+     *  0b110..64 Double words
+     *  0b111..96 Double words
+     */
     const static UINT32 CR3_HRESP_ERR_EN_BIT = 0x80U; // Enable hresponse error interrupt
     const static UINT32 CR3_STATFF_LEVEL_MASK = 0x700U;
     const static UINT32 CR3_STATFF_LEVEL_SHIFT = 8U;
-        /*! STATFF_LEVEL
-         *  0b000..4 Double words
-         *  0b001..8 Double words
-         *  0b010..12 Double words
-         *  0b011..16 Double words
-         *  0b100..24 Double words
-         *  0b101..32 Double words
-         *  0b110..48 Double words
-         *  0b111..64 Double words
-         */
+    /*! STATFF_LEVEL
+     *  0b000..4 Double words
+     *  0b001..8 Double words
+     *  0b010..12 Double words
+     *  0b011..16 Double words
+     *  0b100..24 Double words
+     *  0b101..32 Double words
+     *  0b110..48 Double words
+     *  0b111..64 Double words
+     */
     const static UINT32 CR3_DMA_REQ_EN_SFF_BIT = 0x800U; // Enable the dma request
     const static UINT32 CR3_DMA_REQ_EN_RFF_BIT = 0x1000U; // Enable the dma request
     const static UINT32 CR3_DMA_REFLASH_SFF_BIT = 0x2000U; // Reflash the embedded DMA controller
@@ -222,7 +224,7 @@ struct CSI_REGS
     const static UINT32  FBUF_PARA_FBUF_STRIDE_SHIFT = 0U;
     const static UINT32  FBUF_PARA_DEINTERLACE_STRIDE_SHIFT = 16U;
     /*! @} */
-        
+
     /*! @name IMAG_PARA - CSI Image Parameter Register */
     /*! @{ */
     const static UINT32 IMAG_PARA_IMAGE_HEIGHT_SHIFT = 0U;
@@ -255,7 +257,7 @@ struct CSI_REGS
     /*! @name CR18 - CSI Control Register 18 */
     /*! @{ */
     // Reserved const static UINT32 CR18_NTSC_EN_BIT = 0x1U; // 0 - PAL, 1 - NTSC
-    // Reserved const static UINT32 CR18_TVDECODER_IN_EN_BIT = 0x2U; // 
+    // Reserved const static UINT32 CR18_TVDECODER_IN_EN_BIT = 0x2U; //
     const static UINT32 CR18_DEINTERLACE_EN_BIT = 0x4U; // Deinterlace enable. This bit is used to select the output method When input is standard CCIR656 video.
     const static UINT32 CR18_PARALLEL24_EN_BIT = 0x8U; // When input is parallel rgb888/yuv444 24bit, this bit can be enabled.
     const static UINT32 CR18_BASEADDR_SWITCH_EN_BIT = 0x10U; // When this bit is enabled, CSI DMA will switch the base address according to BASEADDR_SWITCH_SEL rather than atomically by DMA completed.
@@ -271,11 +273,11 @@ struct CSI_REGS
     {
         return (((UINT32)(AHB_HPROT << 12U)) & CR18_AHB_HPROT_MASK);
     }
-	const static UINT32 CR18_LCDIF_BUFFER_LINES_MASK = 0x30000U;
-	const static UINT32 CR18_LCDIF_BUFFER_LINES(UINT32 LCDIF_BUFFER_LINES) // Hprot value in AHB bus protocol.
-	{
-		return (((UINT32)(LCDIF_BUFFER_LINES << 16U)) & CR18_LCDIF_BUFFER_LINES_MASK);
-	}
+    const static UINT32 CR18_LCDIF_BUFFER_LINES_MASK = 0x30000U;
+    const static UINT32 CR18_LCDIF_BUFFER_LINES(UINT32 LCDIF_BUFFER_LINES) // Hprot value in AHB bus protocol.
+    {
+        return (((UINT32)(LCDIF_BUFFER_LINES << 16U)) & CR18_LCDIF_BUFFER_LINES_MASK);
+    }
     const static UINT32 CR18_MASK_OPTION_MASK = 0xC0000U;
     const static UINT32 CR18_MASK_OPTION_DONT_SKIP = (0x1 << 18U);
     const static UINT32 CR18_MASK_OPTION_SKIP_FIRST_FRAME = (0x0 << 18U);
@@ -299,7 +301,7 @@ struct CSI_REGS
     const static UINT32 CR18_MIPI_DATA_FORMAT_YUV422_10B = (0x1F << 25U);
     const static UINT32 CR18_MIPI_DATA_FORMAT_RGB565 = (0x22 << 25U);
     const static UINT32 CR18_MIPI_DATA_FORMAT_RGB888 = (0x24 << 25U);
-    const static UINT32 CR18_MIPI_DATA_FORMAT_RAW8 = (0x2a << 25U); // 
+    const static UINT32 CR18_MIPI_DATA_FORMAT_RAW8 = (0x2a << 25U); //
     const static UINT32 CR18_MIPI_DATA_FORMAT_RAW10 = (0x2b << 25U);
     const static UINT32 CR18_MIPI_DATA_FORMAT_RAW12 = (0x2c << 25U);
     const static UINT32 CR18_MIPI_DATA_FORMAT(UINT32 DATA_FORMAT)
@@ -309,7 +311,7 @@ struct CSI_REGS
     const static UINT32 CR18_CSI_ENABLE_BIT = 0x80000000U; // Image Data Format
     /*! @} */
 
-	/*
+    /*
      * The interrupt enable bits are in registers CSICR1[16:31], CSICR3[0:7],
      * and CSICR18[2:9]. So merge them into an UINT32 value, place CSICR18 control
      * bits to [8:15].
@@ -326,7 +328,8 @@ struct CSI_REGS
 
 
 struct Resources_t {
-	CSI_REGS *m_CsiRegistersPtr;
-	UINT32 coreClockFrequencyHz;
-	PCHAR  csiDevNameA;
+    CSI_REGS *m_CsiRegistersPtr;
+    UINT32 coreClockFrequencyHz;
+    PCHAR  csiDevNameA;
+    UINT32 m_CpuId;
 };

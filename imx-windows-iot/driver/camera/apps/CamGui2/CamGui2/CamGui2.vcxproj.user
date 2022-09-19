@@ -3,7 +3,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <RemoteDebuggerCommand>c:\Users\a\Desktop\lib\CamGui2.exe</RemoteDebuggerCommand>
     <RemoteDebuggerWorkingDirectory>c:\Users\a\Desktop\lib</RemoteDebuggerWorkingDirectory>
-    <RemoteDebuggerServerName>192.168.0.100</RemoteDebuggerServerName>
+    <RemoteDebuggerServerName>192.168.0.102</RemoteDebuggerServerName>
     <DeploymentDirectory>c:\Users\a\Desktop\lib</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerDebuggerType>NativeOnly</RemoteDebuggerDebuggerType>
@@ -12,7 +12,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <RemoteDebuggerCommand>c:\Users\a\Desktop\lib\CamGui2.exe</RemoteDebuggerCommand>
     <RemoteDebuggerWorkingDirectory>c:\Users\a\Desktop\lib</RemoteDebuggerWorkingDirectory>
-    <RemoteDebuggerServerName>192.168.0.100</RemoteDebuggerServerName>
+    <RemoteDebuggerServerName>192.168.0.102</RemoteDebuggerServerName>
     <DeploymentDirectory>c:\Users\a\Desktop\lib</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerDebuggerType>NativeOnly</RemoteDebuggerDebuggerType>

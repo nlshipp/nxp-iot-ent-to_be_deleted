@@ -60,21 +60,11 @@ DEFINE_GUID (GUID_DEVINTERFACE_IMXCSI,
 #include "common\ImxVideoCommon.h"
 
 #define IOCTL_CSI_DRIVER_INIT CTL_CODE(THIS_DEVICE_TYPE, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_CSI_DRIVER_GET_FRAME CTL_CODE(THIS_DEVICE_TYPE, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_CSI_DRIVER_STOP CTL_CODE(THIS_DEVICE_TYPE, 0x803, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_CSI_DRIVER_STOP CTL_CODE(THIS_DEVICE_TYPE, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_CSI_REQUIRED_FMT CTL_CODE(THIS_DEVICE_TYPE, 0x803, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_CSI_DRIVER_GET_FRAME CTL_CODE(THIS_DEVICE_TYPE, 0x804, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 
 #endif
 
-struct FrameInfo_t
-{
-	PUCHAR Virtual;
-	ULONG ByteCount;
-	BOOLEAN StrideValid;
-	PVOID m_RequestCtxPtr;
-	// PHYSICAL_ADDRESS PhysAddr; // If we want to use DMA for memcopy a scatter gather DMA would have to copy common buffer over.
-	LONG Stride;
-	// These two are just Virtual and ByteCount passed differently
-	PVOID Fb; // Should be same as Virtual
-	size_t FbSize; // Should be same as ByteCount
-};
+
 

@@ -608,7 +608,7 @@ index 0000000000..88bdce14bc
 +CONFIG_VIDEO_LCD_RAYDIUM_RM67191=n
 diff --git a/configs/imx8mn_ddr4_evk_nt_uuu_defconfig b/configs/imx8mn_ddr4_evk_nt_uuu_defconfig
 new file mode 100644
-index 0000000000..7df25bbf49
+index 0000000000..e7dbaedc2e
 --- /dev/null
 +++ b/configs/imx8mn_ddr4_evk_nt_uuu_defconfig
 @@ -0,0 +1,166 @@
@@ -620,7 +620,7 @@ index 0000000000..7df25bbf49
 +CONFIG_BOARD_EARLY_INIT_F=y
 +CONFIG_BOARD_LATE_INIT=y
 +CONFIG_BOOTCOMMAND="usb start; if test ${mmcdev} = 2; then mmc dev 2 ${mmcpart}; mmc read ${loadaddr} 0xF28 0x1000; else; mmc dev ${mmcdev}; mmc read ${loadaddr} 0xF68 0x1000; fi; bootm ${loadaddr};"
-+CONFIG_BOOTDELAY=3
++CONFIG_BOOTDELAY=-2
 +# CONFIG_BOOTM_NETBSD is not set
 +CONFIG_CI_UDC=y
 +CONFIG_CLK_COMPOSITE_CCF=y
@@ -780,7 +780,7 @@ index 0000000000..7df25bbf49
 +CONFIG_CMD_BOOTA=n
 diff --git a/configs/imx8mp_evk_nt_defconfig b/configs/imx8mp_evk_nt_defconfig
 new file mode 100644
-index 0000000000..92eff857f2
+index 0000000000..0505a838df
 --- /dev/null
 +++ b/configs/imx8mp_evk_nt_defconfig
 @@ -0,0 +1,168 @@
@@ -790,7 +790,7 @@ index 0000000000..92eff857f2
 +CONFIG_BOARD_EARLY_INIT_F=y
 +CONFIG_BOARD_LATE_INIT=y
 +CONFIG_BOOTCOMMAND="usb start; if test ${mmcdev} = 2; then mmc dev 2 ${mmcpart}; mmc read ${loadaddr} 0xF28 0x1000; else; mmc dev ${mmcdev}; mmc read ${loadaddr} 0xF68 0x1000; fi; bootm ${loadaddr};"
-+CONFIG_BOOTDELAY=3
++CONFIG_BOOTDELAY=-2
 +CONFIG_BAUDRATE=921600
 +# CONFIG_BOOTM_NETBSD is not set
 +CONFIG_BZIP2=y
@@ -954,7 +954,7 @@ index 0000000000..92eff857f2
 +CONFIG_VIDEO_LCD_RAYDIUM_RM67191=y
 diff --git a/configs/imx8mp_evk_nt_uuu_defconfig b/configs/imx8mp_evk_nt_uuu_defconfig
 new file mode 100644
-index 0000000000..6de3983466
+index 0000000000..f16c966694
 --- /dev/null
 +++ b/configs/imx8mp_evk_nt_uuu_defconfig
 @@ -0,0 +1,173 @@
@@ -964,7 +964,7 @@ index 0000000000..6de3983466
 +CONFIG_BOARD_EARLY_INIT_F=y
 +CONFIG_BOARD_LATE_INIT=y
 +CONFIG_BOOTCOMMAND="usb start; if test ${mmcdev} = 2; then mmc dev 2 ${mmcpart}; mmc read ${loadaddr} 0xF28 0x1000; else; mmc dev ${mmcdev}; mmc read ${loadaddr} 0xF68 0x1000; fi; bootm ${loadaddr};"
-+CONFIG_BOOTDELAY=3
++CONFIG_BOOTDELAY=-2
 +CONFIG_BAUDRATE=921600
 +# CONFIG_BOOTM_NETBSD is not set
 +CONFIG_CLK_COMPOSITE_CCF=y

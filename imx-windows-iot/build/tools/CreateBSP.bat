@@ -89,15 +89,15 @@ copy %BUILD_ROOT%\imxpwm\* %DRVR_ROOT%\PWM\ >NUL
 if errorlevel 1 (set FAILURE=imxpwm & goto ERROR)
 copy %REPO_ROOT%\driver\pwm\imxpwm\imxpwm.wm.xml %DRVR_ROOT%\PWM\ >NUL
 
-mkdir %DRVR_ROOT%\thermal\sensor >NUL 2>NUL
-copy %BUILD_ROOT%\imxtmu\* %DRVR_ROOT%\thermal\sensor >NUL
+mkdir %DRVR_ROOT%\ThermalSensor >NUL 2>NUL
+copy %BUILD_ROOT%\imxtmu\* %DRVR_ROOT%\ThermalSensor >NUL
 if errorlevel 1 (set FAILURE=imxtmu & goto ERROR)
-copy %REPO_ROOT%\driver\thermal\sensor\imxtmu.wm.xml %DRVR_ROOT%\thermal\sensor >NUL
+copy %REPO_ROOT%\driver\ThermalSensor\imxtmu.wm.xml %DRVR_ROOT%\ThermalSensor >NUL
 
-mkdir %DRVR_ROOT%\thermal\client >NUL 2>NUL
-copy %BUILD_ROOT%\imxthermalclient\* %DRVR_ROOT%\thermal\client >NUL
+mkdir %DRVR_ROOT%\ThermalClient >NUL 2>NUL
+copy %BUILD_ROOT%\imxthermalclient\* %DRVR_ROOT%\ThermalClient >NUL
 if errorlevel 1 (set FAILURE=imxthermalclient & goto ERROR)
-copy %REPO_ROOT%\driver\thermal\client\imxthermalclient.wm.xml %DRVR_ROOT%\thermal\client >NUL
+copy %REPO_ROOT%\driver\ThermalClient\imxthermalclient.wm.xml %DRVR_ROOT%\ThermalClient >NUL
 
 mkdir %DRVR_ROOT%\USDHC >NUL 2>NUL
 copy %BUILD_ROOT%\imxusdhc\* %DRVR_ROOT%\USDHC\ >NUL
@@ -127,6 +127,9 @@ if errorlevel 1 (set FAILURE=imxomxg2 & goto ERROR)
 copy %BUILD_ROOT%\imx-vpu-dwl\imx-vpu-dwl.dll %DRVR_ROOT%\VPU\ >NUL
 if errorlevel 1 (set FAILURE=imx-vpu-dwl & goto ERROR)
 
+copy %COMP_ROOT%\video\* %DRVR_ROOT%\VPU\ >NUL
+if errorlevel 1 (set FAILURE=vcruntime140.dll & goto ERROR)
+
 :: Copy USB
 mkdir %DRVR_ROOT%\USB >NUL 2>NUL
 copy %BUILD_ROOT%\imxUcmTcpciCxClient\* %DRVR_ROOT%\USB\ >NUL
@@ -139,21 +142,11 @@ copy %BUILD_ROOT%\Wm8960codec\* %DRVR_ROOT%\Wm8960codec\ >NUL
 if errorlevel 1 (set FAILURE=Wm8960codec & goto ERROR)
 
 :: Copy Camera
-mkdir %DRVR_ROOT%\Avstream_ov5640 >NUL 2>NUL
-copy %BUILD_ROOT%\imxavstream_ov5640\* %DRVR_ROOT%\Avstream_ov5640 >NUL
+mkdir %DRVR_ROOT%\ImxCamera >NUL 2>NUL
+copy %BUILD_ROOT%\imxcamera_package\*.sys %DRVR_ROOT%\ImxCamera >NUL
+copy %BUILD_ROOT%\imxcamera_package\*.cat %DRVR_ROOT%\ImxCamera >NUL
+copy %BUILD_ROOT%\imxcamera_package\imxcamera_package.inf %DRVR_ROOT%\ImxCamera >NUL
 if errorlevel 1 (set FAILURE=Avstream & goto ERROR)
-
-mkdir %DRVR_ROOT%\Sns_ov5640 >NUL 2>NUL
-copy %BUILD_ROOT%\imxsns_ov5640\* %DRVR_ROOT%\Sns_ov5640 >NUL
-if errorlevel 1 (set FAILURE=Sns_ov5640 & goto ERROR)
-
-mkdir %DRVR_ROOT%\Csi >NUL 2>NUL
-copy %BUILD_ROOT%\imxcsi\* %DRVR_ROOT%\Csi >NUL
-if errorlevel 1 (set FAILURE=Csi & goto ERROR)
-
-mkdir %DRVR_ROOT%\Mipi >NUL 2>NUL
-copy %BUILD_ROOT%\imxmipi\* %DRVR_ROOT%\Mipi >NUL
-if errorlevel 1 (set FAILURE=Csi & goto ERROR)
 
 :: Copy HAL Extension Packages
 echo Copying HAL Extension Packages to %DRVR_ROOT%
@@ -162,10 +155,16 @@ copy %BUILD_ROOT%\HalExtiMXDma\* %DRVR_ROOT%\HalExtDma\ >NUL
 if errorlevel 1 (set FAILURE=HalExtiMXDma & goto ERROR)
 copy %REPO_ROOT%\hals\halext\HalExtiMXDma\HalExtiMXDma.wm.xml %DRVR_ROOT%\HalExtDma\ >NUL
 
-:: Copy Galcore GPU and iMX 8M dispctrl driver
+:: Copy Galcore 8M GPU 
 echo Copying Galcore GPU driver to %DRVR_ROOT%
-mkdir %DRVR_ROOT%\Galcore >NUL 2>NUL
-copy %COMP_ROOT%\Galcore\* %DRVR_ROOT%\Galcore\ >NUL
+mkdir %DRVR_ROOT%\Galcore_m >NUL 2>NUL
+copy %COMP_ROOT%\Galcore\Galcore_m\* %DRVR_ROOT%\Galcore_m\ >NUL
+if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
+
+:: Copy Galcore 8MP/8MN GPU 
+echo Copying Galcore GPU driver to %DRVR_ROOT%
+mkdir %DRVR_ROOT%\Galcore_mp_mn >NUL 2>NUL
+copy %COMP_ROOT%\Galcore\Galcore_mp_mn\* %DRVR_ROOT%\Galcore_mp_mn\ >NUL
 if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
 
 :: Copy Patch files
@@ -174,6 +173,14 @@ mkdir %BINPTCH_ROOT%\Sdport >NUL 2>NUL
 copy %COMP_ROOT%\Sdport\* %BINPTCH_ROOT%\Sdport\ >NUL
 if errorlevel 1 (set FAILURE=Sdport & goto ERROR)
 
+::Copy dispctrl.dll
+echo Copying dispctrl.dll to %DRVR_ROOT%\dispctrl\
+::mkdir %DRVR_ROOT%\dispctrl >NUL 2>NUL
+::copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\dispctrl >NUL
+copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\Galcore_m >NUL
+if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
+copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\Galcore_mp_mn >NUL
+if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
 
 exit /b 0
 

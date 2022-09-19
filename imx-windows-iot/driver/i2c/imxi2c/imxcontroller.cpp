@@ -528,7 +528,7 @@ NTSTATUS ControllerTransferDataMultp(
     // formula : timeout = 10/Fscl
     // the minimum timeout for polling IIF bit is 25us at 400 kHz (period 2.5us x 10 )
 
-    timeoutMax = ( 10 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed;
+    timeoutMax = ( 1000 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_CTRLR,
                 "ControllerTransferDataMultp() timeout value=%lu us",
@@ -1149,7 +1149,7 @@ NTSTATUS ControllerGenerateStart(
     NTSTATUS status = STATUS_SUCCESS;
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_CTRLR, "++ControllerGenerateStart()");
 
-    timeoutMax = ( 10 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed; // 100us at 100 kHz
+    timeoutMax = ( 1000 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed; // 100us at 100 kHz
 
     // expect i2c bus be Not busy.
     // check if i2c bus is busy - wait until i2c bus becomes not busy
@@ -1327,7 +1327,7 @@ NTSTATUS ControllerGenerateRepeatedStart(
     NTSTATUS status = STATUS_SUCCESS;
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_CTRLR, "++ControllerGenerateRepeatedStart()");
 
-    timeoutMax = ( 10 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed;
+    timeoutMax = ( 1000 * 1000000 ) / DeviceCtxPtr->CurrentTargetPtr->Settings.ConnectionSpeed;
 
     // set RSTA bit
 
@@ -1344,7 +1344,7 @@ NTSTATUS ControllerGenerateRepeatedStart(
 
     // Delay for 2 SCL clocks
 
-    KeStallExecutionProcessor((timeoutMax*2)/10);
+    KeStallExecutionProcessor((timeoutMax*2)/1000);
 
     // check repeated start succeeded
 

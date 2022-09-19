@@ -37,52 +37,51 @@
 
 struct REQUEST_BUFF_INFO
 {
-	void *m_pBuff;
-	size_t m_Len;
+    void *m_pBuff;
+    size_t m_Len;
 };
 typedef REQUEST_BUFF_INFO *PREQUEST_BUFF_INFO;
 
-// The device context performs the same job as
-// a WDM device extension in the driver frameworks
 struct SNS0_ctx: io::ctx_acpi_csr_stub, CamWdf_Res
 {
-	const WDFDEVICE m_WdfDevice;
+    const WDFDEVICE m_WdfDevice;
     WDFSTRING m_DeviceInterfaceSymlinkName;
     WDFQUEUE m_Queue;
-	WDFREQUEST m_QueueCurrentRequest;
+    WDFREQUEST m_QueueCurrentRequest;
 
-	Ov5640_t m_Camera;
+    Ov5640_t m_Camera;
 
-	/* ACPI */
-	AcpiDsdRes_t m_DsdRes;
-	NTSTATUS Get_DsdAcpiResources();
-    
-	/* PNP static callbacks */
+    /* ACPI */
+    AcpiDsdRes_t m_DsdRes;
+    NTSTATUS Get_DsdAcpiResources();
+
+    /* PNP static callbacks */
     static NTSTATUS EvtPrepareHw(_In_ WDFDEVICE Device, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated);
     static NTSTATUS EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST FxResourcesTranslated);
-	static NTSTATUS EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState);
-	static NTSTATUS EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState);
+    static NTSTATUS EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState);
+    static NTSTATUS EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState);
 
-	/* PNP worker methods */
+    /* PNP worker methods */
     NTSTATUS PrepareHw(_In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated);
-	NTSTATUS ReleaseHw(WDFCMRESLIST FxResourcesTranslated);
-	NTSTATUS D0Entry(WDF_POWER_DEVICE_STATE FxPreviousState);
-	NTSTATUS D0Exit(WDF_POWER_DEVICE_STATE FxPreviousState);
-    
+    NTSTATUS ReleaseHw(WDFCMRESLIST FxResourcesTranslated);
+    NTSTATUS D0Entry(WDF_POWER_DEVICE_STATE FxPreviousState);
+    NTSTATUS D0Exit(WDF_POWER_DEVICE_STATE FxPreviousState);
+
     /* IRP utils */
-	NTSTATUS GetRequestBuff(WDFREQUEST a_Request, REQUEST_BUFF_INFO &a_BuffInfo, bool a_WriteBuff = false);
+    NTSTATUS GetRequestBuff(WDFREQUEST a_Request, REQUEST_BUFF_INFO &a_BuffInfo, bool a_WriteBuff = false);
     /* IRP */
     NTSTATUS CreateDeviceInterface();
     NTSTATUS QueueInitialize();
     static VOID EvtDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _In_ size_t OutputBufferLength, _In_ size_t InputBufferLength, _In_ ULONG IoControlCode);
     static VOID EvtIoStop(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _In_ ULONG ActionFlags);
     /* IRP MJ */
-	NTSTATUS ConfigureReq(WDFREQUEST a_Request);
-	NTSTATUS StopReq(WDFREQUEST a_Request);
-    
+    NTSTATUS ConfigureReq(WDFREQUEST a_Request);
+    NTSTATUS StartReq(WDFREQUEST a_Request);
+    NTSTATUS StopReq(WDFREQUEST a_Request);
+
 public:
-	SNS0_ctx(WDFDEVICE &device);
-	~SNS0_ctx();
+    SNS0_ctx(WDFDEVICE &device);
+    ~SNS0_ctx();
     static NTSTATUS EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit);
     static EVT_WDF_DEVICE_CONTEXT_CLEANUP EvtDeviceObjCtxCleanup;
     static EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverObjCtxCleanup;

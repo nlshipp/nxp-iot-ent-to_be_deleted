@@ -8,6 +8,7 @@ Class=MEDIA
 ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
 DriverVer = WILL_BE_FIXED_UP_BY_STAMPINF
 Provider=%ProviderName%
+PnpLockdown = 1
 CatalogFile=imxaud.cat
 
 ; ================= Class section =====================

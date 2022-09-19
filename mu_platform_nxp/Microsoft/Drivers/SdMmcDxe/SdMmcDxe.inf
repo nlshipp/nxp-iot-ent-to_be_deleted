@@ -1,5 +1,6 @@
 #
 #  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
+#  Copyright (c) 2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -22,6 +23,7 @@
   BlockIo.c
   Debug.c
   RpmbIo.c
+  SdMmcPart.c
   Protocol.c
   SdMmc.c
 
@@ -44,6 +46,7 @@
   gEfiDiskIoProtocolGuid
   gEfiRpmbIoProtocolGuid
   gEfiSdhcProtocolGuid
+  gEfiSdMmcPartProtocolGuid
 
 [Depex]
   TRUE

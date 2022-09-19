@@ -2,6 +2,7 @@
 *
 *  Copyright (c) 2013-2015, ARM Limited. All rights reserved.
 *  Copyright (c) Microsoft Corporation. All rights reserved.
+*  Copyright 2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -47,9 +48,26 @@ iMX8EntryPoint (
   EFI_PHYSICAL_ADDRESS  HypBase;
 
   //
+  // Register the EHCI controllers as non-coherent
+  // non-discoverable devices.
+  //
+  #if FixedPcdGet64 (PcdUsb1EhciBaseAddress)
+  Status = RegisterNonDiscoverableMmioDevice (
+             NonDiscoverableDeviceTypeEhci,
+             NonDiscoverableDeviceDmaTypeNonCoherent,
+             NULL,
+             NULL,
+             1,
+             FixedPcdGet64 (PcdUsb1EhciBaseAddress),
+             SIZE_1MB
+             );
+  ASSERT_EFI_ERROR (Status);
+  #endif
+  //
   // Register the XHCI controllers as non-coherent
   // non-discoverable devices.
   //
+  #if FixedPcdGet64 (PcdUsb1XhciBaseAddress)
   Status = RegisterNonDiscoverableMmioDevice (
              NonDiscoverableDeviceTypeXhci,
              NonDiscoverableDeviceDmaTypeNonCoherent,
@@ -60,7 +78,9 @@ iMX8EntryPoint (
              SIZE_1MB
              );
   ASSERT_EFI_ERROR (Status);
+  #endif
 
+  #if FixedPcdGet64 (PcdUsb2XhciBaseAddress)
   Status = RegisterNonDiscoverableMmioDevice (
              NonDiscoverableDeviceTypeXhci,
              NonDiscoverableDeviceDmaTypeNonCoherent,
@@ -71,6 +91,7 @@ iMX8EntryPoint (
              SIZE_1MB
              );
   ASSERT_EFI_ERROR (Status);
+  #endif
 
   //
   // If a hypervisor has been declared then we need to make sure its region is protected at runtime

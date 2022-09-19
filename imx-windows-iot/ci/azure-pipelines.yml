@@ -20,12 +20,12 @@ stages:
       vmImage: 'Ubuntu-16.04'
     strategy:
       matrix:
-        NXPEVK_iMX8M_4GB:
-          Target: NXPEVK_iMX8M_4GB
-          AlternateName: MCIMX8M_EVK_4GB
-        NXPEVK_iMX8M_Mini_2GB:
-          Target: NXPEVK_iMX8M_Mini_2GB
-          AlternateName: NXPEVK_iMX8M_Mini_2GB
+        MX8M_EVK:
+          Target: MX8M_EVK
+          AlternateName: MX8M_EVK
+        MX8M_MINI_EVK:
+          Target: MX8M_MINI_EVK
+          AlternateName: MX8M_MINI_EVK
 
     steps:
     - script: |
@@ -305,11 +305,11 @@ stages:
       vmImage: 'vs2017-win2016'
     strategy:
       matrix:
-        NXPEVK_iMX8M_Mini_2GB:
-          Target: NXPEVK_iMX8M_Mini_2GB
+        MX8M_MINI_EVK:
+          Target: MX8M_MINI_EVK
           Arch: ARM64
-        NXPEVK_iMX8M_4GB:
-          Target: NXPEVK_iMX8M_4GB
+        MX8M_EVK:
+          Target: MX8M_EVK
           Arch: ARM64
           Target: HummingBoardEdge_iMX6S_512MB
           Arch: ARM

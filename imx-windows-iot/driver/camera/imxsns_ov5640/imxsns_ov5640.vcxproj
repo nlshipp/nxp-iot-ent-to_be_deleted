@@ -25,7 +25,6 @@
     <ClInclude Include="ov5640\ImxCameraInterface.h" />
     <ClInclude Include="ov5640\ImxOv5640.h" />
     <ClInclude Include="Public.h" />
-    <ClInclude Include="Queue.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -39,8 +38,6 @@
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
-    <!--ProjectName>sns-ov5640</ProjectName-->
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">

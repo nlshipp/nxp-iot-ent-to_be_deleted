@@ -36,90 +36,118 @@ PAGED_SEGMENT_BEGIN
 // The driver runs fully on passive level. IRP calls to I2C driver are synchronous.
 
 NTSTATUS SNS0_ctx::GetRequestBuff(WDFREQUEST a_Request, REQUEST_BUFF_INFO &a_BuffInfo, bool a_GetWriteBuff) {
-	NTSTATUS status;
+    NTSTATUS status;
 
-	if (a_GetWriteBuff) {
-		status = WdfRequestRetrieveOutputBuffer(a_Request, 1, &a_BuffInfo.m_pBuff, &a_BuffInfo.m_Len);
-	}
-	else {
-		status = WdfRequestRetrieveInputBuffer(a_Request, 1, &a_BuffInfo.m_pBuff, &a_BuffInfo.m_Len);
-	}
-	if (!NT_SUCCESS(status)) {
-		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfRequestRetrieveBuffer failed %!STATUS!", status);
-	}
-	return status;
+    if (a_GetWriteBuff) {
+        status = WdfRequestRetrieveOutputBuffer(a_Request, 1, &a_BuffInfo.m_pBuff, &a_BuffInfo.m_Len);
+    }
+    else {
+        status = WdfRequestRetrieveInputBuffer(a_Request, 1, &a_BuffInfo.m_pBuff, &a_BuffInfo.m_Len);
+    }
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfRequestRetrieveBuffer failed %!STATUS!", status);
+    }
+    return status;
 }
 
 NTSTATUS SNS0_ctx::ConfigureReq(WDFREQUEST a_WdfRequest)
 {
-	NTSTATUS status;
+    NTSTATUS status = STATUS_SUCCESS;
 
-	camera_config_t *configPtr = NULL;
+    camera_config_t *configPtr = NULL;
 
-	status = WdfRequestRetrieveInputBuffer(a_WdfRequest, sizeof(camera_config_t), &((PVOID)configPtr), NULL);
+    status = WdfRequestRetrieveInputBuffer(a_WdfRequest, sizeof(camera_config_t), &((PVOID)configPtr), NULL);
 
-	if (!NT_SUCCESS(status)) {
-		_DbgKdPrint(("ConfigureReq: failed 0x%x\r\n", status));
-	}
-	else {
-		status = m_Camera.Configure(configPtr);
-	}
-	return status;
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to WdfRequestRetrieveInputBuffer %!STATUS!", status);
+    }
+    else {
+        status = m_Camera.Configure(configPtr);
+    }
+    if (NT_SUCCESS(status)) {
+        PUINT32 mipiFreq;
+        status = WdfRequestRetrieveOutputBuffer(a_WdfRequest, sizeof(UINT32), &((PVOID)mipiFreq), NULL);
+        if (NT_SUCCESS(status)) {
+            *mipiFreq = 160000000;
+            WdfRequestSetInformation(a_WdfRequest, sizeof(UINT32));
+        }
+    }
+    return status;
+}
+
+NTSTATUS SNS0_ctx::StartReq(WDFREQUEST a_WdfRequest)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    a_WdfRequest;
+
+    status = m_Camera.Ov5640_VideoEnable();
+    return status;
 }
 
 NTSTATUS SNS0_ctx::StopReq(WDFREQUEST a_Request)
 {
-	NTSTATUS status;
+    NTSTATUS status;
 
-	m_QueueCurrentRequest = a_Request;
-	status = m_Camera.Stop();
-	return status;
+    m_QueueCurrentRequest = a_Request;
+    status = m_Camera.Stop();
+    return status;
 }
 
 NTSTATUS SNS0_ctx::Get_DsdAcpiResources()
 {
-	NTSTATUS status;
+    NTSTATUS status;
 
-		status = m_DsdRes.LoadDsd();
+    status = m_DsdRes.LoadDsd();
+    if (NT_SUCCESS(status)) {
+        const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
+            {
+                "CameraClockFrequencyHz",
+                &cameraClockFrequencyHz, // We want to reference final destination.
+                (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+            },
+            {
+                "DeviceEndpoint0",
+                (PUINT32)&(m_DeviceEndpoint[0]),
+                sizeof(m_DeviceEndpoint),
+                ACPI_METHOD_ARGUMENT_STRING,
+            },
+            {
+                "I2cResId",
+                &I2cResId,
+                (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+            },
+        };
+        status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
+        if (!NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to DsdRes.GetDsdResources %!STATUS!", status);
+        }
+        if (NT_SUCCESS(status)) {
+            NTSTATUS tmpStatus = m_DsdRes.GetInteger("GpioPwnResId", &GpioPwnResId);
 
-		if (NT_SUCCESS(status)) {
-			const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
-			{
-				"CameraClockFrequencyHz",
-				&cameraClockFrequencyHz, // We want to reference final destination.
-				(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-			},
-			{
-				"DeviceEndpoint0",
-				(PUINT32)DeviceEndpoint0,
-				sizeof(DeviceEndpoint0),
-				ACPI_METHOD_ARGUMENT_STRING,
-			},
-			{
-				"GpioPwnResId",
-				&GpioPwnResId,
-				(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-			},
-			{
-				"GpioRstResId",
-				&GpioRstResId,
-				(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-			},
-			{
-				"I2cResId",
-				&I2cResId,
-				(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-			},
-			};
-			status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
-			if (!NT_SUCCESS(status)) {
-				_DbgKdPrint(("SNS0_ctx::DsdRes.GetDsdResources Fail\r\n"));
-			}
-		}
-		else {
-			_DbgKdPrint(("SNS0_ctx::DsdRes.LoadDsd Fail\r\n"));
-		}
-	return status;
+            if (!NT_SUCCESS(tmpStatus)) {
+                m_HasPwnGpio = false;
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Failed to query GpioPwnResId. (status = %!STATUS!)", tmpStatus);
+            }
+            else {
+                m_HasPwnGpio = true;
+            }
+
+            tmpStatus = m_DsdRes.GetInteger("GpioRstResId", &GpioRstResId);
+
+            if (!NT_SUCCESS(tmpStatus)) {
+                m_HasRstGpio = false;
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Failed to query GpioRstResId. (status = %!STATUS!)", tmpStatus);
+            }
+            else {
+                m_HasRstGpio = true;
+            }
+        }
+    }
+    else {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to DsdRes.LoadDsd %!STATUS!", status);
+    }
+    return status;
 }
 
 NTSTATUS SNS0_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit)
@@ -131,37 +159,36 @@ NTSTATUS SNS0_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT D
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(Driver);
+    UNREFERENCED_PARAMETER(Driver);
 
-	NTSTATUS status;
+    NTSTATUS status;
     WDF_OBJECT_ATTRIBUTES deviceAttributes;
-	PDEVICE_CONTEXT pDeviceContext;
+    PDEVICE_CONTEXT pDeviceContext;
     WDFDEVICE device;
-	WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
+    WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
 
-	WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
-	pnpCallbacks.EvtDevicePrepareHardware = EvtPrepareHw; // OnPrepareHardware;
-	pnpCallbacks.EvtDeviceReleaseHardware = EvtReleaseHw;
-	pnpCallbacks.EvtDeviceD0Entry = EvtD0Entry;
-	pnpCallbacks.EvtDeviceD0Exit = EvtD0Exit;
-	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
+    WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    pnpCallbacks.EvtDevicePrepareHardware = EvtPrepareHw; // OnPrepareHardware;
+    pnpCallbacks.EvtDeviceReleaseHardware = EvtReleaseHw;
+    pnpCallbacks.EvtDeviceD0Entry = EvtD0Entry;
+    pnpCallbacks.EvtDeviceD0Exit = EvtD0Exit;
+    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
-	deviceAttributes.EvtCleanupCallback = SNS0_ctx::EvtDeviceObjCtxCleanup;
+    deviceAttributes.EvtCleanupCallback = SNS0_ctx::EvtDeviceObjCtxCleanup;
     status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
     if (NT_SUCCESS(status)) {
-		pDeviceContext = GetDeviceContext(device); // Since now the deviceContext is valid.
-		((SNS0_ctx *)pDeviceContext)->SNS0_ctx::SNS0_ctx(device);
-		pDeviceContext->CreateDeviceInterface();
+        pDeviceContext = GetDeviceContext(device); // Since now the deviceContext is valid.
+        ((SNS0_ctx *)pDeviceContext)->SNS0_ctx::SNS0_ctx(device);
+        status = pDeviceContext->QueueInitialize(); // Initialize the I/O Package and any Queues
     }
-
     return status;
 }
 
 void SNS0_ctx::EvtDeviceObjCtxCleanup(_In_ WDFOBJECT DeviceObject)
 {
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "EvtDeviceObjCtxCleanup()");
-	((SNS0_ctx *)GetDeviceContext(DeviceObject))->SNS0_ctx::~SNS0_ctx();
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "EvtDeviceObjCtxCleanup()");
+    ((SNS0_ctx *)GetDeviceContext(DeviceObject))->SNS0_ctx::~SNS0_ctx();
 }
 
 SNS0_ctx::SNS0_ctx(WDFDEVICE &device) : m_WdfDevice(device), ctx_acpi_csr_stub(), CamWdf_Res(device), m_Camera(*this), m_DsdRes(device) /* CamWdf_Res is parent */ {};
@@ -171,7 +198,7 @@ SNS0_ctx::~SNS0_ctx()
  * SNS0_ctx constructor initializes context to defaults.
  */
 {
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "~SNS0_ctx");
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "~SNS0_ctx");
 };
 
 NTSTATUS SNS0_ctx::CreateDeviceInterface()
@@ -181,34 +208,50 @@ NTSTATUS SNS0_ctx::CreateDeviceInterface()
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status;
-	// Create a device interface so that applications can find and talk to us.
-	status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_SNS0_DRIVER, NULL); // &RTL_CONSTANT_STRING("dcba")  // ReferenceString
-	if (NT_SUCCESS(status)) {
-		status = QueueInitialize(); // Initialize the I/O Package and any Queues
-		if (NT_SUCCESS(status)) {
-			WDF_OBJECT_ATTRIBUTES attributes;
+    NTSTATUS status;
+    WDF_OBJECT_ATTRIBUTES attributes;
 
-			WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-			attributes.ParentObject = m_WdfDevice;
-			status = WdfStringCreate(NULL, &attributes, &m_DeviceInterfaceSymlinkName);
-			if (!NT_SUCCESS(status)) {
-				TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfStringCreate failed %!STATUS!", status);
-			}
-			else {
-				status = WdfDeviceRetrieveDeviceInterfaceString(m_WdfDevice, &GUID_DEVINTERFACE_SNS0_DRIVER, NULL, m_DeviceInterfaceSymlinkName);
-				if (!NT_SUCCESS(status)) {
-					TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfDeviceRetrieveDeviceInterfaceString failed %!STATUS!", status);
-				}
-				else { // Log the symlink name
-					UNICODE_STRING StringName;
-					WdfStringGetUnicodeString(m_DeviceInterfaceSymlinkName, &StringName);
-					TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Created Link %ws.", StringName.Buffer);
-				}
-			}
-		}
-	}
-	return status;
+    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+    attributes.ParentObject = m_WdfDevice;
+    status = WdfStringCreate(NULL, &attributes, &m_DeviceInterfaceSymlinkName);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfStringCreate failed %!STATUS!", status);
+    }
+    else {
+        if (NT_SUCCESS(status)) {
+            ANSI_STRING deviceEndpointAnsiName;
+
+            _Analysis_assume_nullterminated_(m_DeviceEndpoint);
+            status = RtlInitAnsiStringEx(&deviceEndpointAnsiName, (PCSZ)(m_DeviceEndpoint));
+            if (NT_SUCCESS(status)) {
+                RtlInitEmptyUnicodeString(&m_DeviceEndpointUnicodeName, m_DeviceEndpointUnicodeNameBuff, sizeof(m_DeviceEndpointUnicodeNameBuff));
+                status = RtlAnsiStringToUnicodeString(&m_DeviceEndpointUnicodeName, &deviceEndpointAnsiName, FALSE);
+            }
+            if (NT_SUCCESS(status)) {
+                TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "Creating symbolic link %ws", m_DeviceEndpointUnicodeName.Buffer);
+                status = WdfDeviceCreateSymbolicLink(m_WdfDevice, &m_DeviceEndpointUnicodeName);
+                TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "WdfDeviceCreateSymbolicLink() Status: %!STATUS!", status);
+            }
+#if (DBG)
+            if (NT_SUCCESS(status)) {
+                status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_SNS0_DRIVER, NULL);
+                if (!NT_SUCCESS(status)) {
+                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to create interface %!STATUS!", status);
+                }
+                if (NT_SUCCESS(status)) {
+                    status = WdfDeviceRetrieveDeviceInterfaceString(m_WdfDevice, &GUID_DEVINTERFACE_SNS0_DRIVER, NULL, m_DeviceInterfaceSymlinkName);
+                    if (NT_SUCCESS(status)) { // Log the symlink name
+                        UNICODE_STRING StringName;
+
+                        WdfStringGetUnicodeString(m_DeviceInterfaceSymlinkName, &StringName);
+                        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Created Link %ws.", StringName.Buffer);
+                    }
+                }
+            }
+#endif
+        }
+    }
+    return status;
 }
 
 NTSTATUS SNS0_ctx::EvtPrepareHw(WDFDEVICE WdfDevice, WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTranslated)
@@ -222,9 +265,9 @@ NTSTATUS SNS0_ctx::EvtPrepareHw(WDFDEVICE WdfDevice, WDFCMRESLIST ResourcesRaw, 
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
 
-	return deviceCtxPtr->PrepareHw(ResourcesRaw, ResourcesTranslated);
+    return deviceCtxPtr->PrepareHw(ResourcesRaw, ResourcesTranslated);
 }
 
 NTSTATUS SNS0_ctx::EvtReleaseHw(WDFDEVICE WdfDevice, WDFCMRESLIST ResourcesTranslated)
@@ -237,9 +280,9 @@ NTSTATUS SNS0_ctx::EvtReleaseHw(WDFDEVICE WdfDevice, WDFCMRESLIST ResourcesTrans
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
 
-	return deviceCtxPtr->ReleaseHw(ResourcesTranslated);
+    return deviceCtxPtr->ReleaseHw(ResourcesTranslated);
 }
 
 NTSTATUS SNS0_ctx::EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState)
@@ -252,9 +295,9 @@ NTSTATUS SNS0_ctx::EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPrev
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
 
-	return deviceCtxPtr->D0Entry(FxPreviousState);
+    return deviceCtxPtr->D0Entry(FxPreviousState);
 }
 
 NTSTATUS SNS0_ctx::EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState)
@@ -267,9 +310,9 @@ NTSTATUS SNS0_ctx::EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPrevi
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(WdfDevice);
 
-	return deviceCtxPtr->D0Exit(FxPreviousState);
+    return deviceCtxPtr->D0Exit(FxPreviousState);
 }
 
 NTSTATUS SNS0_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTranslated)
@@ -282,29 +325,29 @@ NTSTATUS SNS0_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTr
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(ResourcesRaw);
-	NTSTATUS status;
+    UNREFERENCED_PARAMETER(ResourcesRaw);
+    NTSTATUS status;
 
-	status = Get_CrsAcpiResources(ResourcesTranslated);
-	if (NT_SUCCESS(status)) {
-		status = Get_DsdAcpiResources();
-		if (NT_SUCCESS(status)) {
-			TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_RstGpio.IoTargetInit.");
-			if (GpioRstResId != 0xFF) {
-				m_HasRstGpio = true;
-				status = m_RstGpio.IoTargetInit(m_GpioResList.at(GpioRstResId));
-			}
-			if (NT_SUCCESS(status)) {
-				TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetInit.");
-				status = m_PwnGpio.IoTargetInit(m_GpioResList.at(GpioPwnResId));
-				if (NT_SUCCESS(status)) {
-					TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_I2c.IoTargetInit.");
-					status = m_I2c.IoTargetInit(m_I2cResList.at(I2cResId));
-				}
-			}
-		}
-	}
-	return status;
+    status = Get_CrsAcpiResources(ResourcesTranslated);
+    if (NT_SUCCESS(status)) {
+        status = Get_DsdAcpiResources();
+        if (m_HasRstGpio && NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_RstGpio.IoTargetInit.");
+            status = m_RstGpio.IoTargetInit(m_GpioResList.at(GpioRstResId));
+        }
+        if (m_HasPwnGpio && NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetInit.");
+            status = m_PwnGpio.IoTargetInit(m_GpioResList.at(GpioPwnResId));
+        }
+        if (NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_I2c.IoTargetInit.");
+            status = m_I2c.IoTargetInit(m_I2cResList.at(I2cResId));
+        }
+    }
+    if (NT_SUCCESS(status)) {
+        status = CreateDeviceInterface();
+    }
+    return status;
 }
 
 NTSTATUS SNS0_ctx::ReleaseHw(WDFCMRESLIST FxResourcesTranslated)
@@ -316,55 +359,55 @@ NTSTATUS SNS0_ctx::ReleaseHw(WDFCMRESLIST FxResourcesTranslated)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
 
-	UNREFERENCED_PARAMETER(FxResourcesTranslated);
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "++OnReleaseHardware()");
+    UNREFERENCED_PARAMETER(FxResourcesTranslated);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "++OnReleaseHardware()");
 
-	if (m_HasRstGpio) {
-		TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_RstGpio.IoTargetClose.");
-		m_RstGpio.IoTargetClose();
-	}
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetClose.");
-	m_PwnGpio.IoTargetClose();
+    if (m_HasRstGpio) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_RstGpio.IoTargetClose.");
+        m_RstGpio.IoTargetClose();
+    }
+    if (m_HasPwnGpio) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetClose.");
+        m_PwnGpio.IoTargetClose();
+    }
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetClose.");
-	m_I2c.IoTargetClose();
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_PwnGpio.IoTargetClose.");
+    m_I2c.IoTargetClose();
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "--OnReleaseHardware()=%Xh", status);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "--OnReleaseHardware()=%Xh", status);
 
-	{
-		auto *a = m_MeResList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
-			a = m_MeResList.Pop();
-		}
-	}
-	{
-		auto *a = m_GpioResList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
-			a = m_GpioResList.Pop();
-		}
-	}
-	{
-		auto *a = m_I2cResList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
-			a = m_I2cResList.Pop();
-		}
-	}
-	{
-		auto *a = m_IntResList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
-			a = m_IntResList.Pop();
-		}
-	}
-
-	m_DsdRes.Cleanup();
-
-	return status;
+    {
+        auto *a = m_MeResList.Pop();
+        while (a != NULL) {
+            ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
+            a = m_MeResList.Pop();
+        }
+    }
+    {
+        auto *a = m_GpioResList.Pop();
+        while (a != NULL) {
+            ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
+            a = m_GpioResList.Pop();
+        }
+    }
+    {
+        auto *a = m_I2cResList.Pop();
+        while (a != NULL) {
+            ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
+            a = m_I2cResList.Pop();
+        }
+    }
+    {
+        auto *a = m_IntResList.Pop();
+        while (a != NULL) {
+            ExFreePoolWithTag(a, m_MeResList.DriverPoolTag);
+            a = m_IntResList.Pop();
+        }
+    }
+    m_DsdRes.Cleanup();
+    return status;
 }
 
 NTSTATUS SNS0_ctx::D0Entry(WDF_POWER_DEVICE_STATE FxPreviousState)
@@ -377,11 +420,10 @@ NTSTATUS SNS0_ctx::D0Entry(WDF_POWER_DEVICE_STATE FxPreviousState)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(FxPreviousState);
+    UNREFERENCED_PARAMETER(FxPreviousState);
 
-	NTSTATUS status = m_Camera.Init();
-	m_Camera.Stop();
-	return status;
+    NTSTATUS status = m_Camera.Init();
+    return status;
 }
 
 NTSTATUS SNS0_ctx::D0Exit(WDF_POWER_DEVICE_STATE FxPreviousState)
@@ -394,9 +436,9 @@ NTSTATUS SNS0_ctx::D0Exit(WDF_POWER_DEVICE_STATE FxPreviousState)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(FxPreviousState);
+    UNREFERENCED_PARAMETER(FxPreviousState);
 
-	return m_Camera.Deinit();
+    return m_Camera.Deinit();
 }
 
 PAGED_SEGMENT_END

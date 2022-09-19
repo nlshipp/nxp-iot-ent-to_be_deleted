@@ -131,6 +131,7 @@
       <AdditionalIncludeDirectories>$(IntDir);$(ProjectDir)..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Sync</ExceptionHandling>
       <CallingConvention>StdCall</CallingConvention>
+      <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);onecoreuap.lib</AdditionalDependencies>

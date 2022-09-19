@@ -7,6 +7,7 @@ Signature	= "$WINDOWS NT$"
 Class		= Camera
 ClassGuid	= {ca3e7ab9-b4c3-4ae6-8251-579ef933890f}
 Provider	= %ProviderName%
+PnpLockdown = 1
 CatalogFile	= imxsns_ov5640.cat ; VS requirement to have catalog file entry
 
 [DestinationDirs]

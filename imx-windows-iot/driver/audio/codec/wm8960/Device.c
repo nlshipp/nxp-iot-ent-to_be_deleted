@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Module Name:
@@ -52,6 +53,7 @@ Return Value:
     WDF_PNPPOWER_EVENT_CALLBACKS callbacks;
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&callbacks);
     callbacks.EvtDevicePrepareHardware = EvtWm8960DevicePrepareHardware;
+    callbacks.EvtDeviceReleaseHardware = EvtWm8960DeviceReleaseHardware;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &callbacks);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
@@ -197,5 +199,24 @@ EvtWm8960DevicePrepareHardware(
 	}
 
 	return status;
+}
+
+NTSTATUS
+EvtWm8960DeviceReleaseHardware(
+	_In_ WDFDEVICE    Device,
+	_In_ WDFCMRESLIST ResourcesRaw
+)
+{
+	PDEVICE_CONTEXT deviceContext;
+
+	UNREFERENCED_PARAMETER(ResourcesRaw);
+
+	deviceContext = DeviceGetContext(Device);
+
+    if (deviceContext->I2cTarget != WDF_NO_HANDLE) {
+        WdfIoTargetClose(deviceContext->I2cTarget);
+    }
+
+	return STATUS_SUCCESS;
 }
 

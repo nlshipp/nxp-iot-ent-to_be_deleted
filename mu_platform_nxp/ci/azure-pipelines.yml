@@ -8,8 +8,8 @@ jobs:
       vmImage: 'Ubuntu-16.04'
     strategy:
       matrix:
-        NXPEVK_iMX8M_4GB:
-          Target: NXPEVK_iMX8M_4GB
+        MX8M_EVK:
+          Target: MX8M_EVK
 
     steps:
     - task: ComponentGovernanceComponentDetection@0
@@ -50,11 +50,11 @@ jobs:
         pushd ../mu_platform_nxp
         export GCC5_AARCH64_PREFIX=$(Build.SourcesDirectory)/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
         sudo pip3 install -r requirements.txt --upgrade
-        python3 NXP/MCIMX8M_EVK_4GB/PlatformBuild.py --setup
+        python3 NXP/MX8M_EVK/PlatformBuild.py --setup
 
         cd MU_BASECORE
         make -C BaseTools
         cd ..
 
-        python3 NXP/MCIMX8M_EVK_4GB/PlatformBuild.py TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD" TARGET=RELEASE MAX_CONCURRENT_THREAD_NUMBER=20 BLD_*_CONFIG_NOT_SECURE_UEFI=1
+        python3 NXP/MX8M_EVK/PlatformBuild.py TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD" TARGET=RELEASE MAX_CONCURRENT_THREAD_NUMBER=20 BLD_*_CONFIG_NOT_SECURE_UEFI=1
       displayName: Build UEFI

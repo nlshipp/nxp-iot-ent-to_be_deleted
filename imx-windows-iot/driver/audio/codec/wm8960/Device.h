@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Module Name:
@@ -51,6 +52,8 @@ Wm8960CodecCreateDevice(
     );
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE EvtWm8960DevicePrepareHardware;
+
+EVT_WDF_DEVICE_RELEASE_HARDWARE EvtWm8960DeviceReleaseHardware;
 
 
 EXTERN_C_END

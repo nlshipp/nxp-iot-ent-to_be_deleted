@@ -18,6 +18,8 @@
 #include <winioctl.h>
 #include "imxcsi\Public.h"
 #include "imxmipi\Public.h"
+//#include "imxsns_ov5640\Public.h"
+#include "imxsns_ov10635\Public.h"
 
 using namespace Concurrency;
 using namespace Microsoft::WRL;
@@ -32,8 +34,8 @@ bool cfg_only_get_frame = false;
 uint8_t GtHsSettle_EscClk = 0x9;
 wchar_t driver_id_str = '0'; // User can specify instance
 
-DEFINE_GUID(GUID_DEVINTERFACE_SNS0_DRIVER,
-	0x3b4611d3, 0x4330, 0x4800, 0x8a, 0x7a, 0x85, 0x5f, 0x98, 0x44, 0x4a, 0x59);
+// DEFINE_GUID(GUID_DEVINTERFACE_SNS0_DRIVER,
+// 	0x3b4611d3, 0x4330, 0x4800, 0x8a, 0x7a, 0x85, 0x5f, 0x98, 0x44, 0x4a, 0x59);
 
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -232,6 +234,51 @@ FileHandle OpenMipiHandle(DWORD additionalFlags = 0, const wchar_t id = 0)
 	return fileHandle;
 }
 
+FileHandle OpenCameraHandle(DWORD additionalFlags = 0, const wchar_t id = 0)
+{
+	auto interfacePath = GetInterfacePath(GUID_DEVINTERFACE_SNS0_DRIVER);
+	if (id != 0) {
+		interfacePath.back() = id;
+	}
+	printf("  Opening device %S\n", interfacePath.c_str());
+
+	FileHandle fileHandle(CreateFile(// CreateFile2
+		interfacePath.c_str(),
+		GENERIC_READ | GENERIC_WRITE,
+		0,          // dwShareMode
+		nullptr,    // lpSecurityAttributes
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL | additionalFlags,
+		nullptr));  // hTemplateFile
+
+	if (!fileHandle.IsValid()) {
+		if (GetLastError() == ERROR_ACCESS_DENIED) {
+			// Try opening read-only
+			fileHandle.Attach(CreateFile(
+				interfacePath.c_str(),
+				GENERIC_READ,
+				0,          // dwShareMode
+				nullptr,    // lpSecurityAttributes
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | additionalFlags,
+				nullptr));  // hTemplateFile
+
+			if (fileHandle.IsValid()) {
+				return fileHandle;
+			}
+		}
+
+		throw wexception::make(
+			HRESULT_FROM_WIN32(GetLastError()),
+			L"Failed to open a handle to the VPU device. "
+			L"(hr = 0x%x, interfacePath = %s)",
+			HRESULT_FROM_WIN32(GetLastError()),
+			interfacePath.c_str());
+	}
+
+	return fileHandle;
+}
+
 void init_cam()
 {
 	printf("Tinit_cam\n");
@@ -248,16 +295,59 @@ void init_cam()
 	else {
 		DWORD bytes;
 
+		auto camHandle = OpenCameraHandle(0); //, driver_id_str);
 		auto csiHandle = OpenCsiHandle(0); //, driver_id_str);
 		auto mipiHandle = OpenMipiHandle(0); // , driver_id_str);
 		{
 			// camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, 0xE /* 0x12 */ };
 			// camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, 0x10 };
-			camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, csiLanes, GtHsSettle_EscClk };
+			camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 0, csiLanes, GtHsSettle_EscClk };
 			// camera_config_t cfg{ resolution, cameraPixelFormat , resultPixelFormat, framePerSec, mipiChannel, csiLanes, tHsSettle_EscClk, InterfaceMIPI,  };
+
 
 			// cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
 			ULONG output;
+
+			{
+				if (!DeviceIoControl(camHandle.Get(), IOCTL_SNS_CONFIGURE,
+					(LPVOID)&cfg, sizeof(cfg),
+					&output, sizeof(output),
+					&bytes, nullptr
+				)) {
+					throw wexception::make(
+						HRESULT_FROM_WIN32(GetLastError()),
+						L"IOCTL_SNS0_DRIVER_CONFIGURE failed. "
+						L"(hr = 0x%x, bytes = %d of %d)",
+						HRESULT_FROM_WIN32(GetLastError()),
+						bytes, sizeof(output));
+				}
+				else
+				{
+					printf("    IOCTL_SNS0_DRIVER_CONFIGURE output = %d\n", output);
+				}
+			}
+
+			printf("Test %d: IOCTL_CONFIGURE\n", ++tId);
+			{
+				output = 0;
+				if (!DeviceIoControl(mipiHandle.Get(), IOCTL_MIPI_CONFIGURE,
+					(LPVOID)&cfg, sizeof(cfg),
+					&output, sizeof(output),
+					&bytes, nullptr
+				)) {
+					throw wexception::make(
+						HRESULT_FROM_WIN32(GetLastError()),
+						L"IOCTL_CONFIGURE failed. "
+						L"(hr = 0x%x, bytes = %d of %d)",
+						HRESULT_FROM_WIN32(GetLastError()),
+						bytes, sizeof(output));
+				}
+				else
+				{
+					printf("    IOCTL_CONFIGURE output = %d\n", output);
+				}
+			}
+
 			if (!DeviceIoControl(csiHandle.Get(), IOCTL_CSI_DRIVER_INIT,
 				(LPVOID)&cfg, sizeof(cfg),
 				&output, sizeof(output),
@@ -275,28 +365,25 @@ void init_cam()
 				printf("    IOCTL_CSI_DRIVER_INIT output = %d\n", output);
 			}
 
-			printf("Test %d: IOCTL_CONFIGURE\n", ++tId);
-
 			{
-				output = 0;
-				if (!DeviceIoControl(mipiHandle.Get(), IOCTL_CONFIGURE,
+				if (!DeviceIoControl(camHandle.Get(), IOCTL_SNS_START,
 					(LPVOID)&cfg, sizeof(cfg),
 					&output, sizeof(output),
 					&bytes, nullptr
 				)) {
 					throw wexception::make(
 						HRESULT_FROM_WIN32(GetLastError()),
-						L"IOCTL_CONFIGURE failed. "
+						L"IOCTL_SNS0_DRIVER_START failed. "
 						L"(hr = 0x%x, bytes = %d of %d)",
 						HRESULT_FROM_WIN32(GetLastError()),
 						bytes, sizeof(output));
 				}
 				else
 				{
-					printf("    IOCTL_CONFIGURE output = %d\n", output);
+					printf("    IOCTL_SNS0_DRIVER_START output = %d\n", output);
 				}
-
 			}
+
 		}
 
 
@@ -305,9 +392,9 @@ void init_cam()
 		{
 			LARGE_INTEGER cnt, StartingTime, EndingTime, ElapsedMicroseconds;
 			LARGE_INTEGER Frequency;
-			FrameInfo_t fInfo{ 0 };
+			FrameInfo_t fInfo;
 
-			fInfo.Virtual = (PUCHAR)1;
+			fInfo.m_Virtual = (PUCHAR)1;
 			QueryPerformanceFrequency(&Frequency);
 			QueryPerformanceCounter(&StartingTime);
 			QueryPerformanceCounter(&EndingTime);
@@ -349,7 +436,7 @@ void init_cam()
 	}
 }
 // 1843200
-void test()
+void testCsi()
 {
 	printf("Test %d: simple ioctl tests\n", ++tId);
 	auto handle = OpenCsiHandle();
@@ -432,7 +519,7 @@ void test()
 
 	printf("Test %d: IOCTL_CSI_DRIVER_INIT kVIDEO_Resolution720P\n", ++tId);
 	{
-		camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, 2, 0x9 };
+		camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatUYVY , kVIDEO_PixelFormatYUYV, 25, 1, 2, 0x9 };
 		cfg.tHsSettle_EscClk = (UINT8) GetSettle(cfg.resolution, cfg.framePerSec);
 
 		if (!DeviceIoControl(
@@ -459,10 +546,10 @@ void test()
 	}
 
 	{
-		FrameInfo_t fInfo{ 0 };
+		FrameInfo_t fInfo;
 
 		printf("Test %d: IOCTL_CSI_DRIVER_GET_FRAME with zeroed params\n", ++tId);
-		if (!DeviceIoControl(
+		if (DeviceIoControl(
 			handle.Get(),
 			IOCTL_CSI_DRIVER_GET_FRAME,
 			&fInfo,
@@ -474,7 +561,7 @@ void test()
 		)) { // || (bytes != sizeof(output))) {
 			throw wexception::make(
 				HRESULT_FROM_WIN32(GetLastError()),
-				L"IOCTL_CSI_DRIVER_GET_FRAME failed. "
+				L"IOCTL_CSI_DRIVER_GET_FRAME did not failed. "
 				L"(hr = 0x%x, bytes = %d of %d)",
 				HRESULT_FROM_WIN32(GetLastError()),
 				bytes, sizeof(output));
@@ -485,8 +572,8 @@ void test()
 		}
 
 		printf("Test %d: IOCTL_CSI_DRIVER_GET_FRAME with invalid address\n", ++tId);
-		fInfo.Virtual = (PUCHAR)1;
-		if (!DeviceIoControl(
+		fInfo.m_Virtual = (PUCHAR)1;
+		if (DeviceIoControl(
 			handle.Get(),
 			IOCTL_CSI_DRIVER_GET_FRAME,
 			&fInfo,
@@ -498,7 +585,7 @@ void test()
 		)) { // || (bytes != sizeof(output))) {
 			throw wexception::make(
 				HRESULT_FROM_WIN32(GetLastError()),
-				L"IOCTL_CSI_DRIVER_GET_FRAME failed. "
+				L"IOCTL_CSI_DRIVER_GET_FRAME did not failed. "
 				L"(hr = 0x%x, bytes = %d of %d)",
 				HRESULT_FROM_WIN32(GetLastError()),
 				bytes, sizeof(output));
@@ -535,7 +622,7 @@ void test()
 #endif //#if 0
 }
 
-void TestMultiClient()
+void TestCsiMultiClient()
 {
 	printf("Test %d: OpenCsiHandle double 1 and single 2\n", ++tId);
 	auto handle1 = OpenCsiHandle();
@@ -557,10 +644,13 @@ void TestMultiClient()
 	}
 }
 
-void TestOverlappedIo()
+void TestCsiOverlappedIo()
 {
 	printf("Test %d: OverlappedIo CancelIo\n", ++tId);
 	auto handle = OpenCsiHandle(FILE_FLAG_OVERLAPPED);
+	const size_t imageSizeB = 1280 * 720 * 2;
+	PVOID image = malloc(imageSizeB);
+
 		// InitIrpParam param;
 		// param.req = InitIrpParam::STOP_TEST;
 		// param.timeout = 1000;
@@ -614,13 +704,18 @@ void TestOverlappedIo()
 	}
 #endif
 
+	camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, 2, 0x9 };
+
+	cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
+
 	{ // IOCTL_CSI_DRIVER_INIT - STOP_TEST
 		auto overlappedContext = OVERLAPPED();
+
 		overlappedContext.hEvent = overlappedEvent.Get();
 		printf("    DeviceIoControl(IOCTL_CSI_DRIVER_INIT)\n");
 		if (!DeviceIoControl(handle.Get(),IOCTL_CSI_DRIVER_INIT,
-			NULL, //(LPVOID)&param,
-			0, //sizeof(param),
+			(LPVOID)&cfg, //(LPVOID)&param,
+			sizeof(cfg), //sizeof(param),
 			NULL,
 			0,
 			NULL,
@@ -633,7 +728,7 @@ void TestOverlappedIo()
 			DWORD Status = GetLastError();
 			printf("		CancelIoEx() %s with %x\n", r ? "succeeded" : "failed", Status);
 			// if ((Status != ERROR_OPERATION_ABORTED) && (Status != ERROR_SUCCESS)) {
-			DWORD NumberOfBytesTransferred; 
+			DWORD NumberOfBytesTransferred;
 			printf("		GetOverlappedResult()\n");
 			r = GetOverlappedResult(handle.Get(), &overlappedContext, &NumberOfBytesTransferred, NULL);
 			printf("		GetOverlappedResult() %s with %x\n", r ? "succeeded" : "failed", GetLastError());
@@ -644,15 +739,19 @@ void TestOverlappedIo()
 		printf("		IOCTL_CSI_DRIVER_INIT(STOP_TEST) not fully implemented.\n");
 	}
 
-	{ // IOCTL_CSI_DRIVER_GET_FRAME - STOP_TEST
+	{ // IOCTL_CSI_DRIVER_GET_FRAME
 		auto overlappedContext = OVERLAPPED();
+		FrameInfo_t fInfo;
+
 		overlappedContext.hEvent = overlappedEvent.Get();
 		printf("    DeviceIoControl(IOCTL_CSI_DRIVER_GET_FRAME)\n");
 		if (!DeviceIoControl(handle.Get(), IOCTL_CSI_DRIVER_GET_FRAME,
-			NULL, //(LPVOID)&param,
-			0, //sizeof(param),
-			NULL,
-			0,
+			// NULL, //(LPVOID)&param,
+			// 0, //sizeof(param),
+			// NULL,
+			// 0,
+			&fInfo, sizeof(fInfo),
+			image, imageSizeB,
 			NULL,
 			&overlappedContext) && (GetLastError() != ERROR_IO_PENDING)) {
 
@@ -673,6 +772,119 @@ void TestOverlappedIo()
 			}
 		}
 		printf("		IOCTL_CSI_DRIVER_GET_FRAME(STOP_TEST) passed.\n");
+	}
+}
+
+void testMipi()
+{
+	printf("Test %d: simple ioctl tests\n", ++tId);
+	auto handle = OpenMipiHandle();
+	// int val;
+	// ULONG input;
+	ULONG output;
+	// void *vpuMem = NULL;
+	DWORD bytes;
+
+	// IOCTL_CSI_DRIVER_GET_FRAME test call
+#define NAME "IOCTL_STOP at Stop"
+	printf("Test %d: " NAME "\n", ++tId);
+	if (!DeviceIoControl(
+		handle.Get(),
+		IOCTL_MIPI_STOP,
+		nullptr,
+		0,
+		&output,
+		sizeof(output),
+		&bytes,
+		nullptr
+	)/* || (GetLastError() != ERROR_NOT_READY)*/) { // || (bytes != sizeof(output))) {
+		throw wexception::make(
+			HRESULT_FROM_WIN32(GetLastError()),
+			L"" NAME " failed. "
+			L"(hr = 0x%x, bytes = %d of %d)",
+			/*HRESULT_FROM_WIN32(*/GetLastError(),//),
+			bytes, sizeof(output));
+	}
+	else
+	{
+		printf("    " NAME " output = %d\n", output);
+	}
+#undef NAME
+#define NAME "IOCTL_CONFIGURE without params"
+	printf("Test %d: " NAME "\n", ++tId);
+	if (DeviceIoControl(
+		handle.Get(),
+		IOCTL_MIPI_CONFIGURE,
+		nullptr,
+		0,
+		&output,
+		sizeof(output),
+		&bytes,
+		nullptr
+	)) { // || (bytes != sizeof(output))) {
+		throw wexception::make(
+			HRESULT_FROM_WIN32(GetLastError()),
+			L"" NAME " did not fail. "
+			L"(hr = 0x%x, bytes = %d of %d)",
+			HRESULT_FROM_WIN32(GetLastError()),
+			bytes, sizeof(output));
+	}
+	else
+	{
+		printf("    " NAME " output = %d\n", output);
+	}
+#undef NAME
+#define NAME "IOCTL_CONFIGURE kVIDEO_Resolution720P"
+	printf("Test %d: " NAME "\n", ++tId);
+	{
+		camera_config_t cfg{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, 2, 0x9 };
+		cfg.tHsSettle_EscClk = (UINT8)GetSettle(cfg.resolution, cfg.framePerSec);
+
+		if (!DeviceIoControl(
+			handle.Get(),
+			IOCTL_MIPI_CONFIGURE,
+			(LPVOID)&cfg,
+			sizeof(cfg),
+			&output,
+			sizeof(output),
+			&bytes,
+			nullptr
+		)) { // || (bytes != sizeof(output))) {
+			throw wexception::make(
+				HRESULT_FROM_WIN32(GetLastError()),
+				L"" NAME " failed. "
+				L"(hr = 0x%x, bytes = %d of %d, inp size 0x%x)",
+				/*HRESULT_FROM_WIN32(*/GetLastError(),//),
+				bytes, sizeof(output), sizeof(cfg));
+		}
+		else
+		{
+			printf("    " NAME " output = %d\n", output);
+		}
+	}
+#undef NAME
+#define NAME "IOCTL_STOP at Run"
+	printf("Test %d: " NAME "\n", ++tId);
+	if (DeviceIoControl(
+		handle.Get(),
+		IOCTL_MIPI_STOP,
+		nullptr,
+		0,
+		&output,
+		sizeof(output),
+		&bytes,
+		nullptr
+	) || (GetLastError() != ERROR_NOT_READY)) { // || (bytes != sizeof(output))) {
+		throw wexception::make(
+			HRESULT_FROM_WIN32(GetLastError()),
+			L"" NAME " did fail. "
+			L"(hr = 0x%x, bytes = %d of %d)",
+			/*HRESULT_FROM_WIN32(*/GetLastError(),//),
+			bytes, sizeof(output));
+	}
+	else
+	{
+		printf("    " NAME " output = %d\n", output);
 	}
 }
 
@@ -993,11 +1205,13 @@ void TestReserveFileClose()
 int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 {
 	printf("Csi Ioctl Test App\n\n");
-	bool run_test = false;
-	GetInterfacePath(GUID_DEVINTERFACE_SNS0_DRIVER);
+	bool run_csi_test = false;
+	bool run_mipi_test = false;
+	// GetInterfacePath(GUID_DEVINTERFACE_SNS0_DRIVER);
 	if (argc < 2) {
 		std::wcerr << L"Missing required command line parameter device_path.\n";
-		run_test = true;
+		run_mipi_test = true;
+		run_csi_test = true;
 	}
 	else {
 		int argn = 0;
@@ -1029,6 +1243,22 @@ int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 			else if (!_wcsicmp(arg, L"-l") || !_wcsicmp(arg, L"/l")) {
 				csiLanes = (UINT8)(*argv[argn++] - '0');
 			}
+			else if (!_wcsicmp(arg, L"-t") || !_wcsicmp(arg, L"/t")) {
+				auto type = *argv[argn++];
+				switch (type) {
+				case 'm':
+					run_mipi_test = true;
+					break;
+				case 'c':
+					run_csi_test = true;
+					break;
+				default:
+					throw wexception::make(
+						HRESULT_FROM_NT(STATUS_INVALID_PARAMETER),
+						L"Invalid test type '-t %c'",
+						type);
+				}
+			}
 		}
 	}
 
@@ -1041,7 +1271,7 @@ int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 		catch (const std::exception& ex) {
 			std::wcerr << L"Error: " << ex.what() << L"\n";
 			//forceQuit = true;
-			return 1;
+			// return 1;
 		}
 		catch (wexception &err)
 		{
@@ -1053,7 +1283,7 @@ int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 				"%S\n%S\n",
 				err.HResult(),
 				err.wwhat(), lpBuff);
-			return -1;
+			// return -1;
 		}
 		catch (...) {
 			std::wcerr << L"Error, unknown exception \n";
@@ -1061,13 +1291,13 @@ int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 			throw;
 		}
 	}
-	else if (run_test) {
+	else if (run_csi_test) {
 		try
 		{
 			// basic tests
-			test();
-			TestMultiClient();
-			TestOverlappedIo();
+			testCsi();
+			// TestCsiMultiClient();
+			TestCsiOverlappedIo();
 			// TestReserveRelease();
 
 			// TestReserveFileClose();
@@ -1084,9 +1314,36 @@ int __cdecl wmain(int argc, _In_reads_(argc) const wchar_t* argv[])
 				"%S\n%S\n",
 				err.HResult(),
 				err.wwhat(), lpBuff);
-			return -1;
+			// return -1;
+		}
+	}
+	else if (run_mipi_test) {
+		try
+		{
+			// basic tests
+			testMipi();
+			// TestCsiMultiClient();
+			// TestCsiOverlappedIo();
+			// TestReserveRelease();
+
+			// TestReserveFileClose();
+			putchar('\n');
+			printf("All %d tests passed\n", tId);
+		}
+		catch (wexception &err)
+		{
+			LPWSTR lpBuff;
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER, NULL, err.HResult(),
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&lpBuff, 0, NULL);
+
+			printf("Test execution failed HR=%08x\n"
+				"%S\n%S\n",
+				err.HResult(),
+				err.wwhat(), lpBuff);
+			// return -1;
 		}
 	}
 
+	while (1) {};
 	return 0;
 }

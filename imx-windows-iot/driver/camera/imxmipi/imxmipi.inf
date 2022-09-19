@@ -7,6 +7,7 @@ Signature   = "$WINDOWS NT$"
 Class       = Camera
 ClassGuid   = {ca3e7ab9-b4c3-4ae6-8251-579ef933890f}
 Provider    = %ManufacturerName%
+PnpLockdown = 1
 CatalogFile = imxmipi.cat
 DriverVer   = 6/12/2022,0.7.0
 

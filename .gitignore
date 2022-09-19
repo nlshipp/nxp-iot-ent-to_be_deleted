@@ -31,14 +31,19 @@ bld/
 ProcessedFiles/
 
 # Custom Build output ignores
-imx-windows-iot/driver/gpio/imxgpio/ARM64/
-imx-windows-iot/driver/spi/imxecspi/ARM64/
 imx-windows-iot/build/tools/fmlog.txt
 imx-windows-iot/build/solution/iMXPlatform/GenerateTestFFU/fmlog.txt
 imx-windows-iot/build/solution/iMXPlatform/Build/FFU/bspcabs/
 imx-windows-iot/build/board/*/MergedFMs/
 imx-windows-iot/temp/
-imx-windows-iot/BSP/
+imx-windows-iot/BSP/firmware/*
+!imx-windows-iot/BSP/firmware/flash-bootloader.cmd
+imx-windows-iot/BSP/IoTEntOnNXP/*
+!imx-windows-iot/BSP/IoTEntOnNXP/scripts/
+!imx-windows-iot/BSP/IoTEntOnNXP/make-winpe-enterprise.cmd
+!imx-windows-iot/BSP/IoTEntOnNXP/make-winpe-enterprise-internal.cmd
+imx-windows-iot/BSP/IoTEntOnNXP/scripts/*
+!imx-windows-iot/BSP/IoTEntOnNXP/scripts/diskpart_win_iot_enterprise.txt
 imx-windows-iot/build/solution/iMXPlatform/Build/
 
 # Save the log of currently commited firmware versions
@@ -244,4 +249,3 @@ sdv/
 !imx-windows-iot/build/tools/
 !imx-windows-iot/build/tools/NXP_Win_BSP_test_Cert_2022.cer
 !imx-windows-iot/build/tools/NXP_Win_BSP_test_Cert_2022.pfx
-

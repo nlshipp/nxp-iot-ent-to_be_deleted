@@ -170,21 +170,6 @@ void __cdecl operator delete[]
     }
 }
 
-void __cdecl operator delete
-(
-    PVOID pVoid
-)
-/*!
- * Delete operator implemented as ExFreePool.
- *
- * @param pVoid the memory to free.
- */
-{
-    if (pVoid) {
-        ExFreePool(pVoid);
-    }
-}
-
 //
 // Placement new and delete operators
 //
@@ -200,7 +185,7 @@ void* operator new (size_t, void* Ptr) throw ()
  * @returns pointer to allocated memory or NULL.
  */
 {
-	return Ptr;
+    return Ptr;
 }
 
 void operator delete (void*, void*) throw ()
@@ -220,7 +205,7 @@ void* operator new[](size_t, void* Ptr) throw ()
  * @returns pointer to allocated memory or NULL.
  */
 {
-	return Ptr;
+    return Ptr;
 }
 
 void operator delete[](void*, void*) throw ()

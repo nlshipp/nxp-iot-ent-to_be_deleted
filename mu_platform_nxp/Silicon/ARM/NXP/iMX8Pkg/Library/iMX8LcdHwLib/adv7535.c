@@ -45,6 +45,7 @@
             }
 
 #define IMX_HDMI_EDID_I2C_ADDRESS 0x7E
+#define IMX_HDMI_CEC_I2C_ADDRESS  0x76
 
 #define NUM_DSI_LANES 4U
 
@@ -135,7 +136,7 @@ EFI_STATUS Adv7535ReadEdid
   status = iMXI2cRead(&I2C_ADV7535Config, ADV7535_REG_EDID_ADDR, &i2cData[0], 2);
   CHECK_I2C_TRANSACTION_STATUS(status, "ADV7535_REG_EDID_ADDR", End);
   I2C_EdidConfig.SlaveAddress = (i2cData[0] >> 1);
-  DEBUG ((DEBUG_INFO, "ADV7535_REG_EDID_ADDR=0x%02X, status=%d\n", i2cData[0], status));
+  DEBUG ((DEBUG_INFO, "ADV7535_REG_EDID_ADDR=0x%02X, status=%d\n", I2C_EdidConfig.SlaveAddress, status));
 
    /* Set segment */
   i2cData[0] = segment;
@@ -202,9 +203,11 @@ EFI_STATUS Adv7535SetMode
   uint32_t   sum;
 
   /* Read address of CEC & DSI memory map */
-  status = iMXI2cRead(&I2C_ADV7535Config, ADV7535_REG_DSI_CEC_ADDR, &i2cData[0], 2);
+  I2C_CecConfig.SlaveAddress = (IMX_HDMI_CEC_I2C_ADDRESS >> 1U);
+  i2cData[0] = IMX_HDMI_CEC_I2C_ADDRESS;
+  status = iMXI2cWrite(&I2C_ADV7535Config, ADV7535_REG_DSI_CEC_ADDR, &i2cData[0], 1);
   CHECK_I2C_TRANSACTION_STATUS(status, "ADV7535_REG_DSI_CEC_ADDR", End);
-  I2C_CecConfig.SlaveAddress = (i2cData[0] >> 1U);
+  DEBUG ((DEBUG_INFO, "ADV7535_REG_DSI_CEC_ADDR=0x%02X, status=%d\n", I2C_CecConfig.SlaveAddress, status));
 
   /* Power down */
   i2cData[0] = (ADV7535_REG_PD_RESET__POWER_DOWN | ADV7535_REG_PD_RESET__FIXED);

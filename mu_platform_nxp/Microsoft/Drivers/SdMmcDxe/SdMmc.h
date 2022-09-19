@@ -2,7 +2,7 @@
 *
 *  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
 *  Copyright (c) 2011-2014, ARM Limited. All rights reserved.
-*  Copyright 2020 NXP
+*  Copyright 2020,2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -127,11 +127,13 @@ typedef struct {
   SDHC_DEVICE_PATH              DevicePath;
   EFI_BLOCK_IO_PROTOCOL         BlockIo;
   EFI_RPMB_IO_PROTOCOL          RpmbIo;
+  EFI_SDMMCPART_PROTOCOL        SdMmcPart;
   EFI_SDHC_PROTOCOL             *HostExt;
   SDHC_CAPABILITIES             HostCapabilities;
   BOOLEAN                       DevicePathProtocolInstalled;
   BOOLEAN                       BlockIoProtocolInstalled;
   BOOLEAN                       RpmbIoProtocolInstalled;
+  BOOLEAN                       SdMmcPartitionProtocolInstalled;
   MMC_EXT_CSD_PARTITION_ACCESS  CurrentMmcPartition;
   CARD_INFO                     CardInfo;
   UINT32                        ExtCsdCardType;
@@ -154,6 +156,8 @@ typedef struct {
   CR(a, SDHC_INSTANCE, Link, SDHC_INSTANCE_SIGNATURE)
 #define SDHC_INSTANCE_FROM_RPMB_IO_THIS(a) \
   CR (a, SDHC_INSTANCE, RpmbIo, SDHC_INSTANCE_SIGNATURE)
+#define SDHC_INSTANCE_FROM_SDMMCPART_THIS(a) \
+  CR (a, SDHC_INSTANCE, SdMmcPart, SDHC_INSTANCE_SIGNATURE)
 
 // The ARM high-performance counter frequency
 extern UINT64 gHpcTicksPerSeconds;

@@ -36,19 +36,12 @@
  * Definitions
  ******************************************************************************/
 
-#if (DBG)
-#define _DbgKdPrint KdPrint
-#else // !DBG
-#define _DbgKdPrint(...)
-#endif // !DBG
-
-
 #define OV5640_CHECK_RET(x)            \
     do                                 \
     {                                  \
         status = (x);                  \
-		if (!NT_SUCCESS(status)) {     \
-			KdPrint(("OV5640::#x %L\r\n", status)); \
+        if (!NT_SUCCESS(status)) {     \
+            KdPrint(("OV5640::#x %L\r\n", status)); \
             return status;             \
         }                              \
     } while (false);
@@ -57,60 +50,63 @@
 class Ov5640_t : CameraOperations_t
 {
 public:
-	struct reg_val_t {
-		UINT16 regAddr; /*!< Register address. */
-		UINT8 regVal;   /*!<Register value. */
+    struct reg_val_t {
+        UINT16 regAddr; /*!< Register address. */
+        UINT8 regVal;   /*!<Register value. */
+        UINT32 delay;   /*!<Delay. */
 
-		reg_val_t(UINT16 &&RegAddr, UINT8 &&RegVal, unsigned &&= 0, unsigned &&= 0) : regAddr(RegAddr), regVal(RegVal) {};
-		reg_val_t(UINT16 &&RegAddr, const UINT8 &RegVal, unsigned &&= 0, unsigned &&= 0) : regAddr(RegAddr), regVal(RegVal) {};
-	};
+        reg_val_t(UINT16 &&RegAddr, UINT8 &&RegVal, unsigned &&= 0, unsigned && Delay=0) : regAddr(RegAddr), regVal(RegVal), delay(Delay) {};
+        reg_val_t(UINT16 &&RegAddr, const UINT8 &RegVal, unsigned &&= 0, unsigned && Delay=0) : regAddr(RegAddr), regVal(RegVal), delay(Delay) {};
+    };
 
 private:
-	// Variables --------------------------------
-	CamWdf_Res &m_Camera_res;
-	camera_config_t m_Defaults;
+    // Variables --------------------------------
+    CamWdf_Res &m_Camera_res;
+    camera_config_t m_Defaults;
 
-	// Internal methods -------------------------------
-	NTSTATUS WriteReg(const UINT16 RegAddr, const UINT8 Val)
-	{
-		UINT8 bytes[3]{ (UINT8)(RegAddr >> 8), (UINT8)(RegAddr & 0xFF), (UINT8)(Val) };
+    // Internal methods -------------------------------
+    NTSTATUS WriteReg(const UINT16 RegAddr, const UINT8 Val)
+    {
+        UINT8 bytes[3]{ (UINT8)(RegAddr >> 8), (UINT8)(RegAddr & 0xFF), (UINT8)(Val) };
 
-		return m_Camera_res.m_I2c.WriteBytes(bytes, sizeof(bytes));
-	};
+        return m_Camera_res.m_I2c.WriteBytes(bytes, sizeof(bytes));
+    };
 
-	NTSTATUS LoadRegVal(const reg_val_t Val[], const UINT32 Num);
-	NTSTATUS WriteMultiRegs(const UINT16 RegAddr, const UINT8 Val[], const UINT32 Num);
+    NTSTATUS LoadRegVal(const reg_val_t Val[], const UINT32 Num);
+    NTSTATUS WriteMultiRegs(const UINT16 RegAddr, const UINT8 Val[], const UINT32 Num);
 
-	NTSTATUS ReadReg(const UINT16 RegAddr, UINT8 &Val)
-	{
-		return m_Camera_res.m_I2c.Read(RegAddr, &Val, sizeof(UINT8));
-	}
+    NTSTATUS ReadReg(const UINT16 RegAddr, UINT8 &Val)
+    {
+        UINT16 Reg = _byteswap_ushort(RegAddr);
+        return m_Camera_res.m_I2c.ReadAddr16(Reg, &Val, sizeof(UINT8));
+    }
 
-	NTSTATUS ModifyReg(const UINT16 RegAddr, const UINT8 ClrMask, const UINT8 Val)
-	{
-		NTSTATUS Status;
-		UINT8 val;
+    NTSTATUS ModifyReg(const UINT16 RegAddr, const UINT8 ClrMask, const UINT8 Val)
+    {
+        NTSTATUS Status;
+        UINT8 val;
 
-		Status = ReadReg(RegAddr, val);
-		if (NT_SUCCESS(Status)) {
-			val = (val & ~ClrMask) | Val;
-			Status = WriteReg(RegAddr, val);
-		}
-		return Status;
-	}
+        Status = ReadReg(RegAddr, val);
+        if (NT_SUCCESS(Status)) {
+            val = (val & ~ClrMask) | Val;
+            Status = WriteReg(RegAddr, val);
+        }
+        return Status;
+    }
 
 
-	NTSTATUS SoftwareReset();
+    NTSTATUS SoftwareReset();
+    NTSTATUS GetChipID(UINT16 &chipID);
 
 public:
-	Ov5640_t(CamWdf_Res &CameraRes) : m_Camera_res(CameraRes), m_Defaults{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, 2, 0x9 } {};
-	
-	// Public interface -------------------------------------------------
-	NTSTATUS Init();
+    Ov5640_t(CamWdf_Res &CameraRes) : m_Camera_res(CameraRes), m_Defaults{ kVIDEO_Resolution720P, kVIDEO_PixelFormatYUYV , kVIDEO_PixelFormatYUYV, 25, 1, 2} {};
 
-	NTSTATUS Configure(camera_config_t *aConfigPtr = nullptr);
+    // Public interface -------------------------------------------------
+    NTSTATUS Init();
 
-	NTSTATUS Deinit();
+    NTSTATUS Configure(camera_config_t *aConfigPtr = nullptr);
+    NTSTATUS Ov5640_VideoEnable();
+    NTSTATUS Deinit();
 
-	NTSTATUS Stop();
+    NTSTATUS Stop();
 };

@@ -22,7 +22,6 @@ Abstract:
 #pragma warning(disable:4201)   // nameless struct/union
 
 #include <ImxCpuRev.h>
-#include "sdma_imx6q_script_code.h"
 #include "sdma_imx7d_script_code.h"
 #include "HalExtiMXDmaCfg.h"
 #include "ImxSdmaHw.h"
@@ -36,15 +35,9 @@ Abstract:
 //
 // Platform specific
 //
-#include "IMX6QdDmaHw.h"
-#include "IMX6SxDmaHw.h"
-#include "IMX6SdlDmaHw.h"
-#include "IMX6UlldmaHw.h"
-#include "IMX6UldmaHw.h"
 #include "IMX8MDmaHw.h"
 #include "IMX8MMDmaHw.h"
 #include "IMX8MPDmaHw.h"
-#include "IMX7DDmaHw.h"
 //
 // ------------------------------------------------- Data Structure Definitions
 //
@@ -1297,21 +1290,6 @@ Return Value:
 
     // check range of Instance
     switch (CpuType) {
-    case IMX_CPU_MX6ULL:
-    case IMX_CPU_MX6UL:
-    case IMX_CPU_MX6Q:
-    case IMX_CPU_MX6QP:
-    case IMX_CPU_MX6D:
-    case IMX_CPU_MX6DP:
-    case IMX_CPU_MX6SX:
-    case IMX_CPU_MX6DL:
-    case IMX_CPU_MX6SOLO:
-    case IMX_CPU_MX7D:
-        if (Instance != 0) {
-            return STATUS_NOT_SUPPORTED;
-        }
-        break;
-
     case IMX_CPU_MX8MQ:
     case IMX_CPU_MX8MN:
     case IMX_CPU_MX8MP:
@@ -1326,64 +1304,6 @@ Return Value:
     }
 
     switch (CpuType) {
-    case IMX_CPU_MX6Q:
-    case IMX_CPU_MX6QP:
-    case IMX_CPU_MX6D:
-    case IMX_CPU_MX6DP:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx6QdDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx6QdDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx6_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX6_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx6_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx6_p_2_p_ADDR;
-        break;
-
-    case IMX_CPU_MX6ULL:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx6UllDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx6UllDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx6_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX6_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx6_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx6_p_2_p_ADDR;
-        break;
-
-    case IMX_CPU_MX6UL:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx6UllDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx6UlDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx6_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX6_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx6_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx6_p_2_p_ADDR;
-        break;
-
-    case IMX_CPU_MX6SX:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx6SxDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx6SxDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx6_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX6_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx6_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx6_p_2_p_ADDR;
-        break;
-
-    case IMX_CPU_MX6DL:
-    case IMX_CPU_MX6SOLO:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx6SdlDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx6SdlDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx6_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX6_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx6_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx6_p_2_p_ADDR;
-        break;
-	
-    case IMX_CPU_MX7D:
-        SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx7dDmaReqToChannelConfig;
-        SdmaControllerPtr->SdmaReqMaxId = Imx7dDmaReqMax;
-        SdmaControllerPtr->SdmaCodeBlock = imx7_sdma_code;
-        SdmaControllerPtr->SdmaCodeSize = IMX7_RAM_CODE_SIZE * sizeof(short);
-        SdmaControllerPtr->SdmaAp2ApScript = imx7_ap_2_ap_ADDR;
-        SdmaControllerPtr->SdmaPer2PerScript = imx7_per_2_per_ADDR;
-        break;
-	
     // iMX8 uses the same SDMA controller as the iMX7, so use that SDMA script code.
     case IMX_CPU_MX8MQ:
         SdmaControllerPtr->SdmaReqToChannelConfigPtr = Imx8mDmaReqToChannelConfig;

@@ -6,30 +6,30 @@ CROSS_COMPILE ?=$(HOME)/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aa
 PYTHON3?=python3
 ARCH=arm64
 
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_4GB)
+ifeq ($(IMX8_TARGET),MX8M_EVK)
 U_BOOT_CONFIG=imx8mq_evk_nt_defconfig
 U_BOOT_DTS=fsl-imx8mq-evk
 U_BOOT_SOC=iMX8M
 ATF_CONFIG=imx8mq
-EDK2_PLATFORM=MCIMX8M_EVK_4GB
+EDK2_PLATFORM=MX8M_EVK
 OPTEE_PLATFORM=mx8mqevk
 endif
 
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_Mini_2GB)
+ifeq ($(IMX8_TARGET),MX8M_MINI_EVK)
 U_BOOT_CONFIG=imx8mm_evk_nt_defconfig
 U_BOOT_DTS=fsl-imx8mm-evk
 U_BOOT_SOC=iMX8MM
 ATF_CONFIG=imx8mm
-EDK2_PLATFORM=MCIMX8M_MINI_EVK_2GB
+EDK2_PLATFORM=MX8M_MINI_EVK
 OPTEE_PLATFORM=mx8mmevk
 endif
 
-ifeq ($(IMX8_TARGET),EVK_iMX8MN_2GB)
+ifeq ($(IMX8_TARGET),MX8M_NANO_EVK)
 U_BOOT_CONFIG=imx8mn_ddr4_evk_nt_defconfig
 U_BOOT_DTS=fsl-imx8mn-ddr4-evk
 U_BOOT_SOC=iMX8MN
 ATF_CONFIG=imx8mn
-EDK2_PLATFORM=EVK_iMX8MN_2GB
+EDK2_PLATFORM=MX8M_NANO_EVK
 OPTEE_PLATFORM=mx8mnevk
 endif
 
@@ -137,7 +137,7 @@ imx8_atf:
 	
 imx8_optee:
 	cd $(IMX8_REPO_ROOT)/imx-optee-os
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_4GB)
+ifeq ($(IMX8_TARGET),MX8M_EVK)
 	$(MAKE) PLATFORM=imx PLATFORM_FLAVOR=$(OPTEE_PLATFORM) \
      CFG_TEE_CORE_DEBUG=n CFG_TEE_CORE_LOG_LEVEL=2  CFG_UART_BASE=0x30890000 \
      CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n  \
@@ -169,13 +169,13 @@ IMX8_MKIMAGE_DEPS_U-BOOT=$(IMX8_REPO_ROOT)/uboot-imx/u-boot-nodtb.bin $(IMX8_REP
 imx8_mkimage: imx8_optee imx8_u-boot imx8_atf $(IMX8_MKIMAGE_DEPS_LPDDR4) $(IMX8_MKIMAGE_DEPS_DDR4) $(IMX8_MKIMAGE_DEPS_HDMI)
 	cd $(IMX8_REPO_ROOT)/imx-mkimage/iMX8M
 	rm -f *.bin *.dtb
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_Mini_2GB)
+ifeq ($(IMX8_TARGET),MX8M_MINI_EVK)
 	cp $(IMX8_MKIMAGE_DEPS_LPDDR4) .
 endif
-ifeq ($(IMX8_TARGET),EVK_iMX8MN_2GB)
+ifeq ($(IMX8_TARGET),MX8M_NANO_EVK)
 	cp $(IMX8_MKIMAGE_DEPS_DDR4) .
 endif
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_4GB)
+ifeq ($(IMX8_TARGET),MX8M_EVK)
 	cp $(IMX8_MKIMAGE_DEPS_HDMI) .
 	cp $(IMX8_MKIMAGE_DEPS_LPDDR4) .
 endif
@@ -184,9 +184,9 @@ endif
 	cp $(IMX8_MKIMAGE_DEPS_U-BOOT) .
 	mv mkimage mkimage_uboot	
 	cd ..
-ifeq ($(IMX8_TARGET),NXPEVK_iMX8M_Mini_2GB)
+ifeq ($(IMX8_TARGET),MX8M_MINI_EVK)
 	$(MAKE) SOC=$(U_BOOT_SOC) flash_spl_uboot
-else ifeq ($(IMX8_TARGET),EVK_iMX8MN_2GB)
+else ifeq ($(IMX8_TARGET),MX8M_NANO_EVK)
 	$(MAKE) SOC=$(U_BOOT_SOC) flash_ddr4_evk
 else
 	$(MAKE) SOC=$(U_BOOT_SOC) flash_hdmi_spl_uboot 2>&1 | tee $(MKIMAGE_WORK_DIR)/spl_uboot.log

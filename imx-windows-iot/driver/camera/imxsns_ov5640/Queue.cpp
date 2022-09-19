@@ -39,7 +39,7 @@ NTSTATUS SNS0_ctx::QueueInitialize()
  * @returns STATUS_SUCCESS or error code.
  */
 {
-    
+
     NTSTATUS status;
     WDF_IO_QUEUE_CONFIG queueConfig;
 
@@ -49,12 +49,12 @@ NTSTATUS SNS0_ctx::QueueInitialize()
     queueConfig.EvtIoDeviceControl = SNS0_ctx::EvtDeviceControl;
     queueConfig.EvtIoStop = SNS0_ctx::EvtIoStop;
 
-	WDF_OBJECT_ATTRIBUTES QueueObjectAttributes;
-	WDF_OBJECT_ATTRIBUTES_INIT(&QueueObjectAttributes);
-	QueueObjectAttributes.ExecutionLevel = WdfExecutionLevelPassive;
+    WDF_OBJECT_ATTRIBUTES QueueObjectAttributes;
+    WDF_OBJECT_ATTRIBUTES_INIT(&QueueObjectAttributes);
+    QueueObjectAttributes.ExecutionLevel = WdfExecutionLevelPassive;
     status = WdfIoQueueCreate(m_WdfDevice, &queueConfig, &QueueObjectAttributes, &m_Queue);
 
-    if(!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
         return status;
     }
@@ -75,25 +75,32 @@ VOID SNS0_ctx::EvtDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST Request, _I
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status;
-	WDFDEVICE wdfDevice = WdfIoQueueGetDevice(Queue);
-	PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(wdfDevice);
+    NTSTATUS status;
+    WDFDEVICE wdfDevice = WdfIoQueueGetDevice(Queue);
+    PDEVICE_CONTEXT deviceCtxPtr = GetDeviceContext(wdfDevice);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d", 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
                 Queue, Request, (int) OutputBufferLength, (int) InputBufferLength, IoControlCode);
 
-	switch (IoControlCode)
-	{
-	case IOCTL_SNS0_DRIVER_CONFIGURE:
-		status = deviceCtxPtr->ConfigureReq(Request);
-		break;
-	case IOCTL_SNS0_DRIVER_STOP:
-		status = deviceCtxPtr->StopReq(Request);
-		break;
-	default:
-		status = STATUS_INVALID_DEVICE_REQUEST;
-		break;
-	}
+    switch (IoControlCode)
+    {
+    case IOCTL_SNS_CONFIGURE:
+        TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "IOCTL_SNS_CONFIGURE");
+        status = deviceCtxPtr->ConfigureReq(Request);
+        break;
+    case IOCTL_SNS_START:
+        TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "IOCTL_SNS_START");
+        status = deviceCtxPtr->StartReq(Request);
+        break;
+    case IOCTL_SNS_STOP:
+        TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "IOCTL_SNS_STOP");
+        status = deviceCtxPtr->StopReq(Request);
+        break;
+    default:
+        TraceEvents(TRACE_LEVEL_VERBOSE, TRACE_DEVICE, "Invalid device request 0x%x", IoControlCode);
+        status = STATUS_INVALID_DEVICE_REQUEST;
+        break;
+    }
     WdfRequestComplete(Request, status);
 
     return;

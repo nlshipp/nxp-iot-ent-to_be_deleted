@@ -1,7 +1,7 @@
 #
 #  Copyright (c) 2018, Microsoft Corporation. All rights reserved.
 #  Copyright (c) 2013-2018, ARM Limited. All rights reserved.
-#  Copyright 2019 NXP
+#  Copyright 2019, 2022 NXP
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -27,6 +27,10 @@
   INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
   INF MdeModulePkg/Universal/MonotonicCounterRuntimeDxe/MonotonicCounterRuntimeDxe.inf
   INF ArmPkg/Drivers/ArmGic/ArmGicDxe.inf
+
+!if $(CAPSULE_ENABLE) == TRUE
+  INF MdeModulePkg/Application/CapsuleApp/CapsuleApp.inf
+!endif
 
   # Timers
   INF ArmPkg/Drivers/TimerDxe/TimerDxe.inf
@@ -62,12 +66,20 @@
   # FV FileSystem
   INF MdeModulePkg/Universal/FvSimpleFileSystemDxe/FvSimpleFileSystemDxe.inf
 
+  # Firmware/Capsule updates
+!if $(CAPSULE_ENABLE) == TRUE
+  INF FmpDevicePkg/CapsuleUpdatePolicyDxe/CapsuleUpdatePolicyDxe.inf
+  INF FILE_GUID = $(FMP_IMX_DEVICE) FmpDevicePkg/FmpDxe/FmpDxe.inf
+  INF MdeModulePkg/Universal/EsrtDxe/EsrtDxe.inf
+  INF MdeModulePkg/Universal/EsrtFmpDxe/EsrtFmpDxe.inf
+!endif
+
   #
   # Usb Support
   #
 !if $(CONFIG_USB) == TRUE
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
-# TODO: add Ehci package
+!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
+  INF MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
 !else
   INF MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
 !endif
@@ -252,14 +264,14 @@ READ_LOCK_STATUS   = TRUE
 
 [Rule.Common.PEI_CORE]
   FILE PEI_CORE = $(NAMED_GUID) FIXED {
-    TE     TE                           $(INF_OUTPUT)/$(MODULE_NAME).efi
+    TE     TE    Align = 8              $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI     STRING ="$(MODULE_NAME)" Optional
   }
 
 [Rule.Common.PEIM]
   FILE PEIM = $(NAMED_GUID) FIXED {
      PEI_DEPEX PEI_DEPEX Optional       $(INF_OUTPUT)/$(MODULE_NAME).depex
-     TE       TE                        $(INF_OUTPUT)/$(MODULE_NAME).efi
+     TE       TE   Align = 8            $(INF_OUTPUT)/$(MODULE_NAME).efi
      UI       STRING="$(MODULE_NAME)" Optional
   }
 

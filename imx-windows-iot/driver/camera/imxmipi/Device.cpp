@@ -31,54 +31,57 @@
 #include "public.h"
 #include <Ntstrsafe.h>
 #include <Ntintsafe.h>
+#ifdef _ARM64_
+#include <ImxCpuRev.h>
+#endif
 #include "device.tmh"
 
 extern "C" {
-	INIT_SEGMENT_BEGIN
+    INIT_SEGMENT_BEGIN
 
-		NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING RegistryPath)
-        /*!
-         * DriverEntry initializes the driver.
-         *
-         * @param DriverObject handle to a WDF Driver object.
-         * @param RegistryPath driver specific path in the Registry.
-         *
-         * @returns STATUS_SUCCESS or error code.
-         */
-	{
-		WDF_DRIVER_CONFIG config;
-		NTSTATUS status;
-		WDF_OBJECT_ATTRIBUTES attributes;
-		// Initialize WPP Tracing
-		WPP_INIT_TRACING(DriverObject, RegistryPath);
+    NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING RegistryPath)
+    /*!
+        * DriverEntry initializes the driver.
+        *
+        * @param DriverObject handle to a WDF Driver object.
+        * @param RegistryPath driver specific path in the Registry.
+        *
+        * @returns STATUS_SUCCESS or error code.
+        */
+    {
+        NTSTATUS status;
+        WDF_DRIVER_CONFIG config;
+        WDF_OBJECT_ATTRIBUTES attributes;
+        // Initialize WPP Tracing
+        WPP_INIT_TRACING(DriverObject, RegistryPath);
 
-		TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-		//
-		// Register a cleanup callback so that we can call WPP_CLEANUP when
-		// the framework driver object is deleted during driver unload.
-		//
-		WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-		attributes.EvtCleanupCallback = WdfMipi_ctx::EvtDriverContextCleanup;
-		attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
-		attributes.ExecutionLevel = WdfExecutionLevelPassive; // Allow synchronous requests to ACPI.
-		WDF_DRIVER_CONFIG_INIT(&config, DEVICE_CONTEXT::EvtDeviceAdd);
-		config.DriverPoolTag = 'ICXM';
+        //
+        // Register a cleanup callback so that we can call WPP_CLEANUP when
+        // the framework driver object is deleted during driver unload.
+        //
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        attributes.EvtCleanupCallback = WdfMipi_ctx::EvtDriverContextCleanup;
+        attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
+        attributes.ExecutionLevel = WdfExecutionLevelPassive; // Allow synchronous requests to ACPI.
+        WDF_DRIVER_CONFIG_INIT(&config, DEVICE_CONTEXT::EvtDeviceAdd);
+        config.DriverPoolTag = 'ICXM';
 
-		status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
+        status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
-		if (!NT_SUCCESS(status)) {
-			TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", status);
-			WPP_CLEANUP(DriverObject);
-			return status;
-		}
+        if (!NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfDriverCreate failed %!STATUS!", status);
+            WPP_CLEANUP(DriverObject);
+            return status;
+        }
 
-		TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 
-		return status;
-	}
+        return status;
+    }
 
-	INIT_SEGMENT_END
+    INIT_SEGMENT_END
 }
 
 PAGED_SEGMENT_BEGIN
@@ -90,13 +93,13 @@ VOID WdfMipi_ctx::EvtDriverContextCleanup(_In_ WDFOBJECT DriverObject)
  * @param DriverObject handle to a WDF Driver object.
  */
 {
-	UNREFERENCED_PARAMETER(DriverObject);
+    UNREFERENCED_PARAMETER(DriverObject);
 
-	PAGED_CODE();
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+    PAGED_CODE();
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-	// Stop WPP Tracing
-	WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
+    // Stop WPP Tracing
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
 }
 
 NTSTATUS WdfMipi_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit)
@@ -109,59 +112,61 @@ NTSTATUS WdfMipi_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INI
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	WDF_OBJECT_ATTRIBUTES deviceAttributes;
-	WDFDEVICE wdfDevice;
-	NTSTATUS status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES deviceAttributes;
+    WDFDEVICE wdfDevice;
+    NTSTATUS status = STATUS_SUCCESS;
 
-	PAGED_CODE();
-	UNREFERENCED_PARAMETER(Driver);
-	WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
+    PAGED_CODE();
+    UNREFERENCED_PARAMETER(Driver);
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
 
-	{
-		WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
-		WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    {
+        WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
 
-		pnpCallbacks.EvtDevicePrepareHardware = WdfMipi_ctx::EvtPrepareHw;
-		pnpCallbacks.EvtDeviceReleaseHardware = WdfMipi_ctx::EvtReleaseHw;
-		pnpCallbacks.EvtDeviceD0Entry = WdfMipi_ctx::EvtD0Entry;
-		pnpCallbacks.EvtDeviceD0Exit = WdfMipi_ctx::EvtD0Exit;
+        WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+        pnpCallbacks.EvtDevicePrepareHardware = WdfMipi_ctx::EvtPrepareHw;
+        pnpCallbacks.EvtDeviceReleaseHardware = WdfMipi_ctx::EvtReleaseHw;
+        pnpCallbacks.EvtDeviceD0Entry = WdfMipi_ctx::EvtD0Entry;
+        pnpCallbacks.EvtDeviceD0Exit = WdfMipi_ctx::EvtD0Exit;
 
-		WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
-		WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
-	} // PNP and Power
+        WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
+        WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
+    }
 
-	{
-		WDF_FILEOBJECT_CONFIG wdfFileObjectConfig;
-		WDF_FILEOBJECT_CONFIG_INIT(
-			&wdfFileObjectConfig,
-			WdfMipi_ctx::EvtDeviceFileCreate,
-			WdfMipi_ctx::EvtDeviceFileClose, // Stop CSI on file close or cleanup? FIXME
-			WdfMipi_ctx::EvtDeviceFileCleanup); // Stop CSI on file cleanup
+    {
+        WDF_FILEOBJECT_CONFIG wdfFileObjectConfig;
 
-		WdfDeviceInitSetFileObjectConfig(DeviceInit, &wdfFileObjectConfig, WDF_NO_OBJECT_ATTRIBUTES);
-		WdfDeviceInitSetExclusive(DeviceInit, TRUE);
-	}
+        WDF_FILEOBJECT_CONFIG_INIT(
+            &wdfFileObjectConfig,
+            WdfMipi_ctx::EvtDeviceFileCreate,
+            WdfMipi_ctx::EvtDeviceFileClose,
+            WdfMipi_ctx::EvtDeviceFileCleanup);
 
-	{
-		WDF_OBJECT_ATTRIBUTES attributes;
-		WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, REQUEST_CONTEXT);
-		WdfDeviceInitSetRequestAttributes(DeviceInit, &attributes);
-	}
+        WdfDeviceInitSetFileObjectConfig(DeviceInit, &wdfFileObjectConfig, WDF_NO_OBJECT_ATTRIBUTES);
+        WdfDeviceInitSetExclusive(DeviceInit, TRUE);
+    }
 
-	status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &wdfDevice);
+    {
+        WDF_OBJECT_ATTRIBUTES attributes;
 
-	if (NT_SUCCESS(status)) {
-		PDEVICE_CONTEXT deviceContextPtr = new (DeviceGetContext(wdfDevice)) DEVICE_CONTEXT(wdfDevice);
+        WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, REQUEST_CONTEXT);
+        WdfDeviceInitSetRequestAttributes(DeviceInit, &attributes);
+    }
 
-		if (NT_SUCCESS(status)) {
-			status = deviceContextPtr->RegisterQueue();
-		}
-	}
+    status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &wdfDevice);
 
-	if (!NT_SUCCESS(status)) {
-		_DbgKdPrint(("WdfMipi_ctx::EvtDeviceAdd failed: x%x\r\n", status));
-	}
-	return status;
+    if (NT_SUCCESS(status)) {
+        PDEVICE_CONTEXT deviceContextPtr = new (DeviceGetContext(wdfDevice)) DEVICE_CONTEXT(wdfDevice);
+
+        if (NT_SUCCESS(status)) {
+            status = deviceContextPtr->RegisterQueue();
+        }
+    }
+
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "EvtDeviceAdd failed %!STATUS!", status);
+    }
+    return status;
 }
 
 // PAGED_SEGMENT_END
@@ -172,14 +177,14 @@ WdfMipi_ctx::WdfMipi_ctx(WDFDEVICE &WdfDevice)
  *
  * @param WdfDevice handle to WDF device object.
  */
-	: m_WdfDevice(WdfDevice),
-	  m_Mipi1Reg(WdfDevice),
-	  m_IsOpen(false),
-	  m_DsdRes(WdfDevice),
-	  m_MipiCsiRes(this)
+    : m_WdfDevice(WdfDevice),
+      m_Mipi1Reg(WdfDevice),
+      m_IsOpen(false),
+      m_DsdRes(WdfDevice),
+      m_MipiCsiRes(this)
 {
 
-	PAGED_CODE();
+    PAGED_CODE();
 }
 
 NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
@@ -189,45 +194,59 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status;
+    NTSTATUS status;
 
-	status = m_DsdRes.LoadDsd();
-	if (NT_SUCCESS(status)) {
-		const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
-		{
-			"EscClockFrequencyHz",
-			&escClockFrequencyHz,
-			(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-		},
-		{
-			"PhyClockFrequencyHz",
-			&phyClockFrequencyHz,
-			(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-		},
-		{
-			"Mipi1RegResId",
-			&Mipi1RegResId,
-			(unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-		},
-		};
-		status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
-		if (NT_SUCCESS(status)) {
-			UINT32 length = 0;
-			UINT32 gpr = 0;
+    status = m_DsdRes.LoadDsd();
+    if (NT_SUCCESS(status)) {
+        const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
+        {
+            "EscClockFrequencyHz",
+            &escClockFrequencyHz,
+            (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+        },
+        {
+            "DeviceEndpoint0",
+            (PUINT32)m_DeviceEndpoint,
+            sizeof(m_DeviceEndpoint),
+            ACPI_METHOD_ARGUMENT_STRING,
+        },
+        {
+            "PhyClockFrequencyHz",
+            &phyClockFrequencyHz,
+            (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+        },
+        {
+            "Mipi1RegResId",
+            &Mipi1RegResId,
+            (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+        },
+        {
+            "CpuId",
+            &m_CpuId,
+            (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
+        },
+        };
 
-			status = m_MipiCsiRes.AcpiRgpr(gpr);
-			if (NT_SUCCESS(status)) {
-				status = m_DsdRes.GetString("DeviceEndpoint0", sizeof(DeviceEndpoint), &length, &(DeviceEndpoint[0]));
-				if (!NT_SUCCESS(status)) {
-					TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to query value, using default. (status = %!status!)", status);
-				}
-			}
-		}
-	}
-	else {
-		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "DsdRes.LoadDsd failed. (status = %!status!)", status);
-	}
-	return status;
+        status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
+        if (NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_CpuId = 0x%x", m_CpuId);
+            switch (m_CpuId) {
+            case IMX_CPU_MX8MQ:
+                {
+                    UINT32 gpr = 0;
+
+                    status = m_MipiCsiRes.AcpiRgpr(gpr);
+                }
+                break;
+            default:
+                break;
+            }
+        }
+    }
+    else {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "DsdRes.LoadDsd failed. (status = %!status!)", status);
+    }
+    return status;
 }
 
 NTSTATUS WdfMipi_ctx::AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val)
@@ -240,36 +259,36 @@ NTSTATUS WdfMipi_ctx::AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status;
-	PACPI_EVAL_OUTPUT_BUFFER buff;
+    NTSTATUS status;
+    PACPI_EVAL_OUTPUT_BUFFER buff;
 
-	status = m_DsdRes.EvalMethodSync(m_WdfDevice, MethodNameUlong, &buff);
-	if (NT_SUCCESS(status)) {
-		auto *argument = buff->Argument;
+    status = m_DsdRes.EvalMethodSync(m_WdfDevice, MethodNameUlong, &buff);
+    if (NT_SUCCESS(status)) {
+        auto *argument = buff->Argument;
 
-		if (argument->Type != ACPI_METHOD_ARGUMENT_INTEGER) {
-			status = STATUS_ACPI_INVALID_ARGTYPE;
-		}
-		else {
-			switch (argument->DataLength)
-			{
-			case sizeof(UINT8) :
-				Val = *(reinterpret_cast<UINT8*>(argument->Data));
-				break;
-			case sizeof(UINT16) :
-				Val = *(reinterpret_cast<UINT16*>(argument->Data));
-				break;
-			case sizeof(UINT32) :
-				Val = *(reinterpret_cast<UINT32*>(argument->Data));
-				break;
-			default:
-				NT_ASSERTMSG("Invalid _DSM query return size", FALSE);
-				status = STATUS_ACPI_INVALID_DATA;
-			}
-		}
-		ExFreePool(buff);
-	}
-	return status;
+        if (argument->Type != ACPI_METHOD_ARGUMENT_INTEGER) {
+            status = STATUS_ACPI_INVALID_ARGTYPE;
+        }
+        else {
+            switch (argument->DataLength)
+            {
+            case sizeof(UINT8) :
+                Val = *(reinterpret_cast<UINT8*>(argument->Data));
+                break;
+            case sizeof(UINT16) :
+                Val = *(reinterpret_cast<UINT16*>(argument->Data));
+                break;
+            case sizeof(UINT32) :
+                Val = *(reinterpret_cast<UINT32*>(argument->Data));
+                break;
+            default:
+                NT_ASSERTMSG("Invalid _DSM query return size", FALSE);
+                status = STATUS_ACPI_INVALID_DATA;
+            }
+        }
+        ExFreePool(buff);
+    }
+    return status;
 }
 
 NTSTATUS Resources_t::AcpiRgpr(UINT32 &Val)
@@ -281,7 +300,7 @@ NTSTATUS Resources_t::AcpiRgpr(UINT32 &Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	return m_DeviceCtxPtr->AcpiReadInt('RPGR', Val);
+    return m_DeviceCtxPtr->AcpiReadInt('RPGR', Val);
 }
 
 NTSTATUS WdfMipi_ctx::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val)
@@ -294,17 +313,17 @@ NTSTATUS WdfMipi_ctx::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status;
-	PACPI_EVAL_OUTPUT_BUFFER buff;
+    NTSTATUS status;
+    PACPI_EVAL_OUTPUT_BUFFER buff;
+    ACPI_EVAL_INPUT_BUFFER_SIMPLE_INTEGER_V1 inputBuffer;
 
-	ACPI_EVAL_INPUT_BUFFER_SIMPLE_INTEGER_V1 inputBuffer;
-	RtlZeroMemory(&inputBuffer, sizeof(inputBuffer));
-	inputBuffer.Signature = ACPI_EVAL_INPUT_BUFFER_SIMPLE_INTEGER_SIGNATURE;
-	inputBuffer.MethodNameAsUlong = MethodNameUlong; // Has to be spelled backwards because of endianity or something
-	inputBuffer.IntegerArgument = Val;
+    RtlZeroMemory(&inputBuffer, sizeof(inputBuffer));
+    inputBuffer.Signature = ACPI_EVAL_INPUT_BUFFER_SIMPLE_INTEGER_SIGNATURE;
+    inputBuffer.MethodNameAsUlong = MethodNameUlong; // Has to be spelled backwards because of endianity or something
+    inputBuffer.IntegerArgument = Val;
 
-	status = m_DsdRes.EvalMethodSync(m_WdfDevice, (ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buff);
-	return status;
+    status = m_DsdRes.EvalMethodSync(m_WdfDevice, (ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buff);
+    return status;
 }
 
 NTSTATUS Resources_t::AcpiWgpr(UINT32 Val)
@@ -316,7 +335,7 @@ NTSTATUS Resources_t::AcpiWgpr(UINT32 Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	return m_DeviceCtxPtr->AcpiWriteInt('RPGW', Val);
+    return m_DeviceCtxPtr->AcpiWriteInt('RPGW', Val);
 }
 
 NTSTATUS Resources_t::AcpiSetMipiRcr(UINT32 Val)
@@ -328,7 +347,7 @@ NTSTATUS Resources_t::AcpiSetMipiRcr(UINT32 Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	return m_DeviceCtxPtr->AcpiWriteInt('TSRW', Val);
+    return m_DeviceCtxPtr->AcpiWriteInt('TSRW', Val);
 }
 
 NTSTATUS WdfMipi_ctx::EvtPrepareHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
@@ -342,13 +361,14 @@ NTSTATUS WdfMipi_ctx::EvtPrepareHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
-	if (deviceContextPtr == NULL) {
-		return STATUS_NOINTERFACE;
-	}
-	else {
-		return deviceContextPtr->PrepareHw(ResourcesRaw, ResourcesTranslated);
-	}
+    PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
+
+    if (deviceContextPtr == NULL) {
+        return STATUS_NOINTERFACE;
+    }
+    else {
+        return deviceContextPtr->PrepareHw(ResourcesRaw, ResourcesTranslated);
+    }
 }
 
 NTSTATUS WdfMipi_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTranslated)
@@ -361,36 +381,54 @@ NTSTATUS WdfMipi_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST Resource
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	NTSTATUS status = STATUS_SUCCESS;
+    UNREFERENCED_PARAMETER(ResourcesRaw);
+    PAGED_CODE();
 
-	UNREFERENCED_PARAMETER(ResourcesRaw);
-	PAGED_CODE();
+    NTSTATUS status = STATUS_SUCCESS;
 
-	status = Get_CrsAcpiResources(ResourcesTranslated);
-	if (NT_SUCCESS(status)) {
-		mem_res *memRes = NULL;
-		status = Get_DsdAcpiResources();
+    status = Get_CrsAcpiResources(ResourcesTranslated);
+    if (NT_SUCCESS(status)) {
+        mem_res *memRes = NULL;
 
-		if (NT_SUCCESS(status)) {
-			if (NT_SUCCESS(status) && (NULL != (memRes = m_MeResList.at(Mipi1RegResId)))) {
-				status = m_Mipi1Reg.IoSpaceMap(*memRes);
-			}
-			if (NT_SUCCESS(status) && memRes == NULL) {
-				status = STATUS_INSUFFICIENT_RESOURCES;
-			}
-			if (NT_SUCCESS(status)) {
-				m_MipiCsiRes.m_MipiRegistersPtr = m_Mipi1Reg.Reg();
-				status = m_Mipi.PrepareHw(m_MipiCsiRes);
-			}
-		}
-		if (NT_SUCCESS(status)) {
-			status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_IMXMIPI, NULL);
-			if (NT_SUCCESS(status)) {
-				_DbgKdPrint(("WdfMipi_ctx::EvtPrepareHw (0x%X).\r\n", status));
-			}
-		}
-	}
-	return status;
+        status = Get_DsdAcpiResources();
+        if (NT_SUCCESS(status)) {
+            if (NT_SUCCESS(status) && (NULL != (memRes = m_MeResList.at(Mipi1RegResId)))) {
+                status = m_Mipi1Reg.IoSpaceMap(*memRes);
+            }
+            if (NT_SUCCESS(status) && memRes == NULL) {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+            if (NT_SUCCESS(status)) {
+                m_MipiCsiRes.m_CpuId = m_CpuId;
+                m_MipiCsiRes.m_MipiRegistersPtr = m_Mipi1Reg.Reg();
+                m_MipiCsiRes.escClockFrequencyHz = escClockFrequencyHz;
+                status = m_Mipi.PrepareHw(m_MipiCsiRes);
+            }
+        }
+        if (NT_SUCCESS(status)) {
+            ANSI_STRING deviceEndpointAnsiName;
+
+            _Analysis_assume_nullterminated_(m_DeviceEndpoint);
+            status = RtlInitAnsiStringEx(&deviceEndpointAnsiName, (PCSZ)(m_DeviceEndpoint));
+            if (NT_SUCCESS(status)) {
+                RtlInitEmptyUnicodeString(&m_DeviceEndpointUnicodeName, m_DeviceEndpointUnicodeNameBuff, sizeof(m_DeviceEndpointUnicodeNameBuff));
+                status = RtlAnsiStringToUnicodeString(&m_DeviceEndpointUnicodeName, &deviceEndpointAnsiName, FALSE);
+            }
+            if (NT_SUCCESS(status)) {
+                status = WdfDeviceCreateSymbolicLink(m_WdfDevice, &m_DeviceEndpointUnicodeName);
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Create WdfDeviceCreateSymbolicLink (%ws): %!STATUS!", m_DeviceEndpointUnicodeName.Buffer, status);
+            }
+#if (DBG)
+            if (NT_SUCCESS(status)) {
+                status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_IMXMIPI, NULL);
+                if (!NT_SUCCESS(status)) {
+                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to create interface %!STATUS!", status);
+                }
+            }
+#endif
+        }
+    }
+    return status;
 }
 
 NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST ResourcesTranslated)
@@ -403,54 +441,58 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(WdfDevice);
-	UNREFERENCED_PARAMETER(ResourcesTranslated);
-	PAGED_CODE();
-	PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
-	ASSERT(deviceContextPtr != NULL);
+    UNREFERENCED_PARAMETER(WdfDevice);
+    UNREFERENCED_PARAMETER(ResourcesTranslated);
+    PAGED_CODE();
+    PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
+    ASSERT(deviceContextPtr != NULL);
 
-	regBase alocs[] = {
-		deviceContextPtr->m_Mipi1Reg,
-	};
+    regBase alocs[] = {
+        deviceContextPtr->m_Mipi1Reg,
+    };
 
-	for (auto a : alocs) {
-		a.IoSpaceUnmap();
-	}
-	{
-		auto &resList = deviceContextPtr->m_MeResList;
-		auto *a = resList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, resList.DriverPoolTag);
-			a = resList.Pop();
-		}
-	}
-	{
-		auto &resList = deviceContextPtr->m_GpioResList;
-		auto *a = resList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, resList.DriverPoolTag);
-			a = resList.Pop();
-		}
-	}
-	{
-		auto &resList = deviceContextPtr->m_I2cResList;
-		auto *a = resList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, resList.DriverPoolTag);
-			a = resList.Pop();
-		}
-	}
-	{
-		auto &resList = deviceContextPtr->m_IntResList;
-		auto *a = resList.Pop();
-		while (a != NULL) {
-			ExFreePoolWithTag(a, resList.DriverPoolTag);
-			a = resList.Pop();
-		}
-	}
-	deviceContextPtr->m_DsdRes.Cleanup();
+    for (auto a : alocs) {
+        a.IoSpaceUnmap();
+    }
+    {
+        auto &resList = deviceContextPtr->m_MeResList;
+        auto *a = resList.Pop();
 
-	return STATUS_SUCCESS;
+        while (a != NULL) {
+            ExFreePoolWithTag(a, resList.DriverPoolTag);
+            a = resList.Pop();
+        }
+    }
+    {
+        auto &resList = deviceContextPtr->m_GpioResList;
+        auto *a = resList.Pop();
+
+        while (a != NULL) {
+            ExFreePoolWithTag(a, resList.DriverPoolTag);
+            a = resList.Pop();
+        }
+    }
+    {
+        auto &resList = deviceContextPtr->m_I2cResList;
+        auto *a = resList.Pop();
+
+        while (a != NULL) {
+            ExFreePoolWithTag(a, resList.DriverPoolTag);
+            a = resList.Pop();
+        }
+    }
+    {
+        auto &resList = deviceContextPtr->m_IntResList;
+        auto *a = resList.Pop();
+
+        while (a != NULL) {
+            ExFreePoolWithTag(a, resList.DriverPoolTag);
+            a = resList.Pop();
+        }
+    }
+    deviceContextPtr->m_DsdRes.Cleanup();
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS WdfMipi_ctx::EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE PreviousState)
@@ -463,10 +505,11 @@ NTSTATUS WdfMipi_ctx::EvtD0Entry(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE Pre
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(WdfDevice);
-	UNREFERENCED_PARAMETER(PreviousState);
-	PAGED_CODE();
-	return STATUS_SUCCESS;
+    UNREFERENCED_PARAMETER(WdfDevice);
+    UNREFERENCED_PARAMETER(PreviousState);
+    PAGED_CODE();
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS WdfMipi_ctx::EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPreviousState)
@@ -479,15 +522,15 @@ NTSTATUS WdfMipi_ctx::EvtD0Exit(WDFDEVICE WdfDevice, WDF_POWER_DEVICE_STATE FxPr
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(WdfDevice);
-	UNREFERENCED_PARAMETER(FxPreviousState);
-	PAGED_CODE();
+    UNREFERENCED_PARAMETER(WdfDevice);
+    UNREFERENCED_PARAMETER(FxPreviousState);
+    PAGED_CODE();
 
-	PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
-	ASSERT(deviceContextPtr != NULL);
+    PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
 
-	deviceContextPtr->m_Mipi.Deinit();
-	return STATUS_SUCCESS;
+    ASSERT(deviceContextPtr != NULL);
+    deviceContextPtr->m_Mipi.Deinit();
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS WdfMipi_ctx::RegisterQueue()
@@ -497,29 +540,29 @@ NTSTATUS WdfMipi_ctx::RegisterQueue()
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	WDFQUEUE queue;
-	NTSTATUS status;
-	WDF_IO_QUEUE_CONFIG wdfQueueConfig;
-	WDF_OBJECT_ATTRIBUTES wdfQueueAttributes;
+    WDFQUEUE queue;
+    NTSTATUS status;
+    WDF_IO_QUEUE_CONFIG wdfQueueConfig;
+    WDF_OBJECT_ATTRIBUTES wdfQueueAttributes;
 
-	PAGED_CODE();
+    PAGED_CODE();
 
-	WDF_OBJECT_ATTRIBUTES_INIT(&wdfQueueAttributes);
-	wdfQueueAttributes.ExecutionLevel = WdfExecutionLevelPassive; // Allow Synchronous send IRP. Also all parts of driver must execute at same level for Automatic synchronization to work.
+    WDF_OBJECT_ATTRIBUTES_INIT(&wdfQueueAttributes);
+    wdfQueueAttributes.ExecutionLevel = WdfExecutionLevelPassive; // Allow Synchronous send IRP. Also all parts of driver must execute at same level for Automatic synchronization to work.
 
-	WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&wdfQueueConfig, WdfIoQueueDispatchSequential);
-	wdfQueueConfig.PowerManaged = WdfTrue;
-	wdfQueueConfig.EvtIoDeviceControl = WdfMipi_ctx::EvtDeviceControl;
-	wdfQueueConfig.EvtIoStop = WdfMipi_ctx::EvtIoStop;
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&wdfQueueConfig, WdfIoQueueDispatchSequential);
+    wdfQueueConfig.PowerManaged = WdfTrue;
+    wdfQueueConfig.EvtIoDeviceControl = WdfMipi_ctx::EvtDeviceControl;
+    wdfQueueConfig.EvtIoStop = WdfMipi_ctx::EvtIoStop;
 
-	status = WdfIoQueueCreate(m_WdfDevice, &wdfQueueConfig, &wdfQueueAttributes, &queue);
+    status = WdfIoQueueCreate(m_WdfDevice, &wdfQueueConfig, &wdfQueueAttributes, &queue);
 
-	if (!NT_SUCCESS(status)) {
-		TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!status!", status);
-		return status;
-	}
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!status!", status);
+        return status;
+    }
 
-	return status;
+    return status;
 }
 
 void WdfMipi_ctx::EvtDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST WdfRequest, _In_ size_t OutputBufferLength, _In_ size_t InputBufferLength, _In_ ULONG IoControlCode)
@@ -535,48 +578,49 @@ void WdfMipi_ctx::EvtDeviceControl(_In_ WDFQUEUE Queue, _In_ WDFREQUEST WdfReque
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	ASSERT(WdfRequest);
-	UNREFERENCED_PARAMETER(OutputBufferLength);
-	UNREFERENCED_PARAMETER(InputBufferLength);
-	NTSTATUS status = STATUS_AUDIT_FAILED;
-	auto ctxPtr = DeviceGetContext(WdfIoQueueGetDevice(Queue));
-	auto requestCtxPtr = GetRequestContext(WdfRequest);
-	ASSERT(ctxPtr != NULL);
-	ASSERT(requestCtxPtr != NULL);
+    ASSERT(WdfRequest);
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
-		"%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
-		Queue, WdfRequest, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
+    NTSTATUS status = STATUS_AUDIT_FAILED;
+    auto ctxPtr = DeviceGetContext(WdfIoQueueGetDevice(Queue));
+    auto requestCtxPtr = GetRequestContext(WdfRequest);
+    ASSERT(ctxPtr != NULL);
+    ASSERT(requestCtxPtr != NULL);
 
-	requestCtxPtr->m_WdfRequest = WdfRequest;
-	if (WdfRequestIsCanceled(WdfRequest)) {
-		WdfRequestComplete(WdfRequest, STATUS_CANCELLED);
-	}
-	else {
-		switch (IoControlCode)
-		{
-		case IOCTL_CONFIGURE:
-			{
-				ctxPtr->ConfigureRequest(requestCtxPtr);
-				// ConfigureRequest calls WdfRequestComplete on it's own.
-			}
-			return;
-		case IOCTL_STOP:
-			{
-				ctxPtr->m_Mipi.Deinit();
-				status = STATUS_SUCCESS;
-				WdfRequestComplete(WdfRequest, status);
-			}
-			break;
-		default:
-			{
-				_DbgKdPrint(("WdfMipi_ctx::EvtDeviceControl: STATUS_INVALID_DEVICE_REQUEST\r\n"));
-				status = STATUS_INVALID_DEVICE_REQUEST;
-				WdfRequestComplete(WdfRequest, status);
-			}
-			break;
-		}
-	}
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE,
+        "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
+        Queue, WdfRequest, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
+
+    requestCtxPtr->m_WdfRequest = WdfRequest;
+    if (WdfRequestIsCanceled(WdfRequest)) {
+        WdfRequestComplete(WdfRequest, STATUS_CANCELLED);
+    }
+    else {
+        switch (IoControlCode)
+        {
+        case IOCTL_MIPI_CONFIGURE:
+            {
+                ctxPtr->ConfigureRequest(requestCtxPtr);
+                // No WdfRequestComplete, ConfigureRequest calls WdfRequestComplete on it's own.
+            }
+            return;
+        case IOCTL_MIPI_STOP:
+            {
+                ctxPtr->m_Mipi.Deinit();
+                status = STATUS_SUCCESS;
+                WdfRequestComplete(WdfRequest, status);
+            }
+            break;
+        default:
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, TRACE_DRIVER, "STATUS_INVALID_DEVICE_REQUEST");
+                status = STATUS_INVALID_DEVICE_REQUEST;
+                WdfRequestComplete(WdfRequest, status);
+            }
+            break;
+        }
+    }
 }
 
 void WdfMipi_ctx::EvtDeviceFileCreate(WDFDEVICE WdfDevice, WDFREQUEST WdfRequest, WDFFILEOBJECT WdfFileObject)
@@ -590,13 +634,13 @@ void WdfMipi_ctx::EvtDeviceFileCreate(WDFDEVICE WdfDevice, WDFREQUEST WdfRequest
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(WdfDevice);
-	UNREFERENCED_PARAMETER(WdfFileObject);
-	PAGED_CODE();
+    UNREFERENCED_PARAMETER(WdfDevice);
+    UNREFERENCED_PARAMETER(WdfFileObject);
+    PAGED_CODE();
 
-	NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
 
-	WdfRequestComplete(WdfRequest, status);
+    WdfRequestComplete(WdfRequest, status);
 }
 
 void WdfMipi_ctx::EvtDeviceFileCleanup(WDFFILEOBJECT WdfFileObject)
@@ -608,12 +652,12 @@ void WdfMipi_ctx::EvtDeviceFileCleanup(WDFFILEOBJECT WdfFileObject)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	PAGED_CODE();
+    PAGED_CODE();
 
-	PDEVICE_CONTEXT devCtxPtr = DeviceGetContext(WdfFileObjectGetDevice(WdfFileObject)); // fileObjectCtxPtr->m_DevCtxPtr;
-	NT_ASSERT(devCtxPtr != NULL);
+    PDEVICE_CONTEXT devCtxPtr = DeviceGetContext(WdfFileObjectGetDevice(WdfFileObject)); // fileObjectCtxPtr->m_DevCtxPtr;
+    NT_ASSERT(devCtxPtr != NULL);
 
-	devCtxPtr->Close();
+    devCtxPtr->Close();
 }
 
 NTSTATUS WdfMipi_ctx::Close()
@@ -623,12 +667,12 @@ NTSTATUS WdfMipi_ctx::Close()
  * @returns STATUS_SUCCESS.
  */
 {
-	NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
 
-	status = m_Mipi.Deinit();
-	m_IsOpen = false;
+    status = m_Mipi.Deinit();
+    m_IsOpen = false;
 
-	return status;
+    return status;
 }
 
 void WdfMipi_ctx::EvtDeviceFileClose(WDFFILEOBJECT WdfFileObject)
@@ -641,10 +685,10 @@ void WdfMipi_ctx::EvtDeviceFileClose(WDFFILEOBJECT WdfFileObject)
  * @returns STATUS_SUCCESS.
  */
 {
-	PAGED_CODE();
+    PAGED_CODE();
 
-	PDEVICE_FILE_CONTEXT fileObjectCtxPtr = DeviceGetFileContext(WdfFileObject);
-	UNREFERENCED_PARAMETER(fileObjectCtxPtr);
+    PDEVICE_FILE_CONTEXT fileObjectCtxPtr = DeviceGetFileContext(WdfFileObject);
+    UNREFERENCED_PARAMETER(fileObjectCtxPtr);
 }
 
 void WdfMipi_ctx::EvtIoStop(_In_ WDFQUEUE Queue, _In_ WDFREQUEST WdfRequest, _In_ ULONG ActionFlags)
@@ -658,14 +702,14 @@ void WdfMipi_ctx::EvtIoStop(_In_ WDFQUEUE Queue, _In_ WDFREQUEST WdfRequest, _In
  * @returns STATUS_SUCCESS or error code.
  */
 {
-	UNREFERENCED_PARAMETER(Queue);
-	UNREFERENCED_PARAMETER(ActionFlags);
+    UNREFERENCED_PARAMETER(Queue);
+    UNREFERENCED_PARAMETER(ActionFlags);
 
-	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Queue 0x%p, Request 0x%p ActionFlags %d", Queue, WdfRequest, ActionFlags);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_QUEUE, "%!FUNC! Queue 0x%p, Request 0x%p ActionFlags %d", Queue, WdfRequest, ActionFlags);
 
-	EvtWdfRequestCancel(WdfRequest);
+    EvtWdfRequestCancel(WdfRequest);
 
-	return;
+    return;
 }
 
 void WdfMipi_ctx::EvtWdfRequestCancel(WDFREQUEST WdfRequest)
@@ -675,12 +719,12 @@ void WdfMipi_ctx::EvtWdfRequestCancel(WDFREQUEST WdfRequest)
  * @param WdfRequest WDF request object to be canceled. Request must be the same as m_ActiveRequestCtxPtr.
  */
 {
-	// Easily gets called after file cleanup. Just witnessed this in log when the app failed, closed file and request got canceled later on just after FileCleanup and before FileClose.
-	auto devCtxPtr = DeviceGetContext(WdfIoQueueGetDevice(WdfRequestGetIoQueue(WdfRequest)));
+    // Easily gets called after file cleanup. Just witnessed this in log when the app failed, closed file and request got canceled later on just after FileCleanup and before FileClose.
+    auto devCtxPtr = DeviceGetContext(WdfIoQueueGetDevice(WdfRequestGetIoQueue(WdfRequest)));
 
-	devCtxPtr->m_Mipi.Stop();
-	devCtxPtr->m_ActiveRequestCtxPtr = NULL;
-	WdfRequestComplete(WdfRequest, STATUS_CANCELLED);
+    devCtxPtr->m_Mipi.Stop();
+    devCtxPtr->m_ActiveRequestCtxPtr = NULL;
+    WdfRequestComplete(WdfRequest, STATUS_CANCELLED);
 }
 
 void WdfMipi_ctx::ConfigureRequest(PREQUEST_CONTEXT RequestCtxPtr)
@@ -690,30 +734,30 @@ void WdfMipi_ctx::ConfigureRequest(PREQUEST_CONTEXT RequestCtxPtr)
  * @param RequestCtxPtr context of request containing video stream properties (resolution, frame rate, color space ..).
  */
 {
-	NTSTATUS status;
+    NTSTATUS status;
 
-	ASSERT(RequestCtxPtr != NULL);
-	ASSERT(RequestCtxPtr->m_WdfRequest != NULL);
+    ASSERT(RequestCtxPtr != NULL);
+    ASSERT(RequestCtxPtr->m_WdfRequest != NULL);
 
-	if (WdfRequestIsCanceled(RequestCtxPtr->m_WdfRequest)) {
-		status = STATUS_CANCELLED;
-	}
-	else {
-		camera_config_t *configPtr = NULL;
+    if (WdfRequestIsCanceled(RequestCtxPtr->m_WdfRequest)) {
+        status = STATUS_CANCELLED;
+    }
+    else {
+        camera_config_t *configPtr = NULL;
 
-		status = WdfRequestRetrieveInputBuffer(RequestCtxPtr->m_WdfRequest, sizeof(camera_config_t), &((PVOID)configPtr), NULL);
-		if (!NT_SUCCESS(status)) {
-			_DbgKdPrint(("ReinitializeRequest::WdfRequestRetrieveInputBuffer failed with: 0x%x\r\n", status));
-		}
-		else {
-			status = m_Mipi.Init(*configPtr);
-			if (NT_SUCCESS(status)) {
-				status = m_Mipi.Start(*configPtr);
-			}
-			else {
-				m_Mipi.Stop();
-			}
-		}
-	}
-	WdfRequestComplete(RequestCtxPtr->m_WdfRequest, status);
+        status = WdfRequestRetrieveInputBuffer(RequestCtxPtr->m_WdfRequest, sizeof(camera_config_t), &((PVOID)configPtr), NULL);
+        if (!NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
+        }
+        else {
+            status = m_Mipi.Init(*configPtr);
+            if (NT_SUCCESS(status)) {
+                status = m_Mipi.Start(*configPtr);
+            }
+            else {
+                m_Mipi.Stop();
+            }
+        }
+    }
+    WdfRequestComplete(RequestCtxPtr->m_WdfRequest, status);
 }

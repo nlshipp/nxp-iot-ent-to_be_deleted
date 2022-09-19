@@ -312,12 +312,6 @@ void MpFreeAdapter(PMP_ADAPTER  pAdapter)
 
         MDIODev_DeinitDevice(&pAdapter->ENETDev_MDIODevice);
 
-        for (int i = 0; i < pAdapter->Tx_DmaBDT_ItemCount; i++) { // Free all Tx packets buffer MDL
-            if (pAdapter->Tx_EnetSwExtBDT[i].pMdl != NULL) {
-                 NdisFreeMdl(pAdapter->Tx_EnetSwExtBDT[i].pMdl);
-                 pAdapter->Tx_EnetSwExtBDT[i].pMdl = NULL;
-            }
-        }
         if (pAdapter->Tx_DataBuffer_Va != NULL)  { // Free Tx packets memory
             NdisMFreeSharedMemory(pAdapter->AdapterHandle, pAdapter->Tx_DataBuffer_Size, TRUE, pAdapter->Tx_DataBuffer_Va, pAdapter->Tx_DataBuffer_Pa);
             pAdapter->Tx_DataBuffer_Va = NULL;
@@ -337,6 +331,12 @@ void MpFreeAdapter(PMP_ADAPTER  pAdapter)
         }
         // Free Tx_EnetSwExtBDT
         if (pAdapter->Tx_EnetSwExtBDT != NULL) {
+            for (int i = 0; i < pAdapter->Tx_DmaBDT_ItemCount; i++) { // Free all Tx packets buffer MDL
+                if (pAdapter->Tx_EnetSwExtBDT[i].pMdl != NULL) {
+                    NdisFreeMdl(pAdapter->Tx_EnetSwExtBDT[i].pMdl);
+                    pAdapter->Tx_EnetSwExtBDT[i].pMdl = NULL;
+                }
+            }
             NdisFreeMemory(pAdapter->Tx_EnetSwExtBDT, 0, 0);
             pAdapter->Tx_EnetSwExtBDT = NULL;
         }

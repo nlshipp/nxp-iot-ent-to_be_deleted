@@ -12,7 +12,7 @@
     <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_vp9.c">
       <Filter>OpenMax</Filter>
     </ClCompile>
-    <ClCompile Include="..\imxvpuomx\dllmain.cpp" />
+    <ClCompile Include="dllmain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_hevc.h">
@@ -23,6 +23,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\imxvpuomx\imxomxg2.def" />
+    <None Include="imxomxg2.def" />
   </ItemGroup>
 </Project>

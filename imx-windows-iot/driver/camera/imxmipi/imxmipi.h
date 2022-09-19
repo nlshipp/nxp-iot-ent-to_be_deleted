@@ -62,94 +62,98 @@ typedef WdfMipiFile_ctx DEVICE_FILE_CONTEXT, *PDEVICE_FILE_CONTEXT;
 
 struct WdfMipi_ctx: io::ctx_acpi_csr_stub
 {
-	enum : ULONG { IMX_CSI_POOL_TAG = 'ICXM' };
+    enum : ULONG { IMX_CSI_POOL_TAG = 'ICXM' };
     struct DiscardBuffInfo_t {
-		PHYSICAL_ADDRESS phys;
-		PVOID virt;
+        PHYSICAL_ADDRESS phys;
+        PVOID virt;
 
-		PMDL mdlPtr;
-		enum {
-			FREE,
-			WORKING,
-			DONE
-		} state;
-	};
+        PMDL mdlPtr;
+        enum {
+            FREE,
+            WORKING,
+            DONE
+        } state;
+    };
 
-	const WDFDEVICE m_WdfDevice;
-	WDFQUEUE m_Queue;
+    const WDFDEVICE m_WdfDevice;
+    WDFQUEUE m_Queue;
 
-	bool m_IsOpen;
-	
-	bool OpenIfAvailable()
-	{
-		bool success = false;
-		
-		if (!m_IsOpen) {
-			m_IsOpen = true;
-			success = true;
-		}
-		return success;
-	}
-	
-	/* PNP static callbacks */
-	static EVT_WDF_DEVICE_RELEASE_HARDWARE EvtReleaseHw; // Translates call to non-static member.
-	static EVT_WDF_DEVICE_PREPARE_HARDWARE EvtPrepareHw;
-	NTSTATUS PrepareHw(_In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated);
+    bool m_IsOpen;
 
-	AcpiDsdRes_t m_DsdRes;
-	NTSTATUS Get_DsdAcpiResources();
-	NTSTATUS AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val);
-	NTSTATUS AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val);
-    
-	reg<MipiCsi2_t::MIPI_CSI2RX_REGS> m_Mipi1Reg;
-	UINT32 Mipi1RegResId;
-	MipiCsi2_t m_Mipi;
-	Resources_t m_MipiCsiRes;
+    bool OpenIfAvailable()
+    {
+        bool success = false;
 
-	CHAR DeviceEndpoint[256];
-	UINT32 coreClockFrequencyHz;
-	UINT32 phyClockFrequencyHz;
-	UINT32 escClockFrequencyHz;
+        if (!m_IsOpen) {
+            m_IsOpen = true;
+            success = true;
+        }
+        return success;
+    }
 
-	static EVT_WDF_DEVICE_D0_ENTRY EvtD0Entry;
-	static EVT_WDF_DEVICE_D0_EXIT EvtD0Exit;
+    /* PNP static callbacks */
+    static EVT_WDF_DEVICE_RELEASE_HARDWARE EvtReleaseHw; // Translates call to non-static member.
+    static EVT_WDF_DEVICE_PREPARE_HARDWARE EvtPrepareHw;
+    NTSTATUS PrepareHw(_In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated);
 
-	/* IRP */
-	static EVT_WDF_DEVICE_FILE_CREATE EvtDeviceFileCreate;
-	static EVT_WDF_FILE_CLOSE EvtDeviceFileClose;
-	static EVT_WDF_FILE_CLEANUP EvtDeviceFileCleanup;
+    AcpiDsdRes_t m_DsdRes;
+    NTSTATUS Get_DsdAcpiResources();
+    NTSTATUS AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val);
+    NTSTATUS AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val);
 
-	static EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL EvtDeviceControl;
-	static EVT_WDF_IO_QUEUE_IO_STOP EvtIoStop;
-	static EVT_WDF_REQUEST_CANCEL EvtWdfRequestCancel;
+    reg<MipiCsi2_t::MIPI_CSI2RX_REGS> m_Mipi1Reg;
+    UINT32 Mipi1RegResId;
+    MipiCsi2_t m_Mipi;
+    Resources_t m_MipiCsiRes;
+    UINT32 m_CpuId;
 
-	/* IRP MJ */
-	NTSTATUS Close();
-	void ConfigureRequest(PREQUEST_CONTEXT RequestCtxPtr);
-	PREQUEST_CONTEXT m_ActiveRequestCtxPtr;
+    CHAR m_DeviceEndpoint[DEVICE_ENDPOINT_NAME_MAX_LEN];
+    WCHAR m_DeviceEndpointUnicodeNameBuff[DEVICE_ENDPOINT_NAME_MAX_LEN];
+    UNICODE_STRING m_DeviceEndpointUnicodeName;
+
+    UINT32 coreClockFrequencyHz;
+    UINT32 phyClockFrequencyHz;
+    UINT32 escClockFrequencyHz;
+
+    static EVT_WDF_DEVICE_D0_ENTRY EvtD0Entry;
+    static EVT_WDF_DEVICE_D0_EXIT EvtD0Exit;
+
+    /* IRP */
+    static EVT_WDF_DEVICE_FILE_CREATE EvtDeviceFileCreate;
+    static EVT_WDF_FILE_CLOSE EvtDeviceFileClose;
+    static EVT_WDF_FILE_CLEANUP EvtDeviceFileCleanup;
+
+    static EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL EvtDeviceControl;
+    static EVT_WDF_IO_QUEUE_IO_STOP EvtIoStop;
+    static EVT_WDF_REQUEST_CANCEL EvtWdfRequestCancel;
+
+    /* IRP MJ */
+    NTSTATUS Close();
+    void ConfigureRequest(PREQUEST_CONTEXT RequestCtxPtr);
+    PREQUEST_CONTEXT m_ActiveRequestCtxPtr;
 
 public:
-	WdfMipi_ctx(WDFDEVICE &device);
-	NTSTATUS RegisterQueue();
-	static EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
-	static EVT_WDF_DEVICE_CONTEXT_CLEANUP EvtDeviceObjCtxCleanup;
-	static EVT_WDF_DRIVER_DEVICE_ADD EvtDeviceAdd;
+    WdfMipi_ctx(WDFDEVICE &device);
+    NTSTATUS RegisterQueue();
+    static EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverContextCleanup;
+    static EVT_WDF_DEVICE_CONTEXT_CLEANUP EvtDeviceObjCtxCleanup;
+    static EVT_WDF_DRIVER_DEVICE_ADD EvtDeviceAdd;
 };
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext);
 
 struct WdfMipiRequest_ctx
 {
-	NTSTATUS m_Status;
-	ULONG m_CtlCode;
-	WDFREQUEST m_WdfRequest;
-	size_t m_InLen;
+    NTSTATUS m_Status;
+    ULONG m_CtlCode;
+    WDFREQUEST m_WdfRequest;
+    size_t m_InLen;
 };
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(REQUEST_CONTEXT, GetRequestContext);
 
 struct WdfMipiFile_ctx
 {
-	WDFQUEUE m_WdfQueue;
-	PDEVICE_CONTEXT	m_DevCtxPtr;
-	UCHAR m_ChanId;
+    WDFQUEUE m_WdfQueue;
+    PDEVICE_CONTEXT    m_DevCtxPtr;
+    UCHAR m_ChanId;
 };
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_FILE_CONTEXT, DeviceGetFileContext);

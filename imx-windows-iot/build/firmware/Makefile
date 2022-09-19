@@ -1,9 +1,9 @@
 # This Makefile inspired by http://lackof.org/taggart/hacking/make-example/
 
 IMX8_BOARDS=\
-	Franta_500M NXPEVK_iMX8M_4GB \
-	NXPEVK_iMX8M_Mini_2GB \
-	EVK_iMX8MN_2GB \
+	Franta_500M MX8M_EVK \
+	MX8M_MINI_EVK \
+	MX8M_NANO_EVK \
 
 # UPDATEDIRS=$(IMX67_BOARDS:%=update-%)
 # COMMITDIRS=$(IMX67_BOARDS:%=commit-%)
@@ -20,7 +20,7 @@ endef
 
 imx8_all: imx8_boards_serialized
 
-#Allows for a call to specific boards ie: "make Franta_500M NXPEVK_iMX8M_4GB", but will not enforce serialization of the builds
+#Allows for a call to specific boards ie: "make Franta_500M MX8M_EVK", but will not enforce serialization of the builds
 
 $(IMX8_BOARDS):
 	$(MAKE) imx8_build IMX8_TARGET=$@

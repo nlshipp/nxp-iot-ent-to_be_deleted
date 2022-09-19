@@ -35,27 +35,30 @@
 
 class CamWdf_Res {
 public:
-	UINT8 m_test_var;
+    UINT8 m_test_var;
 
-	// DSD config
-	CHAR DeviceEndpoint0[256];
-	UINT32 cameraClockFrequencyHz;
-	UINT32 GpioPwnResId;
-	UINT32 GpioRstResId;
-	UINT32 I2cResId;
+    // DSD config
+    UINT32 cameraClockFrequencyHz;
+    UINT32 GpioPwnResId;
+    UINT32 GpioRstResId;
+    UINT32 I2cResId;
 
-	i2c_bus  m_I2c;
-	gpio_t   m_RstGpio;
-	gpio_t   m_PwnGpio;
-	bool     m_HasRstGpio;
+    i2c_bus  m_I2c;
+    gpio_t   m_RstGpio;
+    gpio_t   m_PwnGpio;
+    bool     m_HasRstGpio;
+    bool     m_HasPwnGpio;
 
-	CamWdf_Res(const WDFDEVICE &WdfDevice) : m_I2c(WdfDevice), m_RstGpio(WdfDevice), m_PwnGpio(WdfDevice), m_HasRstGpio(false) {};
+    CHAR m_DeviceEndpoint[DEVICE_ENDPOINT_NAME_MAX_LEN];
+    WCHAR m_DeviceEndpointUnicodeNameBuff[DEVICE_ENDPOINT_NAME_MAX_LEN];
+    UNICODE_STRING m_DeviceEndpointUnicodeName;
+
+    CamWdf_Res(const WDFDEVICE &WdfDevice) : m_I2c(WdfDevice), m_RstGpio(WdfDevice), m_PwnGpio(WdfDevice), m_HasPwnGpio(false), m_HasRstGpio(false) {};
 };
 
 struct CameraOperations_t {
-	NTSTATUS init(const camera_config_t *config, const CamWdf_Res &CameraWdfResource);
-	NTSTATUS deinit();
-	NTSTATUS start();
-	NTSTATUS stop();
-    // FIXME
+    NTSTATUS init(const camera_config_t *config, const CamWdf_Res &CameraWdfResource);
+    NTSTATUS deinit();
+    NTSTATUS start();
+    NTSTATUS stop();
 };

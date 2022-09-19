@@ -950,18 +950,6 @@ PcieParseAssignBar (
       continue;
     }
 
-    // No support for prefetch memory
-    if (((ResponseValue & 0x01) == 0x00) &&
-        ((ResponseValue & 0x08) == 0x08)) {
-      Status = PciePciWrite(
-                 EfiPciIoWidthUint32,
-                 BaseAddress + BarOffset,
-                 1,
-                 &Originalvalue);
-      ASSERT_EFI_ERROR(Status);
-      continue;
-    }
-
     BarSize = (UINTN)((~(ResponseValue & 0xFFFFFFF0)) + 1);
 
     Status = PcieGetMemoryBarResource (

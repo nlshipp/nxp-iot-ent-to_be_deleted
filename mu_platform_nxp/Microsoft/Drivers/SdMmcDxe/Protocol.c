@@ -2,7 +2,7 @@
 *
 *  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
 *  Copyright (c) 2011-2014, ARM Limited. All rights reserved.
-*  Copyright 2020 NXP
+*  Copyright 2020,2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -19,6 +19,7 @@
 #include <Protocol/BlockIo.h>
 #include <Protocol/DevicePath.h>
 #include <Protocol/RpmbIo.h>
+#include <Protocol/SdMmcPart.h>
 #include <Protocol/Sdhc.h>
 
 #include <Library/BaseLib.h>

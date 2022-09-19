@@ -2,6 +2,7 @@
 *
 *  Copyright (c) 2018 Microsoft Corporation. All rights reserved.
 *  Copyright (c) 2011-2014, ARM Limited. All rights reserved.
+*  Copyright 2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -18,6 +19,7 @@
 #include <Protocol/BlockIo.h>
 #include <Protocol/DevicePath.h>
 #include <Protocol/RpmbIo.h>
+#include <Protocol/SdMmcPart.h>
 #include <Protocol/Sdhc.h>
 
 #include <Library/BaseLib.h>
@@ -167,6 +169,7 @@ CreateSdhcInstance (
   HostInst->DevicePathProtocolInstalled = FALSE;
   HostInst->BlockIoProtocolInstalled = FALSE;
   HostInst->RpmbIoProtocolInstalled = FALSE;
+  HostInst->SdMmcPartitionProtocolInstalled = FALSE;
 
   // Initialize BlockIo Protocol.
   HostInst->BlockIo.Media = AllocateCopyPool (sizeof (EFI_BLOCK_IO_MEDIA), &gSdhcMediaTemplate);
@@ -200,6 +203,10 @@ CreateSdhcInstance (
   HostInst->RpmbIo.AuthenticatedWrite = RpmbIoAuthenticatedWrite;
   HostInst->RpmbIo.ProgramKey = RpmbIoProgramKey;
   HostInst->RpmbIo.ReadCounter = RpmbIoReadCounter;
+
+  // Initialize SdMmcPartition Protocol.
+  HostInst->SdMmcPart.Revision = EFI_SDMMCPART_PROTOCOL_REVISION;
+  HostInst->SdMmcPart.PartitionSwitch = DoPartitionSwitch;
 
   // Don't publish any protocol yet, until the SDHC device is fully initialized and
   // ready for IO.
@@ -639,6 +646,11 @@ SoftReset (
         "protocol installed. Skipping RpmbIo protocol installation for %s",
         DevicePathText);
     }
+
+    Status = InstallSdMmcPartitionProtocol (HostInst);
+    if (EFI_ERROR (Status)) {
+      goto Exit;
+    }
   }
 
   LOG_TRACE ("All required protocols installed successfully for %s", DevicePathText);
@@ -681,6 +693,8 @@ Exit:
         HostInst->DevicePathProtocolInstalled = FALSE;
       }
     }
+
+    Status = UninstallSdMmcPartitionProtocol (HostInst);
   }
 
   if (DevicePathText != NULL) {
@@ -827,6 +841,11 @@ UninstallAllProtocols (
     }
 
     HostInst->DevicePathProtocolInstalled = FALSE;
+  }
+
+  Status = UninstallSdMmcPartitionProtocol (HostInst);
+  if (EFI_ERROR (Status)) {
+    return Status;
   }
 
   return EFI_SUCCESS;
