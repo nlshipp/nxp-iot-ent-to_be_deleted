@@ -182,6 +182,12 @@ if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
 copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\Galcore_mp_mn >NUL
 if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
 
+:: Copy Wifi mrvlpcie8897 
+echo Copying Wifi mrvlpcie8897 to %DRVR_ROOT%
+mkdir %DRVR_ROOT%\Wifi_mrvlpcie8897 >NUL 2>NUL
+copy %COMP_ROOT%\Wifi\mrvlpcie8897\* %DRVR_ROOT%\Wifi_mrvlpcie8897\ >NUL
+if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
+
 exit /b 0
 
 :ERROR
