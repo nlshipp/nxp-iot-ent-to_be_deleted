@@ -30,8 +30,8 @@
 #pragma once
 
 #include <Ntddk.h> /* UINT types */
-#include "WdfIoTargets.h"
-#include "ImxVideoCommon.h"
+#include "WdfIoTargets.hpp"
+#include "ImxVideoCommon.hpp"
 
 class CamWdf_Res {
 public:

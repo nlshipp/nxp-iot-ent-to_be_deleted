@@ -74,12 +74,6 @@ AddProperty=imx_vpu_km_interface_AddProperty
 [imx_vpu_km_interface_AddProperty]
 {026e516e-b814-414b-83cd-856d6fef4822},6,0x11,,1
 
-[imx_vpu_km_LF_Device.NT.Wdf]
-KmdfService =  imxvpukm, imx_vpu_km_wdfsect
-
-[imx_vpu_km_wdfsect]
-KmdfLibraryVersion = $KMDFVERSION$
-
 [Strings]
 ProviderName                 = "NXP"
 ManufacturerName             = "NXP Semiconductors"

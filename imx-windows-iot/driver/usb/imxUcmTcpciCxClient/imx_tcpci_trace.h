@@ -1,5 +1,5 @@
 /*
-* Copyright 2020 NXP
+* Copyright 2020, 2022 NXP
 * All rights reserved.
 * 
 * Redistribution and use in source and binary forms, with or without modification,
@@ -134,8 +134,6 @@ EXTERN_C_END
 // USEPREFIX(DBG_DRV_METHOD_END,              "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_DRV_METHOD_END_WITH_PARAMS,  "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_DRV_METHOD_END_WITH_STATUS,  "%!STDPREFIX!---%!FUNC!(");
-// USEPREFIX(DBG_DRV_PRINT_ERROR,             "%!STDPREFIX!!!!%!FUNC!");
-// USEPREFIX(DBG_DRV_PRINT_ERROR_WITH_STATUS, "%!STDPREFIX!!!!%!FUNC!");
 // USEPREFIX(DBG_DRV_PRINT_WARNING,           "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_DRV_PRINT_INFO,              "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_DRV_PRINT_VERBOSE,           "%!STDPREFIX!   %!FUNC!");
@@ -144,14 +142,11 @@ EXTERN_C_END
 // USESUFFIX(DBG_DRV_METHOD_END,              ")");
 // USESUFFIX(DBG_DRV_METHOD_END_WITH_PARAMS,  ")");
 // USESUFFIX(DBG_DRV_METHOD_END_WITH_STATUS,  ") [%!STATUS!]", EXP);
-// USESUFFIX(DBG_DRV_PRINT_ERROR_WITH_STATUS, " [%!STATUS!] !!!", EXP);
 // FUNC      DBG_DRV_METHOD_BEG{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(...);
 // FUNC      DBG_DRV_METHOD_BEG_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(MSG, ...);
 // FUNC      DBG_DRV_METHOD_END{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(...);
 // FUNC      DBG_DRV_METHOD_END_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(MSG, ...);
 // FUNC      DBG_DRV_METHOD_END_WITH_STATUS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(EXP);
-// FUNC      DBG_DRV_PRINT_ERROR{             LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_DRIVER}(MSG, ...);
-// FUNC      DBG_DRV_PRINT_ERROR_WITH_STATUS{ LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_DRIVER}(EXP, MSG, ...);
 // FUNC      DBG_DRV_PRINT_WARNING{           LEVEL=TRACE_LEVEL_WARNING,     FLAGS=TRACE_DRIVER}(MSG, ...);
 // FUNC      DBG_DRV_PRINT_INFO{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DRIVER}(MSG, ...);
 // FUNC      DBG_DRV_PRINT_VERBOSE{           LEVEL=TRACE_LEVEL_VERBOSE,     FLAGS=TRACE_DRIVER}(MSG, ...);
@@ -161,8 +156,6 @@ EXTERN_C_END
 // USEPREFIX(DBG_DEV_METHOD_END,              "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_DEV_METHOD_END_WITH_PARAMS,  "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_DEV_METHOD_END_WITH_STATUS,  "%!STDPREFIX!---%!FUNC!(");
-// USEPREFIX(DBG_DEV_PRINT_ERROR,             "%!STDPREFIX!!!!%!FUNC!");
-// USEPREFIX(DBG_DEV_PRINT_ERROR_WITH_STATUS, "%!STDPREFIX!!!!%!FUNC!");
 // USEPREFIX(DBG_DEV_PRINT_WARNING,           "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_DEV_PRINT_INFO,              "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_DEV_PRINT_VERBOSE,           "%!STDPREFIX!   %!FUNC!");
@@ -171,14 +164,11 @@ EXTERN_C_END
 // USESUFFIX(DBG_DEV_METHOD_END,              ")");
 // USESUFFIX(DBG_DEV_METHOD_END_WITH_PARAMS,  ")");
 // USESUFFIX(DBG_DEV_METHOD_END_WITH_STATUS,  ") [%!STATUS!]", EXP);
-// USESUFFIX(DBG_DEV_PRINT_ERROR_WITH_STATUS, " [%!STATUS!] !!!", EXP);
 // FUNC      DBG_DEV_METHOD_BEG{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(...);
 // FUNC      DBG_DEV_METHOD_BEG_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(MSG, ...);
 // FUNC      DBG_DEV_METHOD_END{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(...);
 // FUNC      DBG_DEV_METHOD_END_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(MSG, ...);
 // FUNC      DBG_DEV_METHOD_END_WITH_STATUS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(EXP);
-// FUNC      DBG_DEV_PRINT_ERROR{             LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_DEVICE}(MSG, ...);
-// FUNC      DBG_DEV_PRINT_ERROR_WITH_STATUS{ LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_DEVICE}(EXP, MSG, ...);
 // FUNC      DBG_DEV_PRINT_WARNING{           LEVEL=TRACE_LEVEL_WARNING,     FLAGS=TRACE_DEVICE}(MSG, ...);
 // FUNC      DBG_DEV_PRINT_INFO{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_DEVICE}(MSG, ...);
 // FUNC      DBG_DEV_PRINT_VERBOSE{           LEVEL=TRACE_LEVEL_VERBOSE,     FLAGS=TRACE_DEVICE}(MSG, ...);
@@ -188,8 +178,6 @@ EXTERN_C_END
 // USEPREFIX(DBG_IOCTL_METHOD_END,              "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_IOCTL_METHOD_END_WITH_PARAMS,  "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_IOCTL_METHOD_END_WITH_STATUS,  "%!STDPREFIX!---%!FUNC!(");
-// USEPREFIX(DBG_IOCTL_PRINT_ERROR,             "%!STDPREFIX!!!!%!FUNC!");
-// USEPREFIX(DBG_IOCTL_PRINT_ERROR_WITH_STATUS, "%!STDPREFIX!!!!%!FUNC!");
 // USEPREFIX(DBG_IOCTL_PRINT_WARNING,           "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_IOCTL_PRINT_INFO,              "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_IOCTL_PRINT_VERBOSE,           "%!STDPREFIX!   %!FUNC!");
@@ -198,14 +186,11 @@ EXTERN_C_END
 // USESUFFIX(DBG_IOCTL_METHOD_END,              ")");
 // USESUFFIX(DBG_IOCTL_METHOD_END_WITH_PARAMS,  ")");
 // USESUFFIX(DBG_IOCTL_METHOD_END_WITH_STATUS,  ") [%!STATUS!]", EXP);
-// USESUFFIX(DBG_IOCTL_PRINT_ERROR_WITH_STATUS, " [%!STATUS!] !!!", EXP);
 // FUNC      DBG_IOCTL_METHOD_BEG{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(...);
 // FUNC      DBG_IOCTL_METHOD_BEG_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(MSG, ...);
 // FUNC      DBG_IOCTL_METHOD_END{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(...);
 // FUNC      DBG_IOCTL_METHOD_END_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(MSG, ...);
 // FUNC      DBG_IOCTL_METHOD_END_WITH_STATUS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(EXP);
-// FUNC      DBG_IOCTL_PRINT_ERROR{             LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_IOCTL}(MSG, ...);
-// FUNC      DBG_IOCTL_PRINT_ERROR_WITH_STATUS{ LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_IOCTL}(EXP, MSG, ...);
 // FUNC      DBG_IOCTL_PRINT_WARNING{           LEVEL=TRACE_LEVEL_WARNING,     FLAGS=TRACE_IOCTL}(MSG, ...);
 // FUNC      DBG_IOCTL_PRINT_INFO{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_IOCTL}(MSG, ...);
 // FUNC      DBG_IOCTL_PRINT_VERBOSE{           LEVEL=TRACE_LEVEL_VERBOSE,     FLAGS=TRACE_IOCTL}(MSG, ...);
@@ -215,8 +200,6 @@ EXTERN_C_END
 // USEPREFIX(DBG_I2C_METHOD_END,              "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_I2C_METHOD_END_WITH_PARAMS,  "%!STDPREFIX!---%!FUNC!(");
 // USEPREFIX(DBG_I2C_METHOD_END_WITH_STATUS,  "%!STDPREFIX!---%!FUNC!(");
-// USEPREFIX(DBG_I2C_PRINT_ERROR,             "%!STDPREFIX!!!!%!FUNC!");
-// USEPREFIX(DBG_I2C_PRINT_ERROR_WITH_STATUS, "%!STDPREFIX!!!!%!FUNC!");
 // USEPREFIX(DBG_I2C_PRINT_WARNING,           "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_I2C_PRINT_INFO,              "%!STDPREFIX!   %!FUNC!");
 // USEPREFIX(DBG_I2C_PRINT_VERBOSE,           "%!STDPREFIX!   %!FUNC!");
@@ -225,14 +208,11 @@ EXTERN_C_END
 // USESUFFIX(DBG_I2C_METHOD_END,              ")");
 // USESUFFIX(DBG_I2C_METHOD_END_WITH_PARAMS,  ")");
 // USESUFFIX(DBG_I2C_METHOD_END_WITH_STATUS,  ") [%!STATUS!]", EXP);
-// USESUFFIX(DBG_I2C_PRINT_ERROR_WITH_STATUS, " [%!STATUS!] !!!", EXP);
 // FUNC      DBG_I2C_METHOD_BEG{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(...);
 // FUNC      DBG_I2C_METHOD_BEG_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(MSG, ...);
 // FUNC      DBG_I2C_METHOD_END{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(...);
 // FUNC      DBG_I2C_METHOD_END_WITH_PARAMS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(MSG, ...);
 // FUNC      DBG_I2C_METHOD_END_WITH_STATUS{  LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(EXP);
-// FUNC      DBG_I2C_PRINT_ERROR{             LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_I2C}(MSG, ...);
-// FUNC      DBG_I2C_PRINT_ERROR_WITH_STATUS{ LEVEL=TRACE_LEVEL_ERROR,       FLAGS=TRACE_I2C}(EXP, MSG, ...);
 // FUNC      DBG_I2C_PRINT_WARNING{           LEVEL=TRACE_LEVEL_WARNING,     FLAGS=TRACE_I2C}(MSG, ...);
 // FUNC      DBG_I2C_PRINT_INFO{              LEVEL=TRACE_LEVEL_INFORMATION, FLAGS=TRACE_I2C}(MSG, ...);
 // FUNC      DBG_I2C_PRINT_VERBOSE{           LEVEL=TRACE_LEVEL_VERBOSE,     FLAGS=TRACE_I2C}(MSG, ...);
@@ -242,6 +222,9 @@ EXTERN_C_END
 
 #elif (TCPCI_TRACE == TCPCI_TRACE_DBG_PRINT_EX)
 
+#ifndef DBG_MSG_DRV_PREFIX
+#define DBG_MSG_DRV_PREFIX "TCPCIDrv"
+#endif
 
 #define I2C_READ  0
 #define I2C_WRITE 1
@@ -270,8 +253,8 @@ EXTERN_C_END
 
 #define PRINT
 #ifdef PRINT
-#define DBG_PRINT_ERROR(_format_str_,...)                      DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__)
-#define DBG_PRINT_ERROR_WITH_STATUS(_status_,_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_" [0x%.8X]\n" ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__,_status_)
+#define DBG_PRINT_ERROR(_format_str_,...)                      DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__)
+#define DBG_PRINT_ERROR_WITH_STATUS(_status_,_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_" [0x%.8X]\n" ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__,_status_)
 #else // PRINT
 #define DBG_PRINT_ERROR(...)
 #define DBG_PRINT_ERROR_WITH_STATUS(...)
@@ -279,77 +262,69 @@ EXTERN_C_END
 
 #define CONFIG
 #ifdef CONFIG
-#define DBG_CONFIG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__)
+#define DBG_CONFIG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__)
 #else // CONFIG
 #define DBG_CONFIG_DUMP(...)
 #endif // CONFIG
 
 #define TCPCI_REG
 #ifdef TCPCI_REG
-#define DBG_TCPCI_REG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__)
+#define DBG_TCPCI_REG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__)
 #else // TCPCI_REG
 #define DBG_TCPCI_REG_DUMP(...)
 #endif // TCPCI_REG
 
 #define TCPCI_MSG
 #ifdef TCPCI_MSG
-#define DBG_TCPCI_MSG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__)
+#define DBG_TCPCI_MSG_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__)
 #else // TCPCI_MSG
 #define DBG_TCPCI_MSG_DUMP(...)
 #endif // TCPCI_MSG
 
 //#define IOCTL_CMD
 #ifdef IOCTL_CMD
-#define DBG_IOCTL_CMD_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__VA_ARGS__)
+#define DBG_IOCTL_CMD_DUMP(_format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s: "_format_str_"\n"          ,GetTime() ,KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__VA_ARGS__)
 #else // IOCTL_CMD
 #define DBG_IOCTL_CMD_DUMP(...)
 #endif // IOCTL_CMD
 
-//#define DRV
+#define DRV
 #ifdef DRV
-#define DBG_DRV_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_DRV_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DRV_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_DRV_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DRV_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,_status_)
-#define DBG_DRV_PRINT_ERROR(_format_str_,...)                       DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DRV_PRINT_ERROR_WITH_STATUS(_status_, _format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_" [0x%.8X]\n" ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__,_status_)
-#define DBG_DRV_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DRV_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DRV_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
+#define DBG_DRV_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_DRV_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DRV_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_DRV_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DRV_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,_status_)
+#define DBG_DRV_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DRV_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DRV_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
 #else // DRV
 #define DBG_DRV_METHOD_BEG(...)
 #define DBG_DRV_METHOD_BEG_WITH_PARAMS(...)
 #define DBG_DRV_METHOD_END(...)
 #define DBG_DRV_METHOD_END_WITH_PARAMS(...)
 #define DBG_DRV_METHOD_END_WITH_STATUS(...)
-#define DBG_DRV_PRINT_ERROR(...)
-#define DBG_DRV_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_DRV_PRINT_WARNING(...)
 #define DBG_DRV_PRINT_VERBOSE(...)
 #define DBG_DRV_PRINT_INFO(...)
 #endif // DRV
 
-//#define DEV
+#define DEV
 #ifdef DEV
-#define DBG_DEV_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_DEV_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DEV_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_DEV_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DEV_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,_status_)
-#define DBG_DEV_PRINT_ERROR(_format_str_,...)                       DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DEV_PRINT_ERROR_WITH_STATUS(_status_, _format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_" [0x%.8X]\n" ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__,_status_)
-#define DBG_DEV_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DEV_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_DEV_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
+#define DBG_DEV_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_DEV_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DEV_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_DEV_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DEV_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,_status_)
+#define DBG_DEV_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DEV_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_DEV_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
 #else // DEV
 #define DBG_DEV_METHOD_BEG(...)
 #define DBG_DEV_METHOD_BEG_WITH_PARAMS(...)
 #define DBG_DEV_METHOD_END(...)
 #define DBG_DEV_METHOD_END_WITH_PARAMS(...)
 #define DBG_DEV_METHOD_END_WITH_STATUS(...)
-#define DBG_DEV_PRINT_ERROR(...)
-#define DBG_DEV_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_DEV_PRINT_WARNING(...)
 #define DBG_DEV_PRINT_VERBOSE(...)
 #define DBG_DEV_PRINT_INFO(...)
@@ -357,24 +332,20 @@ EXTERN_C_END
 
 //#define IOCTL
 #ifdef IOCTL
-#define DBG_IOCTL_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_IOCTL_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_IOCTL_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_IOCTL_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_IOCTL_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,_status_)
-#define DBG_IOCTL_PRINT_ERROR(_format_str_,...)                       DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_IOCTL_PRINT_ERROR_WITH_STATUS(_status_, _format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s"_format_str_" [0x%.8X]\n" ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__,_status_)
-#define DBG_IOCTL_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_IOCTL_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_IOCTL_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
+#define DBG_IOCTL_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_IOCTL_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_IOCTL_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_IOCTL_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_IOCTL_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,_status_)
+#define DBG_IOCTL_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_IOCTL_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_IOCTL_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s"_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
 #else // IOCTL
 #define DBG_IOCTL_METHOD_BEG(...)
 #define DBG_IOCTL_METHOD_BEG_WITH_PARAMS(...)
 #define DBG_IOCTL_METHOD_END(...)
 #define DBG_IOCTL_METHOD_END_WITH_PARAMS(...)
 #define DBG_IOCTL_METHOD_END_WITH_STATUS(...)
-#define DBG_IOCTL_PRINT_ERROR(...)
-#define DBG_IOCTL_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_IOCTL_PRINT_WARNING(...)
 #define DBG_IOCTL_PRINT_VERBOSE(...)
 #define DBG_IOCTL_PRINT_INFO(...)
@@ -382,27 +353,45 @@ EXTERN_C_END
 
 //#define I2C
 #ifdef I2C
-#define DBG_I2C_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_I2C_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_I2C_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__)
-#define DBG_I2C_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_I2C_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,_status_)
-#define DBG_I2C_PRINT_ERROR(_format_str_,...)                       DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_I2C_PRINT_ERROR_WITH_STATUS(_status_, _format_str_,...) DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:!!!%s() "_format_str_" [0x%.8X]\n" ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__,_status_)
-#define DBG_I2C_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_I2C_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
-#define DBG_I2C_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),"TCPCIDrv",__FUNCTION__,__VA_ARGS__)
+#define DBG_I2C_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_I2C_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_I2C_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_I2C_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_I2C_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,_status_)
+#define DBG_I2C_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_I2C_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_I2C_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
 #else // I2C
 #define DBG_I2C_METHOD_BEG(...)
 #define DBG_I2C_METHOD_BEG_WITH_PARAMS(...)
 #define DBG_I2C_METHOD_END(...)
 #define DBG_I2C_METHOD_END_WITH_PARAMS(...)
 #define DBG_I2C_METHOD_END_WITH_STATUS(...)
-#define DBG_I2C_PRINT_ERROR(...)
-#define DBG_I2C_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_I2C_PRINT_WARNING(...)
 #define DBG_I2C_PRINT_VERBOSE(...)
 #define DBG_I2C_PRINT_INFO(...)
+#endif // I2C
+
+
+#define ACPI
+#ifdef ACPI
+#define DBG_ACPI_METHOD_BEG()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_ACPI_METHOD_BEG_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:+++%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_ACPI_METHOD_END()                                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s()\n"                      ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__)
+#define DBG_ACPI_METHOD_END_WITH_PARAMS(_format_str_,...)            DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s("_format_str_")\n"        ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_ACPI_METHOD_END_WITH_STATUS(_status_)                    DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:---%s() [0x%.8X]\n"             ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,_status_)
+#define DBG_ACPI_PRINT_WARNING(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_ACPI_PRINT_VERBOSE(_format_str_,...)                     DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#define DBG_ACPI_PRINT_INFO(_format_str_,...)                        DbgPrintEx(DPFLTR_IHVDRIVER_ID,0xFFFFFFFE,"%08d C%d D%d %s:   %s() "_format_str_"\n"          ,GetTime(),KeGetCurrentProcessorNumber(),KeGetCurrentIrql(),DBG_MSG_DRV_PREFIX,__FUNCTION__,__VA_ARGS__)
+#else // I2C
+#define DBG_ACPI_METHOD_BEG(...)
+#define DBG_ACPI_METHOD_BEG_WITH_PARAMS(...)
+#define DBG_ACPI_METHOD_END(...)
+#define DBG_ACPI_METHOD_END_WITH_PARAMS(...)
+#define DBG_ACPI_METHOD_END_WITH_STATUS(...)
+#define DBG_ACPI_PRINT_WARNING(...)
+#define DBG_ACPI_PRINT_VERBOSE(...)
+#define DBG_ACPI_PRINT_INFO(...)
 #endif // I2C
 
 
@@ -426,8 +415,6 @@ EXTERN_C_END
 #define DBG_DRV_METHOD_END(...)
 #define DBG_DRV_METHOD_END_WITH_PARAMS(...)
 #define DBG_DRV_METHOD_END_WITH_STATUS(...)
-#define DBG_DRV_PRINT_ERROR(...)
-#define DBG_DRV_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_DRV_PRINT_WARNING(...)
 #define DBG_DRV_PRINT_VERBOSE(...)
 #define DBG_DRV_PRINT_INFO(...)
@@ -437,8 +424,6 @@ EXTERN_C_END
 #define DBG_DEV_METHOD_END(...)
 #define DBG_DEV_METHOD_END_WITH_PARAMS(...)
 #define DBG_DEV_METHOD_END_WITH_STATUS(...)
-#define DBG_DEV_PRINT_ERROR(...)
-#define DBG_DEV_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_DEV_PRINT_WARNING(...)
 #define DBG_DEV_PRINT_VERBOSE(...)
 #define DBG_DEV_PRINT_INFO(...)
@@ -448,8 +433,6 @@ EXTERN_C_END
 #define DBG_IOCTL_METHOD_END(...)
 #define DBG_IOCTL_METHOD_END_WITH_PARAMS(...)
 #define DBG_IOCTL_METHOD_END_WITH_STATUS(...)
-#define DBG_IOCTL_PRINT_ERROR(...)
-#define DBG_IOCTL_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_IOCTL_PRINT_WARNING(...)
 #define DBG_IOCTL_PRINT_VERBOSE(...)
 #define DBG_IOCTL_PRINT_INFO(...)
@@ -459,8 +442,6 @@ EXTERN_C_END
 #define DBG_I2C_METHOD_END(...)
 #define DBG_I2C_METHOD_END_WITH_PARAMS(...)
 #define DBG_I2C_METHOD_END_WITH_STATUS(...)
-#define DBG_I2C_PRINT_ERROR(...)
-#define DBG_I2C_PRINT_ERROR_WITH_STATUS(...)
 #define DBG_I2C_PRINT_WARNING(...)
 #define DBG_I2C_PRINT_VERBOSE(...)
 #define DBG_I2C_PRINT_INFO(...)

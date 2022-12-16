@@ -1,6 +1,6 @@
 /** @file
 *
-* Description: iMX8M Mini UART
+* Description: iMX8M Plus UART
 *
 *  Copyright (c) 2019, Microsoft Corporation. All rights reserved.
 *  Copyright 2019-2020,2022 NXP

@@ -55,6 +55,10 @@
 #define IMX_VPU_G1                      10
 #define IMX_VPU_G2                      11
 #define IMX_VPU_H1                      12
+#define IMX_MEDIAMIX                    13
+#define IMX_MIPI_PHY1                   15
+#define IMX_HDMIMIX                     17
+#define IMX_HDMI_PHY                    18
 
 #define IMX_VPU_BLK_CTL_BASE            0x38330000
 
@@ -641,6 +645,76 @@ VOID EnetInit(VOID)
 }
 
 /**
+  Initialize ENET_QOS clocks & pads.
+**/
+VOID EnetQosInit()
+{
+  uint32_t gpr1;
+
+  /* Tx pads */
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TD0    = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TD0    = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TD1    = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TD1    = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TD2    = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TD2    = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TD3    = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TD3    = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TXC    = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TXC    = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_TX_CTL = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_TX_CTL = IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+
+  /* Rx pads */
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RD0 = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RD0 = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RD1 = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RD1 = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RD2 = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RD2 = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RD3 = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RD3 = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RXC = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RXC = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_RX_CTL = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_RX_CTL = IOMUXC_SW_PAD_CTL_PAD_HYS_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(0x03);
+
+
+  /* MDIO/MDC */
+  IOMUXC_SW_MUX_CTL_PAD_ENET_MDC = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_MDC = IOMUXC_SW_PAD_CTL_PAD_DSE(0x02);
+  IOMUXC_SW_MUX_CTL_PAD_ENET_MDIO = IOMUXC_MUX_ALT0;
+  IOMUXC_SW_PAD_CTL_PAD_ENET_MDIO = IOMUXC_SW_PAD_CTL_PAD_DSE(0x02);
+  IOMUXC_ENET_QOS_GMII_MDI_I_SELECT_INPUT = 0x01; //Select ENET_MDIO, mux mode ALT0
+
+  /* ENET_QOS PHY reset */
+  IOMUXC_SW_MUX_CTL_PAD_SAI2_RXC = IOMUXC_MUX_ALT5;
+  GPIO4_DR |= (1 << 22);   //Set reset signal to 1 to deassert PHY reset
+  GPIO4_GDIR |= (1 << 22); // Set direction to output
+
+  /* ENET_QOS Clock configuration */
+  gpr1 = IOMUXC_GPR_GPR1;
+  gpr1 |= IOMUXC_GPR_GPR1_IOMUXC_GPR_ENET_QOS_RGMII_EN_MASK
+                | IOMUXC_GPR_GPR1_GPR_ENET_QOS_CLK_GEN_EN_MASK
+                | IOMUXC_GPR_GPR1_GPR_ENET_QOS_INTF_SEL(0x01);
+  gpr1 &= ~IOMUXC_GPR_GPR1_IOMUXC_GPR_ENET_QOS_CLK_TX_CLK_SEL_MASK;
+  IOMUXC_GPR_GPR1 = gpr1;
+
+  /* Disable ENET_QOS clocks */
+  CCM_CCGR_QOS_ENET = 0x00;
+  CCM_CCGR_ENET_QOS = 0x00;
+
+  /* Set ENET_QOS_CLK_ROOT clock root to 125 MHz, CLK slice 81, SYS_PLL2_DIV8 => mux 1, enable clock */
+  CCM_TARGET_ROOT_ENET_QOS = CCM_TARGET_ROOT_MUX(1) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_POST_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+  /* Set IMX_CCM_TARGET_ENET_QOS_TIMER clock root to 100 MHz, CLK slice 83, SYS_PLL2_DIV10 => mux 1, enable clock */
+  CCM_TARGET_ROOT_ENET_QOS_TIMER = CCM_TARGET_ROOT_MUX(1) | CCM_TARGET_ROOT_PRE_PODF(0) | CCM_TARGET_ROOT_POST_PODF(0) | CCM_TARGET_ROOT_ENABLE_MASK;
+
+  /* Enable ENET_QOS clocks */
+  CCM_CCGR_QOS_ENET = 0x03;
+  CCM_CCGR_ENET_QOS = 0x03;
+}
+
+/**
   Initialize PWM block and perform required pin-muxing.
 **/
 VOID PwmInit()
@@ -807,9 +881,10 @@ VOID GpuInit()
   Initialize DIPLAY_MIX and perform required pin-muxing.
 **/
 #define LVDS_PAD_CTRL (IOMUXC_SW_PAD_CTL_PAD_PUE_MASK | IOMUXC_SW_PAD_CTL_PAD_FSEL_MASK | IOMUXC_SW_PAD_CTL_PAD_DSE(3))
+#define HDMI_IN_PAD_CTRL (IOMUXC_PAD_SRE_FAST)
 VOID DisplayInit()
 {
-  UINT32 val;
+  ARM_SMC_ARGS smc_args;
 
 
   /* Enable APB, AXI clock */
@@ -828,24 +903,14 @@ VOID DisplayInit()
   //
   // Enable MIPI-DSI power domain
   //
-  val = GPC_PGC_PU0_CTRL; // MIPI_PHY1
-  val &= ~(GPC_PGC_PU_CTRL_PCR_MASK);
-  GPC_PGC_PU0_CTRL = val;
-  val = GPC_PU_PGC_SW_PUP_REQ;
-  val |= GPC_PU_PGC_SW_PUP_REQ_MIPI_PHY1_SW_PUP_REQ_MASK;
-  GPC_PU_PGC_SW_PUP_REQ  = val;
-  while (GPC_PU_PGC_SW_PUP_REQ & GPC_PU_PGC_SW_PUP_REQ_MIPI_PHY1_SW_PUP_REQ_MASK) {}
+  imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MIPI_PHY1, 0x01, 0x00, smc_args);
+  ArmCallSmc(&smc_args);
 
   //
   // Enable MEDIAMIX power domain
   //
-  val = GPC_PGC_PU10_CTRL; // MEDIAMIX
-  val &= ~(GPC_PGC_PU_CTRL_PCR_MASK);
-  GPC_PGC_PU10_CTRL = val;
-  val = GPC_PU_PGC_SW_PUP_REQ;
-  val |= GPC_PU_PGC_SW_PUP_REQ_MEDIMIX_SW_PUP_REQ_MASK;
-  GPC_PU_PGC_SW_PUP_REQ  = val;
-  while (GPC_PU_PGC_SW_PUP_REQ & GPC_PU_PGC_SW_PUP_REQ_MEDIMIX_SW_PUP_REQ_MASK) {}
+  imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_MEDIAMIX, 0x01, 0x00, smc_args);
+  ArmCallSmc(&smc_args);
 
   /* Configure GPIO1_IO10 = LVDS_EN as output with log. 1 */
   IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO10 = IOMUXC_SW_MUX_CTL_PAD_MUX_MODE(0); /* ALT0 */
@@ -857,6 +922,22 @@ VOID DisplayInit()
   IOMUXC_SW_PAD_CTL_PAD_GPIO1_IO11 = LVDS_PAD_CTRL;
   GPIO1_DR |= (0x01 << 11);                      // Set the pad to the high level
   GPIO1_GDIR |= (0x01 << 11);                    // Set output direction
+
+  // Enable HDMIMIX and HDMI_PHY power domain
+  imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_HDMIMIX, 0x01, 0x00, smc_args);
+  ArmCallSmc(&smc_args);
+  imx_fill_sip(IMX_SIP_GPC, IMX_SIP_CONFIG_GPC_PM_DOMAIN, IMX_HDMI_PHY, 0x01, 0x00, smc_args);
+  ArmCallSmc(&smc_args);
+
+  //Configure HDMI pins: DDC_SCL, DDC_SDA, CEC, HPD
+  IOMUXC_SW_MUX_CTL_PAD_HDMI_DDC_SCL = IOMUXC_SW_MUX_CTL_PAD_MUX_MODE(0); /* ALT0 */
+  IOMUXC_SW_MUX_CTL_PAD_HDMI_DDC_SDA = IOMUXC_SW_MUX_CTL_PAD_MUX_MODE(0); /* ALT0 */
+  IOMUXC_SW_MUX_CTL_PAD_HDMI_CEC = IOMUXC_SW_MUX_CTL_PAD_MUX_MODE(0); /* ALT0 */
+  IOMUXC_SW_MUX_CTL_PAD_HDMI_HPD = IOMUXC_SW_MUX_CTL_PAD_MUX_MODE(0); /* ALT0 */
+  IOMUXC_SW_PAD_CTL_PAD_HDMI_DDC_SCL = I2C_PAD_CTRL;
+  IOMUXC_SW_PAD_CTL_PAD_HDMI_DDC_SDA = I2C_PAD_CTRL;
+  IOMUXC_SW_PAD_CTL_PAD_HDMI_CEC = HDMI_IN_PAD_CTRL;
+  IOMUXC_SW_PAD_CTL_PAD_HDMI_HPD = HDMI_IN_PAD_CTRL;
 }
 
 /**
@@ -884,27 +965,27 @@ VOID PCA6416_ConfigurePins(IN IMX_I2C_CONTEXT  *I2cContext, IN UINT8 *BitMask, I
 
   /* Configure Inversion registers */
   RegAddr = PCA6416_POLARITY_INVERSION_PORT_0_REG;
-  Status = iMXI2cRead(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cRead(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Inversion", End);
   Data[0] = (Data[0] & ~(BitMask[0])) | (BitMask[0] & Inv[0]);
   Data[1] = (Data[1] & ~(BitMask[1])) | (BitMask[1] & Inv[1]);
-  Status = iMXI2cWrite(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cWrite(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Inversion", End);
   /* Configure Output registers */
   RegAddr = PCA6416_OUTPUT_PORT_0_REG;
-  Status = iMXI2cRead(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cRead(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Output Port", End);
   Data[0] = (Data[0] & ~(BitMask[0])) | (BitMask[0] & OutVal[0]);
   Data[1] = (Data[1] & ~(BitMask[1])) | (BitMask[1] & OutVal[1]);
-  Status = iMXI2cWrite(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cWrite(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Output Port", End);
   /* Configure Configuration (direction) registers */
   RegAddr = PCA6416_CONFIGURATION_PORT_0_REG;
-  Status = iMXI2cRead(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cRead(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Output Port", End);
   Data[0] = (Data[0] & ~(BitMask[0])) | (BitMask[0] & Dir[0]);
   Data[1] = (Data[1] & ~(BitMask[1])) | (BitMask[1] & Dir[1]);
-  Status = iMXI2cWrite(&Pca6416I2cConfig, RegAddr, &Data[0], 2);
+  Status = iMXI2cWrite(I2cContext, RegAddr, &Data[0], 2);
   CHECK_PCA6416_I2C_TRANSACTION_STATUS(Status, "PCA6416 Output Port", End);
 End:
   return;
@@ -1131,6 +1212,7 @@ RETURN_STATUS ArmPlatformInitialize(IN UINTN MpId)
 #endif
   UsbInit();
   EnetInit();
+  EnetQosInit();
   AudioInit();
   I2cInit();
   PwmInit();

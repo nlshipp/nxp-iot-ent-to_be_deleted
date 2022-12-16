@@ -113,6 +113,7 @@
     <Inf Include="imxgpio.inf" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resource.h" />
     <ClInclude Include="trace.h" />
     <ClInclude Include="imx6dq.hpp" />
     <ClInclude Include="imx6sdl.hpp" />
@@ -125,6 +126,9 @@
     <ClInclude Include="imxgpio.hpp" />
     <ClInclude Include="imxutility.hpp" />
     <ClInclude Include="precomp.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <!-- /Necessary to pick up proper files from local directory when in the IDE-->
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

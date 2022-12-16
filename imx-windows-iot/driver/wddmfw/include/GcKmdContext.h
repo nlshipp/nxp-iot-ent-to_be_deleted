@@ -12,7 +12,7 @@ class GcKmContext
 public:
 
     GcKmContext();
-    ~GcKmContext();
+    virtual ~GcKmContext();
 
     __forceinline static GcKmContext* Cast(IN_CONST_HANDLE hContext)
     {

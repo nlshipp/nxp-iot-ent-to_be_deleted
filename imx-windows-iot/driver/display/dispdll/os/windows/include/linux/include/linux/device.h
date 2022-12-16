@@ -21,6 +21,7 @@
 #include <linux/atomic.h>
 #include <linux/gfp.h>
 #include <linux/slab.h>
+#include <ntintsafe.h>
 
 /**
  * struct device - The basic device structure
@@ -49,8 +50,30 @@ struct device {
 	struct clk *(*get_clock_item)(int); /* pointer to platform specific function to get clock item for given clock index */
 };
 
-void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp);
-void devm_kfree(struct device *dev, const void *p);
+static inline void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp)
+{
+	return kmalloc(size, gfp | __GFP_ZERO);
+}
+static inline void *devm_kmalloc_array(struct device *dev,
+	size_t n, size_t size, gfp_t flags)
+{
+	if (n != 0 && size > ULONG_MAX / n)
+		return NULL;
+
+	return kmalloc(n * size, flags);
+}
+static inline void *devm_kcalloc(struct device *dev,
+	size_t n, size_t size, gfp_t flags)
+{
+	return devm_kmalloc_array(dev, n, size, flags | __GFP_ZERO);
+}
+
+static inline void devm_kfree(struct device *dev, const void *p)
+{
+	kfree(p);
+}
+
+void *devm_kmemdup(struct device *dev, const void *src, size_t len, gfp_t gfp);
 
 void __iomem *devm_ioremap_resource(struct device *dev,
 	const struct resource *res);

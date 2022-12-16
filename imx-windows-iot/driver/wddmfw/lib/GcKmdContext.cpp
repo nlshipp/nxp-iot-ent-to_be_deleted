@@ -102,7 +102,7 @@ GcKmContext::Initialize(
     }
     else
     {
-        pContextInfo->DmaBufferSize = 4*PAGE_SIZE;
+        pContextInfo->DmaBufferSize = GcKmdGlobal::s_DmaBufferSize;
     }
 
     pContextInfo->DmaBufferSegmentSet = 1 << (APERTURE_SEGMENT_ID - 1);

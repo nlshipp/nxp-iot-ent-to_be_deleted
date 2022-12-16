@@ -22,109 +22,18 @@
 // Memory mapping
 //
 
-// TODO: probably need to add references to all other hardware blocks,
-// unlike imx6/7, AARCH64 uses the MMU and if it's not mapped you get an exception
-#if defined(CPU_IMX8MM) || defined(CPU_IMX8MN)
-#define ARM_PERIPHERALS_REGISTERS_PHYSICAL  0x31000000
-#define ARM_PERIPHERALS_REGISTERS_LENGTH    0x00400000
-
-/* AIPS1 - AIPS3 */
-#define ARM_IP_BUS_REGISTERS_PHYSICAL       0x30000000
-#define ARM_IP_BUS_REGISTERS_LENGTH         0x00C00000
-
-/* PCIe registers */
-#define PCIE_REG_REGISTER_PHYSICAL          0x33800000
-#define PCIE_REG_REGISTER_LENGTH            0x00400000
-
-/* PCIe mapped area */
-#define PCIE_MAPPED_AREA_PHYSICAL           0x18000000
-#define PCIE_MAPPED_AREA_LENGTH             0x08000000
-
-/* USB1,2 and PCIE_PHY (part of AIPS4) */
-#define ARM_USB_REG_REGISTER_PHYSICAL       0x32E40000
-#define ARM_USB_REG_REGISTER_LENGTH         0x000D0000
-
-#define ARM_GIC_REG_REGISTER_PHYSICAL       0x38800000
-#define ARM_GIC_REG_REGISTER_LENGTH         0x00100000
-
-#define ARM_LCDIF_REG_REGISTER_PHYSICAL     0x32E00000
-#define ARM_LCDIF_REG_REGISTER_LENGTH       0x00100000
-
-#define ARM_MIPI_DSI_REG_REGISTER_PHYSICAL  0x32E10000
-#define ARM_MIPI_DSI_REG_REGISTER_LENGTH    0x00100000
-
+#if defined(CPU_IMX8MM)
+#include "iMX8MM/MIMX8MM6_ca53.h"
+#include "iMX8DisplayMix.h"
+#elif defined(CPU_IMX8MN)
+#include "iMX8MN/MIMX8MN6_ca53.h"
+#include "iMX8DisplayMix.h"
 #elif defined(CPU_IMX8MP)
-
-/* PCIe mapped area */
-#define PCIE_MAPPED_AREA_PHYSICAL           0x18000000
-#define PCIE_MAPPED_AREA_LENGTH             0x08000000
-
-/* AIPS1 - AIPS3, AIPS5 */
-#define ARM_IP_BUS_REGISTERS_PHYSICAL       0x30000000
-#define ARM_IP_BUS_REGISTERS_LENGTH         0x01000000
-
-/* AIPS4 and LCDIFx, MIPI */
-#define ARM_LCDIF1_REG_REGISTER_PHYSICAL    0x32E80000
-#define ARM_LCDIF1_REG_REGISTER_LENGTH      0x00010000
-#define ARM_LCDIF2_REG_REGISTER_PHYSICAL    0x32E90000
-#define ARM_LCDIF2_REG_REGISTER_LENGTH      0x00010000
-#define ARM_MIPI_DSI_REG_REGISTER_PHYSICAL  0x32E60000
-#define ARM_MIPI_DSI_REG_REGISTER_LENGTH    0x00010000
-#define ARM_MEDIA_BLK_REG_REGISTER_PHYSICAL 0x32EC0000
-#define ARM_MEDIA_BLK_REG_REGISTER_LENGTH   0x00010000
-
-/* PCIe, QSPI, GPU3D and GPU2D registers */
-#define PCIE_REG_REGISTER_PHYSICAL          0x33800000
-#define PCIE_REG_REGISTER_LENGTH            0x04808000
-
-/* HSIO */
-#define HSIO_REG_REGISTER_PHYSICAL          0x32F10000
-#define HSIO_REG_REGISTER_LENGTH            0x08010000
-
-/* USB1,2 */
-#define ARM_USB_REG_REGISTER_PHYSICAL       0x38100000
-#define ARM_USB_REG_REGISTER_LENGTH         0x00200000
-
-/* GIC */
-#define ARM_GIC_REG_REGISTER_PHYSICAL       0x38800000
-#define ARM_GIC_REG_REGISTER_LENGTH         0x00100000
-
-/* Audio DSP */
-#define ARM_PERIPHERALS_REGISTERS_PHYSICAL  0x3B000000
-#define ARM_PERIPHERALS_REGISTERS_LENGTH    0x01000000
-#else // IMX8MQ
-
-/* ARM Peripherals */
-#define ARM_PERIPHERALS_REGISTERS_PHYSICAL  0x31000000
-#define ARM_PERIPHERALS_REGISTERS_LENGTH    0x00400000
-
-/* AIPS1 - AIPS3 */
-#define ARM_IP_BUS_REGISTERS_PHYSICAL       0x30000000
-#define ARM_IP_BUS_REGISTERS_LENGTH         0x01000000
-
-/* PCIe1,2 registers */
-#define PCIE_REG_REGISTER_PHYSICAL          0x33800000
-#define PCIE_REG_REGISTER_LENGTH            0x00800000
-
-/* PCIe1,2 mapped area */
-#define PCIE_MAPPED_AREA_PHYSICAL           0x18000000
-#define PCIE_MAPPED_AREA_LENGTH             0x10000000
-
-/* USB1,2 registers */
-#define ARM_USB_REG_REGISTER_PHYSICAL       0x38100000
-#define ARM_USB_REG_REGISTER_LENGTH         0x00200000
-
-/* GIC registers */
-#define ARM_GIC_REG_REGISTER_PHYSICAL       0x38800000
-#define ARM_GIC_REG_REGISTER_LENGTH         0x00100000
-
-/* HDMI registers */
-#define ARM_HDMI_REG_REGISTER_PHYSICAL       0x32C00000
-#define ARM_HDMI_REG_REGISTER_LENGTH         0x00100000
-
-#define ARM_DC_MSTx_REG_REGISTER_PHYSICAL    0x32E00000
-#define ARM_DC_MSTx_REG_REGISTER_LENGTH      0x00040000
-
+#include "iMX8MP/MIMX8MP8_ca53.h"
+#elif defined(CPU_IMX8QXP)
+#include "iMX8QX/MIMX8QX6_ca35.h"
+#else
+#include "iMX8MQ/MIMX8MQ7_ca53.h"
 #endif
 
 //
@@ -136,31 +45,66 @@
 //
 // Serial debug port
 //
+#if defined(ADMA__LPUART0_BASE_PTR)
+#define UART0_BASE_ADDRESS   ((unsigned long)ADMA__LPUART0_BASE_PTR)
+#endif
+#if defined(UART1_BASE_PTR)
 #define UART1_BASE_ADDRESS   ((unsigned long)UART1_BASE_PTR)
+#endif
+#if defined(ADMA__LPUART1_BASE_PTR)
+#define UART1_BASE_ADDRESS   ((unsigned long)ADMA__LPUART1_BASE_PTR)
+#endif
+#if defined(UART2_BASE_PTR)
 #define UART2_BASE_ADDRESS   ((unsigned long)UART2_BASE_PTR)
+#endif
+#if defined(ADMA__LPUART2_BASE_PTR)
+#define UART2_BASE_ADDRESS   ((unsigned long)ADMA__LPUART2_BASE_PTR)
+#endif
+#if defined(UART3_BASE_PTR)
 #define UART3_BASE_ADDRESS   ((unsigned long)UART3_BASE_PTR)
+#endif
+#if defined(ADMA__LPUART3_BASE_PTR)
+#define UART3_BASE_ADDRESS   ((unsigned long)ADMA__LPUART3_BASE_PTR)
+#endif
+#if defined(UART4_BASE_PTR)
 #define UART4_BASE_ADDRESS   ((unsigned long)UART4_BASE_PTR)
+#endif
 
-#define UART_ADDRESS_SIZE    0x00010000 // 64KB
-
+#if defined(UART_BASE_PTRS)
+#define UART_IMX8_UART_ADDRESS_SIZE    0x000000BC
 #define IMX_SERIAL_DBG_PORT_SUBTYPE     0x000C
+#endif
+#if defined(LPUART_BASE_PTRS)
+#define UART_IMX8_UART_ADDRESS_SIZE    0x00000030
+#define IMX_SERIAL_DBG_PORT_SUBTYPE     0x0013
+#endif
+
 
 #define SERIAL_DEBUG_PORT_INIT_MSG "\r\nUEFI Debug Serial Port Init\r\n"
+
+#ifdef MU_BASE_PTRS
+    typedef struct MU_MemMap MU_Type;
+#define SC_IPC_HDL ((sc_ipc_t)PcdGet64(PcdMuSCFWRegisterBase))
+#endif
 
 //
 // Clock Source
 //
-#if defined(CPU_IMX8MM) || defined(CPU_IMX8MN) || defined(CPU_IMX8MP)
+#if defined(CPU_IMX8MM) || defined(CPU_IMX8MN) || defined(CPU_IMX8MP) || defined(CPU_IMX8QXP)
 #define SOC_OSC_FREQUENCY_REF_HZ  24000000  // Oscillator frequency 24Mhz
 #else
 #define SOC_OSC_FREQUENCY_REF_HZ  25000000  // Oscillator frequency 25Mhz
 #endif
 
 // SDMA (Smart DMA) controllers
+#if defined(SDMAARM1_BASE_PTR)
 #define SDMA1_BASE_ADDRESS      ((unsigned long)SDMAARM1_BASE_PTR)
 #define SDMA1_IRQ               INT_SDMA1
+#endif
+#if defined(SDMAARM2_BASE_PTR)
 #define SDMA2_BASE_ADDRESS      ((unsigned long)SDMAARM2_BASE_PTR)
 #define SDMA2_IRQ               INT_SDMA2
+#endif
 #if defined(SDMAARM3_BASE_PTR)
 #define SDMA3_BASE_ADDRESS      ((unsigned long)SDMAARM3_BASE_PTR)
 #define SDMA3_IRQ               INT_SDMA3
@@ -169,15 +113,24 @@
 //
 // GPIO
 //
+#if defined(GPIO1_BASE_PTR)
 #define IMX_GPIO_BASE               ((unsigned long)GPIO1_BASE_PTR)
+#endif
+#if defined(LSIO__GPIO0_BASE_PTR)
+#define IMX_GPIO_BASE               ((unsigned long)LSIO__GPIO0_BASE_PTR)
+#endif
 
 //
 // IOMux:
 // IMX8M specific
 //
+#if defined(IOMUXC_GPR_BASE_PTR)
 #define IOMUXC_GPR_BASE_ADDRESS             ((unsigned long)IOMUXC_GPR_BASE_PTR)
+#endif
+#if defined(IOMUXC_BASE_PTR)
 #define IOMUXC_SW_MUX_PAD_BASE_ADDRESS      ((unsigned long)IOMUXC_BASE_PTR)
 #define IOMUXC_SELECT_INPUT_BASE_ADDRESS    ((unsigned long)&IOMUXC_SELECT_INPUT_REG(IOMUXC_BASE_PTR,0))
+#endif
 
 /* Macro for GPC SIP */
 #define IMX_SIP_GPC                     0xC2000000
@@ -230,19 +183,4 @@
 #if defined(CPU_IMX8MP)
 #define GPC_PU_PGC_SW_PUP_REQ_PCIE_SW_PUP_REQ_MASK (0x2U)
 #endif
-
-/* TODO New IoMap.h END */
-
-#if defined(CPU_IMX8MM)
-#include "iMX8MM/MIMX8MM6_ca53.h"
-#include "iMX8DisplayMix.h"
-#elif defined(CPU_IMX8MN)
-#include "iMX8MN/MIMX8MN6_ca53.h"
-#include "iMX8DisplayMix.h"
-#elif defined(CPU_IMX8MP)
-#include "iMX8MP/MIMX8MP8_ca53.h"
-#else
-#include "iMX8MQ/MIMX8MQ7_ca53.h"
-#endif
-
 #endif // __IMX8_PLATFORM_H__

@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -32,7 +31,7 @@
 #include <linux\irqdesc.h>
 #include <linux\clk-provider.h>
 
-#define NR_IRQS 8
+#define NR_IRQS 49
 
 extern struct irq_desc irq_desc[NR_IRQS];
 
@@ -40,10 +39,18 @@ struct platform_device;
 
 void board_init(struct platform_device* pdev);
 void board_deinit(struct platform_device* pdev);
+int _platform_irq_count(struct platform_device* pdev);
 
 void mq_board_init(struct platform_device* pdev);
 void mq_board_deinit(struct platform_device* pdev);
+void qxp_board_init(struct platform_device* pdev);
+void qxp_board_deinit(struct platform_device* pdev);
+int qxp_irq_count();
+void prg_res_init(struct platform_device* pdev, int cnt);
+void dprc_res_init(struct platform_device* pdev, int cnt);
 
+#define IRQ_DESC_VBLANK  0
+#define IRQ_DESC_HDMI_TX 1
 void mp_board_init(struct platform_device* pdev);
 void mp_board_deinit(struct platform_device* pdev);
 

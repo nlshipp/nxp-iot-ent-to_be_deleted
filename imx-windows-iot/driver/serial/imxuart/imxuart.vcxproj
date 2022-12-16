@@ -118,6 +118,7 @@
     <ClInclude Include="imxuart.h" />
     <ClInclude Include="imxuarthw.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="trace.h" />
   </ItemGroup>
   <ItemGroup>

@@ -59,8 +59,8 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(SDK_INC_PATH);$(SolutionDir)..\..\..\driver\wddmfw\gcdispif;$(SolutionDir)..\..\..\driver\display\dispdll;$(SolutionDir)..\..\..\driver\display\dispdll\util\include;$(SolutionDir)\..\..\..\driver\display\dispdll\util\src;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\alpha\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;DXGKDDI_INTERFACE_VERSION=DXGKDDI_INTERFACE_VERSION_WDDM2_5;CONFIG_PHYS_ADDR_T_64BIT;CONFIG_PM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(SDK_INC_PATH);$(SolutionDir)..\..\..\driver\wddmfw\gcdispif;$(SolutionDir)..\..\..\driver\display\dispdll;$(SolutionDir)..\..\..\driver\display\dispdll\util\include;$(SolutionDir)\..\..\..\driver\display\dispdll\util\src;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\alpha\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64;$(SolutionDir)..\..\..\driver\include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;DXGKDDI_INTERFACE_VERSION=DXGKDDI_INTERFACE_VERSION_WDDM2_6;CONFIG_PHYS_ADDR_T_64BIT;CONFIG_PM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4456;4100;4189;4201;6387</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
       <WppPreprocessorDefinitions>ENABLE_WPP_RECORDER=1;WPP_EMIT_FUNC_NAME</WppPreprocessorDefinitions>
@@ -78,8 +78,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(SDK_INC_PATH);$(SolutionDir)..\..\..\driver\wddmfw\gcdispif;$(SolutionDir)..\..\..\driver\display\dispdll;$(SolutionDir)..\..\..\driver\display\dispdll\util\include;$(SolutionDir)\..\..\..\driver\display\dispdll\util\src;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\alpha\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;DXGKDDI_INTERFACE_VERSION=DXGKDDI_INTERFACE_VERSION_WDDM2_5;CONFIG_PHYS_ADDR_T_64BIT;CONFIG_PM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(SDK_INC_PATH);$(SolutionDir)..\..\..\driver\wddmfw\gcdispif;$(SolutionDir)..\..\..\driver\display\dispdll;$(SolutionDir)..\..\..\driver\display\dispdll\util\include;$(SolutionDir)\..\..\..\driver\display\dispdll\util\src;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64\include;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\alpha\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\include\uapi;$(SolutionDir)..\..\..\driver\display\dispdll\os\windows\include\linux\arch\arm64;$(SolutionDir)..\..\..\driver\include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_ARM64_;ARM64;_USE_DECLSPECS_FOR_SAL=1;STD_CALL;DXGKDDI_INTERFACE_VERSION=DXGKDDI_INTERFACE_VERSION_WDDM2_6;CONFIG_PHYS_ADDR_T_64BIT;CONFIG_PM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4456;4100;4189;4201</DisableSpecificWarnings>
       <WppEnabled>true</WppEnabled>
       <WppPreprocessorDefinitions>ENABLE_WPP_RECORDER=1;WPP_EMIT_FUNC_NAME</WppPreprocessorDefinitions>
@@ -99,14 +99,23 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="bridge\synopsys\dw-hdmi.c" />
+    <ClCompile Include="bridge\synopsys\dw_hdmi-imx.c" />
+    <ClCompile Include="bridge\synopsys\imx8mp-hdmi-pavi.c" />
+    <ClCompile Include="bridge\synopsys\phy-fsl-samsung-hdmi.c" />
+    <ClCompile Include="..\..\shared\scfw\main\ipc.c" />
+    <ClCompile Include="..\..\shared\scfw\svc\misc\misc_rpc_clnt.c" />
+    <ClCompile Include="..\..\shared\scfw\svc\pm\pm_rpc_clnt.c" />
     <ClCompile Include="clk\displaymix_mn.c" />
     <ClCompile Include="bridge\cadence\cdns-hdmi-core.c" />
     <ClCompile Include="bridge\cadence\cdns-mhdp-common.c" />
     <ClCompile Include="bridge\cadence\cdns-mhdp-hdmi.c" />
-    <ClCompile Include="clk\imx_clk_imx8m.c" />
-    <ClCompile Include="clk\imx_clk_imx8mn.c" />
-    <ClCompile Include="clk\imx_clk_imx8mp.c" />
-    <ClCompile Include="clk\imx_clk_imx8mq.c" />
+    <ClCompile Include="clk\clk_imx8m.c" />
+    <ClCompile Include="clk\clk_imx8mn.c" />
+    <ClCompile Include="clk\clk_imx8mp.c" />
+    <ClCompile Include="clk\clk_imx8mq.c" />
+    <ClCompile Include="clk\clk_imx8q.c" />
+    <ClCompile Include="clk\clk_imx8qxp.c" />
     <ClCompile Include="clk\mediamix_mp.c" />
     <ClCompile Include="dcss\dcss-blkctl.c" />
     <ClCompile Include="dcss\dcss-crtc.c" />
@@ -129,6 +138,29 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">precomp.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="GcKmdDwHdmiTransmitter.cpp" />
+    <ClCompile Include="dpu\dpu-common.c" />
+    <ClCompile Include="dpu\dpu-constframe.c" />
+    <ClCompile Include="dpu\dpu-crtc.c" />
+    <ClCompile Include="dpu\dpu-disengcfg.c" />
+    <ClCompile Include="dpu\dpu-extdst.c" />
+    <ClCompile Include="dpu\dpu-fetchdecode.c" />
+    <ClCompile Include="dpu\dpu-fetcheco.c" />
+    <ClCompile Include="dpu\dpu-fetchlayer.c" />
+    <ClCompile Include="dpu\dpu-fetchunit.c" />
+    <ClCompile Include="dpu\dpu-fetchwarp.c" />
+    <ClCompile Include="dpu\dpu-framegen.c" />
+    <ClCompile Include="dpu\dpu-hscaler.c" />
+    <ClCompile Include="dpu\dpu-kms.c" />
+    <ClCompile Include="dpu\dpu-layerblend.c" />
+    <ClCompile Include="dpu\dpu-plane.c" />
+    <ClCompile Include="dpu\dpu-sc-misc.c" />
+    <ClCompile Include="dpu\dpu-signature.c" />
+    <ClCompile Include="dpu\dpu-store.c" />
+    <ClCompile Include="dpu\dpu-tcon.c" />
+    <ClCompile Include="dpu\dpu-vscaler.c" />
+    <ClCompile Include="dpu\imx8_dprc.c" />
+    <ClCompile Include="dpu\imx8_prg.c" />
     <ClCompile Include="GcKmdHdmiTransmitter.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">precomp.h</PrecompiledHeaderFile>
@@ -143,15 +175,18 @@
     </ClCompile>
     <ClCompile Include="GcKmdImx8mnDisplay.cpp" />
     <ClCompile Include="GcKmdImx8mpDisplay.cpp" />
+    <ClCompile Include="GcKmdImx8mpHdmiDisplay.cpp" />
     <ClCompile Include="GcKmdImx8mqDisplay.cpp" />
+    <ClCompile Include="GcKmdImx8qxpDisplay.cpp" />
     <ClCompile Include="GcKmdLogging.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">precomp.h</PrecompiledHeaderFile>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">precomp.h</PrecompiledHeaderFile>
     </ClCompile>
-    <ClCompile Include="GcKmdLvdsTransmitter.cpp" />
+    <ClCompile Include="GcKmdMpLvdsTransmitter.cpp" />
     <ClCompile Include="GcKmdSecDsiTransmitter.cpp" />
+    <ClCompile Include="GcKmdQxpLvdsTransmitter.cpp" />
     <ClCompile Include="GcKmdUtil.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Use</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">precomp.h</PrecompiledHeaderFile>
@@ -171,6 +206,7 @@
     <ClCompile Include="lcdif\lcdif-crtc.c" />
     <ClCompile Include="lcdif\lcdif-plane.c" />
     <ClCompile Include="lvds\imx8mp-ldb.c" />
+    <ClCompile Include="lvds\imx8qxp-ldb.c" />
     <ClCompile Include="lvds\it6263.c" />
     <ClCompile Include="lvds\phy-fsl-imx8mp-lvds.c" />
     <ClCompile Include="mipi_dsi\adv7511_drv.c" />
@@ -183,15 +219,25 @@
     <ClCompile Include="mhdp\cdns-mhdp-imxdrv.c" />
     <ClCompile Include="os\windows\src\board-imx8mp.cpp" />
     <ClCompile Include="os\windows\src\board-imx8mq.cpp" />
+    <ClCompile Include="os\windows\src\board-imx8qxp.cpp" />
     <ClCompile Include="os\windows\src\board.cpp" />
+    <ClCompile Include="os\windows\src\drivers\drm\drm_connector.c" />
+    <ClCompile Include="os\windows\src\drivers\drm\drm_displayid.c" />
+    <ClCompile Include="os\windows\src\drivers\base\platform.c" />
+    <ClCompile Include="os\windows\src\drivers\drm\bridge\fsl-imx-ldb.c" />
     <ClCompile Include="os\windows\src\drivers\drm\drm_edid.c" />
     <ClCompile Include="os\windows\src\drivers\drm\drm_fourcc.c" />
     <ClCompile Include="os\windows\src\drivers\drm\drm_modes.c" />
     <ClCompile Include="os\windows\src\drivers\drm\drm_panel.c" />
+    <ClCompile Include="os\windows\src\drivers\drm\drm_scdc_helper.c" />
+    <ClCompile Include="os\windows\src\drivers\i2c\i2c-core-base.c" />
+    <ClCompile Include="os\windows\src\drivers\firmware\imx\imx-scu.c" />
     <ClCompile Include="os\windows\src\drivers\irqchip\irq-imx-irqsteer.c" />
+    <ClCompile Include="os\windows\src\drivers\phy\phy-mixel-lvds-combo.c" />
     <ClCompile Include="os\windows\src\i2c_comm.cpp" />
     <ClCompile Include="os\windows\src\kernel\irq\chip.c" />
     <ClCompile Include="os\windows\src\kernel\irq\manage.c" />
+    <ClCompile Include="os\windows\src\lib\find_bit.c" />
     <ClCompile Include="os\windows\src\linuxsup.cpp" />
     <ClCompile Include="precomp.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
@@ -204,19 +250,33 @@
     <ClCompile Include="video\hdmi.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bridge\synopsys\dw-hdmi.h" />
+    <ClInclude Include="bridge\synopsys\dw_hdmi.h" />
+    <ClInclude Include="bridge\synopsys\imx8mp-hdmi-pavi.h" />
+    <ClInclude Include="clk\clk_imx8.h" />
+    <ClInclude Include="clk\clk_imx8q.h" />
+    <ClInclude Include="clk\clk_imx8qxp_lpcg.h" />
     <ClInclude Include="clk\displaymix_mn.h" />
     <ClInclude Include="bridge\cadence\cdns-mhdp-hdcp.h" />
     <ClInclude Include="bridge\cadence\cdns-mhdp.h" />
-    <ClInclude Include="clk\imx_clk_imx8m.h" />
-    <ClInclude Include="clk\imx_clk_imx8mn.h" />
-    <ClInclude Include="clk\imx_clk_imx8mp.h" />
-    <ClInclude Include="clk\imx_clk_imx8mq.h" />
+    <ClInclude Include="clk\clk_imx8m.h" />
+    <ClInclude Include="clk\clk_imx8mn.h" />
+    <ClInclude Include="clk\clk_imx8mp.h" />
+    <ClInclude Include="clk\clk_imx8mq.h" />
+    <ClInclude Include="clk\clk_imx8m_registers.h" />
+    <ClInclude Include="clk\clk_imx8qxp.h" />
+    <ClInclude Include="clk\clk_imx8m_pll.h" />
     <ClInclude Include="clk\mediamix_mp.h" />
     <ClInclude Include="dcss\dcss-dev.h" />
     <ClInclude Include="dcss\dcss-hdr10-tables.h" />
     <ClInclude Include="dcss\dcss-kms.h" />
+    <ClInclude Include="dpu\dpu-crc.h" />
+    <ClInclude Include="dpu\dpu-crtc.h" />
+    <ClInclude Include="dpu\dpu-plane.h" />
+    <ClInclude Include="dpu\dpu-prv.h" />
     <ClInclude Include="GcKmd7LIO.h" />
     <ClInclude Include="GcKmdBaseTransmitter.h" />
+    <ClInclude Include="GcKmdDwHdmiTransmitter.h" />
     <ClInclude Include="GcKmdErroHandling.h" />
     <ClInclude Include="GcKmdGlobal.h" />
     <ClInclude Include="GcKmdGuard.h" />
@@ -225,9 +285,12 @@
     <ClInclude Include="GcKmdBaseDisplay.h" />
     <ClInclude Include="GcKmdImx8mnDisplay.h" />
     <ClInclude Include="GcKmdImx8mpDisplay.h" />
+    <ClInclude Include="GcKmdImx8mpHdmiDisplay.h" />
     <ClInclude Include="GcKmdImx8mqDisplay.h" />
+    <ClInclude Include="GcKmdImx8qxpDisplay.h" />
     <ClInclude Include="GcKmdLogging.h" />
-    <ClInclude Include="GcKmdLvdsTransmitter.h" />
+    <ClInclude Include="GcKmdMpLvdsTransmitter.h" />
+    <ClInclude Include="GcKmdQxpLvdsTransmitter.h" />
     <ClInclude Include="GcKmdSecDsiTransmitter.h" />
     <ClInclude Include="GcKmdUtil.h" />
     <ClInclude Include="GcLogging.h" />
@@ -238,6 +301,7 @@
     <ClInclude Include="lcdif\lcdif-plane.h" />
     <ClInclude Include="lcdif\lcdif-regs.h" />
     <ClInclude Include="lvds\imx8mp-ldb.h" />
+    <ClInclude Include="lvds\imx8qxp-ldb.h" />
     <ClInclude Include="lvds\it6263.h" />
     <ClInclude Include="mipi_dsi\adv7511.h" />
     <ClInclude Include="mipi_dsi\drm_mipi_dsi.h" />
@@ -247,15 +311,22 @@
     <ClInclude Include="mipi_dsi\sec_mipi_pll_1432x.h" />
     <ClInclude Include="os\windows\include\linux\arch\alpha\include\uapi\asm\errno.h" />
     <ClInclude Include="os\windows\include\linux\arch\arm64\include\asm\io.h" />
+    <ClInclude Include="os\windows\include\linux\include\asm-generic\bitops.h" />
+    <ClInclude Include="os\windows\include\linux\include\asm-generic\bitops\ffs.h" />
+    <ClInclude Include="os\windows\include\linux\include\asm-generic\bitops\find.h" />
     <ClInclude Include="os\windows\include\linux\include\asm-generic\bitops\non-atomic.h" />
+    <ClInclude Include="os\windows\include\linux\include\asm-generic\bitops\__ffs.h" />
     <ClInclude Include="os\windows\include\linux\include\asm-generic\bug.h" />
     <ClInclude Include="os\windows\include\linux\include\asm-generic\div64.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\bridge\cdns-mhdp.h" />
+    <ClInclude Include="os\windows\include\linux\include\drm\bridge\fsl_imx_ldb.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_atomic_helper.h" />
+    <ClInclude Include="os\windows\include\linux\include\drm\drm_blend.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_bridge.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_color_mgmt.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_connector.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_crtc.h" />
+    <ClInclude Include="os\windows\include\linux\include\drm\drm_displayid.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_edid.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_encoder.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_fourcc.h" />
@@ -267,7 +338,9 @@
     <ClInclude Include="os\windows\include\linux\include\drm\drm_property.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_rect.h" />
     <ClInclude Include="os\windows\include\linux\include\drm\drm_scdc_helper.h" />
+    <ClInclude Include="os\windows\include\linux\include\dt-bindings\firmware\imx\rsrc.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\atomic.h" />
+    <ClInclude Include="os\windows\include\linux\include\linux\bitmap.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\bitops.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\bsearch.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\build_bug.h" />
@@ -299,7 +372,11 @@
     <ClInclude Include="os\windows\include\linux\include\linux\mutex.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\of.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\of_device.h" />
+    <ClInclude Include="os\windows\include\linux\include\linux\phy\phy-mixel-lvds-combo.h" />
+    <ClInclude Include="os\windows\include\linux\include\linux\phy\phy.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\platform_device.h" />
+    <ClInclude Include="os\windows\include\linux\include\linux\pm_domain.h" />
+    <ClInclude Include="os\windows\include\linux\include\linux\preempt.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\printk.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\regmap.h" />
     <ClInclude Include="os\windows\include\linux\include\linux\sizes.h" />
@@ -313,13 +390,18 @@
     <ClInclude Include="os\windows\include\linux\include\uapi\linux\media-bus-format.h" />
     <ClInclude Include="os\windows\include\linux\include\vdso\bits.h" />
     <ClInclude Include="os\windows\include\linux\include\video\display_timing.h" />
+    <ClInclude Include="os\windows\include\linux\include\video\dpu.h" />
     <ClInclude Include="os\windows\include\linux\include\video\videomode.h" />
     <ClInclude Include="os\windows\src\i2c_comm.h" />
     <ClInclude Include="os\windows\src\kernel\irq\internals.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="util\include\edidparser.h" />
     <ClInclude Include="util\include\getresrc.h" />
     <ClInclude Include="util\src\edid.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

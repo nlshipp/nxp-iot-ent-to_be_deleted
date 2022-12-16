@@ -44,6 +44,6 @@ DefinitionBlock("DsdtTable.aml", "DSDT", 5, "MSFT", "EDK2", 1) {
     include("Dsdt-Audio.asl")
     include("Dsdt-Pwm.asl")
     include("Dsdt-HantroVpuLF.asl") /* Limited Feature */
-    include("Dsdt_TCPC.asl")
+    include("Dsdt-TCPC.asl")
   }
 }

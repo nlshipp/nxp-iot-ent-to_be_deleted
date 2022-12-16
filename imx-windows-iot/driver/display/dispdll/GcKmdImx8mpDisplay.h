@@ -5,11 +5,11 @@
 #pragma once
 
 #include "GcKmdBaseDisplay.h"
-#include "GcKmdLvdsTransmitter.h"
+#include "GcKmdMpLvdsTransmitter.h"
 
 extern "C" {
 #include "linux/platform_device.h"
-#include "clk/imx_clk_imx8mp.h"
+#include "clk/clk_imx8mp.h"
 }
 
 class GcKmImx8mpDisplay : public GcKmBaseDisplay
@@ -52,7 +52,7 @@ public:
 
 private:
 
-    LvdsTransmitter m_LvdsTransmitter;
+    MpLvdsTransmitter m_LvdsTransmitter;
 
     DXGKARGCB_NOTIFY_INTERRUPT_DATA m_InterruptData;
 

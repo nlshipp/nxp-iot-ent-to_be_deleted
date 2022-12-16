@@ -163,8 +163,9 @@ PAGED_SEGMENT_END
 WdfIsi_ctx::WdfIsi_ctx(WDFDEVICE &WdfDevice)
     : m_WdfDevice(WdfDevice),
     m_Isi1Reg(WdfDevice),
-    // m_RxLevel(7),
-    m_DsdRes(WdfDevice),
+    m_IsiFbMemReserve(WdfDevice, PAGE_READWRITE),
+    m_MaxMipiCsiSrc(1),
+    m_DsdRes(WdfDeviceWdmGetPhysicalDevice(WdfDevice)),
     m_NumPlanes(1),
     m_QuirkInvertFrameId(0)
 /*!
@@ -189,18 +190,13 @@ NTSTATUS WdfIsi_ctx::Get_DsdAcpiResources()
     if (NT_SUCCESS(status)) {
         const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
             {
-                "CoreClockFrequencyHz",
-                &coreClockFrequencyHz,
-                (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
-            },
-            {
                 "Isi1RegResId",
-                &Isi1RegResId,
+                &m_Isi1RegResId,
                 (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
             },
             {
                 "MipiCsiSrc",
-                &MipiCsiSrc,
+                &m_MipiCsiSrc,
                 (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
             },
             {
@@ -215,7 +211,6 @@ NTSTATUS WdfIsi_ctx::Get_DsdAcpiResources()
                 ACPI_METHOD_ARGUMENT_STRING,
             },
         };
-
         status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
         if (!NT_SUCCESS(status)) {
             _DbgKdPrint(("WdfIsi_ctx::DsdRes.GetDsdResources Fail\r\n"));
@@ -224,11 +219,31 @@ NTSTATUS WdfIsi_ctx::Get_DsdAcpiResources()
             TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_CpuId = 0x%x", m_CpuId);
             switch (m_CpuId) {
             case IMX_CPU_MX8MP:
+            case IMX_CPU_MX8QXP:
                 m_QuirkInvertFrameId = 1;
                 break;
             default:
                 m_QuirkInvertFrameId = 0;
                 break;
+            }
+
+            switch (m_CpuId) {
+            case IMX_CPU_MX8QXP:
+                m_MaxMipiCsiSrc = 5;
+                break;
+            default:
+                m_MaxMipiCsiSrc = 1;
+                break;
+            }
+        }
+        if (NT_SUCCESS(status)) {
+            NTSTATUS tmpStatus = m_DsdRes.GetInteger("IsiFbMemReserveResId", &(m_IsiFbMemReserveResId));
+            if (!NT_SUCCESS(tmpStatus)) {
+                m_IsiHasFbMemReserveRes = false;
+                TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to query ACPI IsiFbMemReserveResId value, Framebuffers will be allocated later. (status = %!STATUS!)", status);
+            }
+            else {
+                m_IsiHasFbMemReserveRes = true;
             }
         }
     }
@@ -277,24 +292,32 @@ NTSTATUS WdfIsi_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST Resources
 
         status = Get_DsdAcpiResources();
         if (NT_SUCCESS(status)) {
-            if (NULL != (memRes = m_MeResList.at(Isi1RegResId))) {
+            if (NULL != (memRes = m_MeResList.at(m_Isi1RegResId))) {
                 status = m_Isi1Reg.IoSpaceMap(*memRes);
             }
             else {
                 status = STATUS_INSUFFICIENT_RESOURCES; // Memory is required, report STATUS_INSUFFICIENT_RESOURCES if none.
             }
+        }
+        if (NT_SUCCESS(status)) {
+            if (m_IsiHasFbMemReserveRes) {
+                if (NULL != (memRes = m_MeResList.at(m_IsiFbMemReserveResId))) {
+                    m_IsiHasFbMemReserveRes = 0;
+                }
+                else {
+                    status = STATUS_INSUFFICIENT_RESOURCES; // Memory is required, report STATUS_INSUFFICIENT_RESOURCES if none.
+                }
+            }
+        }
+        if (NT_SUCCESS(status)) {
+            m_State = S_STOPPED;
+            for (unsigned i = 0; ((i < COMMON_FRAME_BUFFER_NUM) && NT_SUCCESS(status)); ++i) {
+                status = AllocFb(m_DiscardBuff[i]);
+            }
             if (NT_SUCCESS(status)) {
-                {
-                    m_State = S_STOPPED;
-                    for (unsigned i = 0; ((i < COMMON_FRAME_BUFFER_NUM) && NT_SUCCESS(status)); ++i) {
-                        status = AllocFb(m_DiscardBuff[i]);
-                    }
-                    if (NT_SUCCESS(status)) {
-                        m_IsiRes.m_IsiRegistersPtr = m_Isi1Reg.Reg();
-                        if (NT_SUCCESS(status)) {
-                            m_IsiRegistersPtr = m_IsiRes.m_IsiRegistersPtr;
-                        }
-                    }
+                m_IsiRes.m_IsiRegistersPtr = m_Isi1Reg.Reg();
+                if (NT_SUCCESS(status)) {
+                    m_IsiRegistersPtr = m_IsiRes.m_IsiRegistersPtr;
                 }
             }
         }
@@ -762,7 +785,7 @@ void WdfIsi_ctx::ReinitializeRequest(PREQUEST_CONTEXT RequestCtxPtr)
     NTSTATUS status;
     ASSERT(RequestCtxPtr != NULL);
     ASSERT(RequestCtxPtr->m_WdfRequest != NULL);
-    ASSERT(MipiCsiSrc <= 1U);
+    ASSERT(m_MipiCsiSrc <= m_MaxMipiCsiSrc); // Depends on platform
 
     if (WdfRequestIsCanceled(RequestCtxPtr->m_WdfRequest)) {
         status = STATUS_CANCELLED;
@@ -1126,8 +1149,11 @@ BOOLEAN IsiIsrCtx_t::EvtInterruptIsr(_In_ WDFINTERRUPT WdfInterrupt, _In_ ULONG 
 
         if (csiErrorIrqFired) {
             servicedIrq = true;
-            if ((isiSts & STS_EARLY_VSYNC_ERR_BIT) | (isiSts & STS_LATE_VSYNC_ERR_BIT)) {
-                _DbgKdPrint(("VSYNC_ERR.\r\n")); // Log the errors only as peripheral doesn't need any error handling.
+            if ((isiSts & STS_EARLY_VSYNC_ERR_BIT)) {
+                _DbgKdPrint(("STS_EARLY_VSYNC_ERR_BIT.\r\n")); // Log the errors only as peripheral doesn't need any error handling.
+            }
+            if ((isiSts & STS_LATE_VSYNC_ERR_BIT)) {
+                _DbgKdPrint(("STS_LATE_VSYNC_ERR_BIT.\r\n")); // Log the errors only as peripheral doesn't need any error handling.
             }
             // If peripheral has been reset set csiFrameIrqFired = 0.
         }
@@ -1152,7 +1178,7 @@ BOOLEAN IsiIsrCtx_t::EvtInterruptIsr(_In_ WDFINTERRUPT WdfInterrupt, _In_ ULONG 
 #endif
 
                 for (int i = 0; i < COMMON_FRAME_BUFFER_NUM; ++i) { // Search buffer lists for free and finished buffer.
-                    auto& buff = devCtxPtr->m_DiscardBuff[i];
+                    auto &buff = devCtxPtr->m_DiscardBuff[i];
 
                     if ((buff.state == buff.FREE) && (freeBuffPtr == NULL)) {
                         freeBuffPtr = &buff; // Found free buffer.

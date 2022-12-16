@@ -3,7 +3,6 @@
 
 # NXP specific files
 Build/*
-gcc*/
 u-boot/
 make*
 cst/

@@ -31,6 +31,8 @@ Device (GPU1)
     MEMORY32FIXED( ReadWrite, 0x38000000, 0x10000, )
     // Second memory block must be Framebuffer allocated.
     MEMORY32FIXED( ReadWrite, FixedPcdGet32(PcdArmLcdDdrFrameBufferBase), FixedPcdGet32(PcdArmLcdDdrFrameBufferSize), )
+    // Third is the size and location of reserved memory area for GPU driver
+    MEMORY32FIXED( ReadWrite, FixedPcdGet32(PcdArmGPUReservedMemoryBase), FixedPcdGet32(PcdArmGPUReservedMemorySize), )
     // DCSS REG
     MEMORY32FIXED( ReadWrite, 0x32e00000, 0x30000, )
     // HDMI REG

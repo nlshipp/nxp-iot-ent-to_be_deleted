@@ -105,7 +105,7 @@ struct dcss_dev {
 	bool hdmi_output;
 
 	void (*disable_callback)(void *data);
-	completion disable_completion;
+	struct completion disable_completion;
 };
 
 struct dcss_dev *dcss_drv_dev_to_dcss(struct device *dev);

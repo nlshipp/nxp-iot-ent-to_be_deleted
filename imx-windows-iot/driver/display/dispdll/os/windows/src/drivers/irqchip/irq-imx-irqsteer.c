@@ -28,6 +28,7 @@
 struct irqsteer_data {
 	struct irq_chip		chip;
 	char __iomem		*regs;
+	struct clk* ipg_clk;
 	int			irq[CHAN_MAX_OUTPUT_INT];
 	int			irq_count;
 	raw_spinlock_t		lock;
@@ -95,6 +96,14 @@ static struct irq_chip imx_irqsteer_irq_chip = {
 
 static int imx_irqsteer_chans_enable(struct irqsteer_data *data)
 {
+	int ret;
+
+	ret = clk_prepare_enable(data->ipg_clk);
+	if (ret) {
+		dev_err(data->dev, "failed to enable ipg clk: %d\n", ret);
+		return ret;
+	}
+
 	/* steer all IRQs into configured channel */
 	writel_relaxed(BIT(data->channel), data->regs + CHANCTRL);
 
@@ -135,6 +144,12 @@ int imx_irqsteer_probe(struct platform_device *pdev)
 		return PTR_ERR(data->regs);
 	}
 
+	data->ipg_clk = devm_clk_get(&pdev->dev, "ipg");
+	if (IS_ERR(data->ipg_clk)) {
+		dev_err(&pdev->dev, "failed to get ipg clk\n");
+		return PTR_ERR(data->ipg_clk);
+	}
+
 	raw_spin_lock_init(&data->lock);
 
 	ret = of_property_read_u32(np, "fsl,num-irqs", &irqs_num);
@@ -156,6 +171,7 @@ int imx_irqsteer_probe(struct platform_device *pdev)
 		return ret;
 
 	if (!data->irq_count || data->irq_count > CHAN_MAX_OUTPUT_INT) {
+		clk_disable_unprepare(data->ipg_clk);
 		return -EINVAL;
 	}
 

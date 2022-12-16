@@ -44,11 +44,9 @@ extern "C" {
 #error CSI_COMMON_FRAME_NUM must be 3 or higher.
 #endif
 
-EXTERN_C_START
-
-DRIVER_INITIALIZE DriverEntry;
-
-EXTERN_C_END
+extern "C" {
+    DRIVER_INITIALIZE DriverEntry;
+}
 
 struct WdfMipi_ctx;
 typedef WdfMipi_ctx DEVICE_CONTEXT, *PDEVICE_CONTEXT;
@@ -57,63 +55,22 @@ typedef WdfMipiRequest_ctx  REQUEST_CONTEXT, *PREQUEST_CONTEXT;
 struct WdfMipiFile_ctx;
 typedef WdfMipiFile_ctx DEVICE_FILE_CONTEXT, *PDEVICE_FILE_CONTEXT;
 
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 #include "MipiCsi2rxIomap.h"
 
-struct WdfMipi_ctx: io::ctx_acpi_csr_stub
+struct WdfMipi_ctx
 {
-    enum : ULONG { IMX_CSI_POOL_TAG = 'ICXM' };
-    struct DiscardBuffInfo_t {
-        PHYSICAL_ADDRESS phys;
-        PVOID virt;
-
-        PMDL mdlPtr;
-        enum {
-            FREE,
-            WORKING,
-            DONE
-        } state;
-    };
-
     const WDFDEVICE m_WdfDevice;
     WDFQUEUE m_Queue;
-
     bool m_IsOpen;
-
-    bool OpenIfAvailable()
-    {
-        bool success = false;
-
-        if (!m_IsOpen) {
-            m_IsOpen = true;
-            success = true;
-        }
-        return success;
-    }
 
     /* PNP static callbacks */
     static EVT_WDF_DEVICE_RELEASE_HARDWARE EvtReleaseHw; // Translates call to non-static member.
     static EVT_WDF_DEVICE_PREPARE_HARDWARE EvtPrepareHw;
     NTSTATUS PrepareHw(_In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated);
-
-    AcpiDsdRes_t m_DsdRes;
-    NTSTATUS Get_DsdAcpiResources();
-    NTSTATUS AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val);
-    NTSTATUS AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val);
-
-    reg<MipiCsi2_t::MIPI_CSI2RX_REGS> m_Mipi1Reg;
-    UINT32 Mipi1RegResId;
+    NTSTATUS CreateInterface();
+    Resources_t m_Resources;
     MipiCsi2_t m_Mipi;
-    Resources_t m_MipiCsiRes;
-    UINT32 m_CpuId;
-
-    CHAR m_DeviceEndpoint[DEVICE_ENDPOINT_NAME_MAX_LEN];
-    WCHAR m_DeviceEndpointUnicodeNameBuff[DEVICE_ENDPOINT_NAME_MAX_LEN];
-    UNICODE_STRING m_DeviceEndpointUnicodeName;
-
-    UINT32 coreClockFrequencyHz;
-    UINT32 phyClockFrequencyHz;
-    UINT32 escClockFrequencyHz;
 
     static EVT_WDF_DEVICE_D0_ENTRY EvtD0Entry;
     static EVT_WDF_DEVICE_D0_EXIT EvtD0Exit;
@@ -153,7 +110,7 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(REQUEST_CONTEXT, GetRequestContext);
 struct WdfMipiFile_ctx
 {
     WDFQUEUE m_WdfQueue;
-    PDEVICE_CONTEXT    m_DevCtxPtr;
+    PDEVICE_CONTEXT m_DevCtxPtr;
     UCHAR m_ChanId;
 };
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_FILE_CONTEXT, DeviceGetFileContext);

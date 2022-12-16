@@ -107,6 +107,10 @@
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\linux\dwl\dwl_linux.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\inc\dwl.h" />
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\windows\inc\dwl_win.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

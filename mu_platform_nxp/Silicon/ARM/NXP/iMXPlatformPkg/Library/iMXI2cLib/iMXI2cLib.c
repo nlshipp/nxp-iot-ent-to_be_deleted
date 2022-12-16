@@ -22,6 +22,7 @@
 #include <Library/IoLib.h>
 #include <Library/TimerLib.h>
 
+#include "iMXI2cLib_hw.h"
 #include <iMXI2cLib.h>
 
 // Table of I2C Frequency Divider values (Table 35-3 in iMX6DQRM)
@@ -545,4 +546,73 @@ iMXI2cWrite (
 
 Exit:
   return Status;
+}
+
+/**
+  Perform I2C read operation.
+
+  The iMXI2cRead perform I2C read operation by programming the I2C controller.
+  The caller is responsible to provide I2C controller configuration.
+  Note: This function is not fully supported. Only RegisterAddressSize = 1 is supported.
+
+  @param[in]    I2cContext        Pointer to structure containing the targeted
+                                  I2C controller to be used for I2C operation.
+  @param[in]    RegisterAddress   Targeted device N-byte-register address to start read.
+  @param[in]    RegisterAddressSize  Length of sub address to send in bytes. Maximum size is 4 bytes.
+  @param[out]   ReadBufferPtr     Caller supplied buffer that would be written
+                                  into with data from the read operation.
+  @param[in]    ReadBufferSize    Size of caller supplied buffer.
+
+  @retval   RETURN_SUCCESS        I2C Read operation succeeded.
+  @retval   RETURN_DEVICE_ERROR   The I2C device is not functioning correctly.
+
+**/
+RETURN_STATUS
+iMXI2cReadE(
+    IN IMX_I2C_CONTEXT *I2cContext,
+    IN UINT32 RegisterAddress,
+    IN UINT8 RegisterAddressSize,
+    OUT UINT8* ReadBufferPtr,
+    IN UINT32 ReadBufferSize
+)
+{
+    if ((RegisterAddressSize != 1) || (RegisterAddress >= 0xFF)) {
+       return RETURN_UNSUPPORTED;
+    }
+    return iMXI2cRead(I2cContext, (UINT8)RegisterAddress, ReadBufferPtr, ReadBufferSize);
+}
+
+/**
+  Perform I2C write operation.
+
+  The iMXI2cWrite perform I2C write operation by programming the I2C
+  controller. The caller is responsible to provide I2C controller
+  configuration.
+  Note: This function is not fully supported. Only RegisterAddressSize = 1 is supported.
+
+  @param[in]    I2cContext        Pointer to structure containing the targeted
+                                  I2C controller to be used for I2C operation.
+  @param[in]    RegisterAddress   Targeted device N-byte-register address to start write.
+  @param[in]    RegisterAddressSize  Length of sub address to send in bytes. Maximum size is 4 bytes.
+  @param[out]   WriteBufferPtr    Caller supplied buffer that contained data that
+                                  would be read from for I2C write operation.
+  @param[in]    WriteBufferSize   Size of caller supplied buffer.
+
+  @retval   RETURN_SUCCESS        I2C Write operation succeeded.
+  @retval   RETURN_DEVICE_ERROR   The I2C device is not functioning correctly.
+
+**/
+RETURN_STATUS
+iMXI2cWriteE(
+    IN IMX_I2C_CONTEXT *I2cContext,
+    IN UINT32 RegisterAddress,
+    IN UINT8 RegisterAddressSize,
+    IN UINT8* WriteBufferPtr,
+    IN UINT32 WriteBufferSize
+)
+{
+    if ((RegisterAddressSize != 1) || (RegisterAddress >= 0xFF)) {
+       return RETURN_UNSUPPORTED;
+    }
+    return iMXI2cWrite(I2cContext, (UINT8)RegisterAddress, WriteBufferPtr, WriteBufferSize);
 }

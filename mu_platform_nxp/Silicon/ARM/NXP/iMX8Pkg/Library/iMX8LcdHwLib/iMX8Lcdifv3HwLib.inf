@@ -30,6 +30,9 @@
   clock.c
   it6263.c
   ldb.c
+  dw_hdmi.c
+  dw_hdmi_imx.c
+  dw_hdmi_imx_phy.c
 
 [Packages]
   ArmPlatformPkg/ArmPlatformPkg.dec

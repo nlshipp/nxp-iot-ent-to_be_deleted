@@ -45,7 +45,7 @@ AddService = imxgpio,%SPSVCINST_ASSOCSERVICE%,GPIO_Service_Inst
 [GPIO_Service_Inst]
 DisplayName    = %GPIO.SvcDesc%
 ServiceType    = %SERVICE_KERNEL_DRIVER%
-StartType      = %SERVICE_BOOT_START%
+StartType      = %SERVICE_DEMAND_START%
 ErrorControl   = %SERVICE_ERROR_NORMAL%
 ServiceBinary  = %13%\imxgpio.sys
 LoadOrderGroup = Base

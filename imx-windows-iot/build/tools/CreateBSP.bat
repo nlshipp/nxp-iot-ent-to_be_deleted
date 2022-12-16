@@ -54,30 +54,72 @@ copy %BUILD_ROOT%\imxaud\* %DRVR_ROOT%\Audio\ >NUL
 if errorlevel 1 (set FAILURE=imxaud & goto ERROR)
 copy %REPO_ROOT%\driver\audio\controller\imxaud\imxaud.wm.xml %DRVR_ROOT%\Audio\ >NUL
 
-mkdir %DRVR_ROOT%\CAN >NUL 2>NUL
-copy %BUILD_ROOT%\imxcan\* %DRVR_ROOT%\CAN\ >NUL
-if errorlevel 1 (set FAILURE=imxcan & goto ERROR)
-copy %REPO_ROOT%\driver\can\imxcan\imxcan.wm.xml %DRVR_ROOT%\CAN\ >NUL
+mkdir %DRVR_ROOT%\Audio >NUL 2>NUL
+copy %BUILD_ROOT%\imxaudsc\* %DRVR_ROOT%\Audio\ >NUL
+if errorlevel 1 (set FAILURE=imxaudsc & goto ERROR)
+copy %REPO_ROOT%\driver\audio\controller\imxaudsc\imxaudsc.wm.xml %DRVR_ROOT%\Audio\ >NUL
+
+:: Copy ALS
+mkdir %DRVR_ROOT%\ALS >NUL 2>NUL
+copy %BUILD_ROOT%\imxals\* %DRVR_ROOT%\ALS\ >NUL
+if errorlevel 1 (set FAILURE=imxals & goto ERROR)
+copy %REPO_ROOT%\driver\als\imxals\imxals.wm.xml %DRVR_ROOT%\ALS\ >NUL
+
+mkdir %DRVR_ROOT%\CAN_MC >NUL 2>NUL
+copy %BUILD_ROOT%\imxcan_mc\* %DRVR_ROOT%\CAN_MC\ >NUL
+if errorlevel 1 (set FAILURE=imxcan_mc & goto ERROR)
+
+mkdir %DRVR_ROOT%\CAN_NMC >NUL 2>NUL
+copy %BUILD_ROOT%\imxcan_nmc\* %DRVR_ROOT%\CAN_NMC\ >NUL
+if errorlevel 1 (set FAILURE=imxcan_nmc & goto ERROR)
+
+mkdir %DRVR_ROOT%\ECOMPASS >NUL 2>NUL
+copy %BUILD_ROOT%\imxecompass\* %DRVR_ROOT%\ECOMPASS\ >NUL
+if errorlevel 1 (set FAILURE=imxecompass & goto ERROR)
 
 mkdir %DRVR_ROOT%\GPIO >NUL 2>NUL
 copy %BUILD_ROOT%\imxgpio\* %DRVR_ROOT%\GPIO\ >NUL
 if errorlevel 1 (set FAILURE=imxgpio & goto ERROR)
 copy %REPO_ROOT%\driver\gpio\imxgpio\imxgpio.wm.xml %DRVR_ROOT%\GPIO\ >NUL
 
+mkdir %DRVR_ROOT%\GPIO_8X >NUL 2>NUL
+copy %BUILD_ROOT%\imxgpio_8x\* %DRVR_ROOT%\GPIO_8X\ >NUL
+if errorlevel 1 (set FAILURE=imxgpio_8x & goto ERROR)
+
 mkdir %DRVR_ROOT%\I2C >NUL 2>NUL
 copy %BUILD_ROOT%\imxi2c\* %DRVR_ROOT%\I2C\ >NUL
 if errorlevel 1 (set FAILURE=imxi2c & goto ERROR)
 copy %REPO_ROOT%\driver\i2c\imxi2c\imxi2c.wm.xml %DRVR_ROOT%\I2C\ >NUL
+
+mkdir %DRVR_ROOT%\LPI2C >NUL 2>NUL
+copy %BUILD_ROOT%\imxlpi2c\* %DRVR_ROOT%\LPI2C\ >NUL
+if errorlevel 1 (set FAILURE=imxlpi2c & goto ERROR)
+copy %REPO_ROOT%\driver\i2c\imxlpi2c\imxlpi2c.wm.xml %DRVR_ROOT%\LPI2C\ >NUL
+
+mkdir %DRVR_ROOT%\SCFW >NUL 2>NUL
+copy %BUILD_ROOT%\imxscfw\* %DRVR_ROOT%\SCFW\ >NUL
+if errorlevel 1 (set FAILURE=imxscfw & goto ERROR)
+copy %REPO_ROOT%\driver\i2c\imxscfw\imxscfw.wm.xml %DRVR_ROOT%\SCFW\ >NUL
 
 mkdir %DRVR_ROOT%\Net >NUL 2>NUL
 copy %BUILD_ROOT%\imxnetmini\* %DRVR_ROOT%\Net\ >NUL
 if errorlevel 1 (set FAILURE=imxnetmini & goto ERROR)
 copy %REPO_ROOT%\driver\net\ndis\imxnetmini\imxnetmini.wm.xml %DRVR_ROOT%\Net\ >NUL
 
+mkdir %DRVR_ROOT%\Net >NUL 2>NUL
+copy %BUILD_ROOT%\imxqosmini\* %DRVR_ROOT%\Net\ >NUL
+if errorlevel 1 (set FAILURE=imxqosmini & goto ERROR)
+copy %REPO_ROOT%\driver\net\ndis\imxqosmini\imxqosmini.wm.xml %DRVR_ROOT%\Net\ >NUL
+
 mkdir %DRVR_ROOT%\UART >NUL 2>NUL
 copy %BUILD_ROOT%\imxuart\* %DRVR_ROOT%\UART\ >NUL
 if errorlevel 1 (set FAILURE=imxuart & goto ERROR)
 copy %REPO_ROOT%\driver\serial\imxuart\imxuart.wm.xml %DRVR_ROOT%\UART\ >NUL
+
+mkdir %DRVR_ROOT%\LPUART >NUL 2>NUL
+copy %BUILD_ROOT%\imxlpuart\* %DRVR_ROOT%\LPUART\ >NUL
+if errorlevel 1 (set FAILURE=imxlpuart & goto ERROR)
+copy %REPO_ROOT%\driver\serial\imxlpuart\imxlpuart.wm.xml %DRVR_ROOT%\LPUART\ >NUL
 
 mkdir %DRVR_ROOT%\SPI >NUL 2>NUL
 copy %BUILD_ROOT%\imxecspi\* %DRVR_ROOT%\SPI\ >NUL
@@ -108,6 +150,10 @@ mkdir %DRVR_ROOT%\OPTEE >NUL 2>NUL
 copy %BUILD_ROOT%\OpteeTrEE\* %DRVR_ROOT%\OPTEE\ >NUL
 if errorlevel 1 (set FAILURE=OpteeTrEE & goto ERROR)
 copy %REPO_ROOT%\driver\TrEE\TrEE\OpteeTrEE.wm.xml %DRVR_ROOT%\OPTEE\ >NUL
+
+mkdir %DRVR_ROOT%\Gyro >NUL 2>NUL
+copy %BUILD_ROOT%\imxgyro_fxas21002\* %DRVR_ROOT%\Gyro\ >NUL
+if errorlevel 1 (set FAILURE=Gyro & goto ERROR)
 
 :: Copy VPU stuff
 mkdir %DRVR_ROOT%\VPU >NUL 2>NUL
@@ -155,32 +201,23 @@ copy %BUILD_ROOT%\HalExtiMXDma\* %DRVR_ROOT%\HalExtDma\ >NUL
 if errorlevel 1 (set FAILURE=HalExtiMXDma & goto ERROR)
 copy %REPO_ROOT%\hals\halext\HalExtiMXDma\HalExtiMXDma.wm.xml %DRVR_ROOT%\HalExtDma\ >NUL
 
-:: Copy Galcore 8M GPU 
+:: Copy Galcore GPU
 echo Copying Galcore GPU driver to %DRVR_ROOT%
-mkdir %DRVR_ROOT%\Galcore_m >NUL 2>NUL
-copy %COMP_ROOT%\Galcore\Galcore_m\* %DRVR_ROOT%\Galcore_m\ >NUL
-if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
+mkdir %DRVR_ROOT%\Galcore >NUL 2>NUL
+copy %BUILD_ROOT%\galcore\galcore\* %DRVR_ROOT%\Galcore\ >NUL
+:: if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
 
-:: Copy Galcore 8MP/8MN GPU 
-echo Copying Galcore GPU driver to %DRVR_ROOT%
-mkdir %DRVR_ROOT%\Galcore_mp_mn >NUL 2>NUL
-copy %COMP_ROOT%\Galcore\Galcore_mp_mn\* %DRVR_ROOT%\Galcore_mp_mn\ >NUL
-if errorlevel 1 (set FAILURE=Galcore & goto ERROR)
+:: Copy PEP
+mkdir %DRVR_ROOT%\PEP >NUL 2>NUL
+copy %BUILD_ROOT%\imxpep\* %DRVR_ROOT%\PEP\ >NUL
+if errorlevel 1 (set FAILURE=imxpep & goto ERROR)
+copy %REPO_ROOT%\driver\pep\sys\imxpep.wm.xml %DRVR_ROOT%\PEP\ >NUL
 
 :: Copy Patch files
 echo Copying Drivers to %BINPTCH_ROOT%
 mkdir %BINPTCH_ROOT%\Sdport >NUL 2>NUL
 copy %COMP_ROOT%\Sdport\* %BINPTCH_ROOT%\Sdport\ >NUL
 if errorlevel 1 (set FAILURE=Sdport & goto ERROR)
-
-::Copy dispctrl.dll
-echo Copying dispctrl.dll to %DRVR_ROOT%\dispctrl\
-::mkdir %DRVR_ROOT%\dispctrl >NUL 2>NUL
-::copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\dispctrl >NUL
-copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\Galcore_m >NUL
-if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
-copy %BUILD_ROOT%\dispctrl\dispctrl.dll %DRVR_ROOT%\Galcore_mp_mn >NUL
-if errorlevel 1 (set FAILURE=dispctrl & goto ERROR)
 
 :: Copy Wifi mrvlpcie8897 
 echo Copying Wifi mrvlpcie8897 to %DRVR_ROOT%

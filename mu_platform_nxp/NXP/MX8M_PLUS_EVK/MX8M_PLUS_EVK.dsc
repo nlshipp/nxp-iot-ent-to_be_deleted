@@ -57,6 +57,13 @@
 ################################################################################
 [LibraryClasses.common]
   ArmPlatformLib|$(BOARD_DIR)/Library/iMX8BoardLib/iMX8BoardLib.inf
+  iMX8ClkPwrLib|iMX8Pkg/Library/iMX8ClkPwrLib/iMX8ClkPwrLib.inf
+  SerialPortLib|iMXPlatformPkg/Library/UartSerialPortLib/UartSerialPortLib.inf
+  iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
+
+!if $(CONFIG_HEADLESS) != TRUE
+  LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8Lcdifv3HwLib.inf
+!endif
 
 [Components.common]
   #
@@ -65,6 +72,13 @@
   MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
   $(BOARD_DIR)/AcpiTables/AcpiTables.inf
+  
+  #
+  # Usb Support
+  #
+!if $(CONFIG_USB) == TRUE
+  MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
+!endif
 
   #
   # SMBIOS/DMI
@@ -95,11 +109,63 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdConOutGopSupport|TRUE
 
 [PcdsFixedAtBuild.common]
+  #                                        PcdSystemMemoryBase
+  # +-------------------+===> (0x40000000) PcdArmLcdDdrFrameBufferBase (Frame buffer)
+  # | HDMI framebuffer  |  ^
+  # |                   |  |  (0x007E9000) PcdArmLcdDdrFrameBufferSize ~8MB
+  # |                   |  v
+  # +-------------------+===> (0x407E9000) PcdGlobalDataBaseAddress
+  # | Global Data       |  ^
+  # |                   |  |  (0x00001000) PcdGlobalDataSize 4KB
+  # |                   |  v
+  # +-------------------+===> (0x407EA000) 
+  # | Operating System  |  ^
+  # | Memory            |  |
+  # |                   |  |
+  # |                   |  v
+  # +-------------------+===> (0xF2000000) PcdArmGPUReservedMemoryBase
+  # | GPU Reserved      |  ^
+  # | Memory            |  |  (0x0C000000) PcdArmGPUReservedMemorySize
+  # |                   |  v
+  # +-------------------+===> (0xFE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
+  # | TZ Private Memory |  ^
+  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
+  # |                   |  v
+  # +-------------------+===> (0xFFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
+  # | TZ Shared Memory  |  ^
+  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
+  # |                   |  v
+  # +-------------------|===>
+
+!if $(CONFIG_OPTEE) == TRUE
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xFE000000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
+
+  #
+  # TrustZone shared memory (4Mb)
+  # This memory is managed by the normal world but shared with the OpTEE OS.
+  # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
+  #    CFG_SHMEM_START & CFG_SHMEM_SIZE
+  # NOTE: The first page of the SHMEM is owned by OPTEE for mobj bookkeeping
+  # and we should not touch it. We will skip the first 4K of SHMEM and take that
+  # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
+  #
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xFFC00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
+!endif
+  # System Memory base
+  gArmTokenSpaceGuid.PcdSystemMemoryBase|0x40000000
+
   # System memory size 6GB (3GB + 3GB)
   # Limit to 3GB of DRAM at the top of the 32bit address space
 !if $(CONFIG_OPTEE) == TRUE
   # OpTEE is loaded at top of memory by Arm-TF. Reduce memory size to avoid collision.
+!if $(CONFIG_HEADLESS) == TRUE
   gArmTokenSpaceGuid.PcdSystemMemorySize|0xBE000000
+!else
+  #The SystemMemorySize must exclude GPU reserved memory
+  gArmTokenSpaceGuid.PcdSystemMemorySize|0xB2000000
+!endif
 !else
   gArmTokenSpaceGuid.PcdSystemMemorySize|0xC0000000
 !endif
@@ -109,6 +175,32 @@
 #TODO: se the "Bank1 Size" to 4G to enable RAM above 4G, USB is not working with upper RAM
 #  giMX8TokenSpaceGuid.PcdBank1MemorySize|0x00000000C0000000
   giMX8TokenSpaceGuid.PcdBank1MemorySize|0x000000000000000
+
+  # GOP driver memory
+!if $(CONFIG_HEADLESS) == TRUE
+  # Global data area
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x40000000
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
+
+  # Reserved for TPM2 ACPI
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x40001000
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
+!else
+  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferBase|0x40000000
+  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferSize|0x007E9000	# ~8 MB (4 * 1920 * 1080)
+
+  # Global data area
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x407E9000
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
+
+  # Reserved for TPM2 ACPI
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x407EA000
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
+  # GPU Reserved Memory, aligned to 1MB boundary
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemoryBase|0xF2000000
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemorySize|0x0C000000	# 192 MB
+!endif
+
   #
   # NV Storage PCDs. Use base of 0x30370000 for SNVS?
   #
@@ -160,6 +252,11 @@
   # uSDHC3 | eMMC
   # uSDHC4 | N/A
   #
+  giMXPlatformTokenSpaceGuid.PcdSdhc1Base|0x30B40000
+  giMXPlatformTokenSpaceGuid.PcdSdhc2Base|0x30B50000
+  giMXPlatformTokenSpaceGuid.PcdSdhc3Base|0x30B60000
+  giMXPlatformTokenSpaceGuid.PcdSdhc4Base|0x00000000
+
   giMXPlatformTokenSpaceGuid.PcdSdhc1Enable|FALSE
   giMXPlatformTokenSpaceGuid.PcdSdhc2Enable|TRUE
   giMXPlatformTokenSpaceGuid.PcdSdhc3Enable|TRUE

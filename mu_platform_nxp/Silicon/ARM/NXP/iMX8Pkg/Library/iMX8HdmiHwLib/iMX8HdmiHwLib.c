@@ -1,7 +1,7 @@
 /** @file
 
   Copyright (c) 2017, Linaro, Ltd. All rights reserved.
-  Copyright 2020 NXP
+  Copyright 2020, 2022 NXP
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -77,7 +77,21 @@ LcdInitialize (
   )
 {
   // Configure new FrameBuffer address to CHAN1_DPR register
-  *((volatile UINT32 *)(ARM_DC_MSTx_REG_REGISTER_PHYSICAL + 0x180C0UL)) = FrameBaseAddress;
+#ifdef CPU_IMX8MP
+  volatile UINT32 tmp;
+  *((volatile UINT32 *)(0x32E8020CUL)) = FrameBaseAddress;
+  tmp = *((volatile UINT32 *)(0x32E80214UL));
+  tmp |= (1 << 30);
+  *((volatile UINT32 *)(0x32E80214UL)) = tmp;
+#elif defined(CPU_IMX8QXP)
+  #define IMXDPUV1_FETCHDECODE0_BASEADDRESS0                   (0x56186C1C)
+  #define IMXDPUV1_PIXENGCFG_EXTDST0_REQUEST                   (0x56180990)
+  #define IMXDPUV1_SHDLD_FETCHDECODE0                          (1U << 10)
+  MmioWrite32((UINTN)IMXDPUV1_PIXENGCFG_EXTDST0_REQUEST, IMXDPUV1_SHDLD_FETCHDECODE0);
+  MmioWrite32((UINTN)IMXDPUV1_FETCHDECODE0_BASEADDRESS0, FrameBaseAddress);
+#else
+  DCSS__DPR1_BASE_PTR->FRAME_1P_BASE_ADDR_CTRL0.RW = FrameBaseAddress;
+#endif
   return EFI_SUCCESS;
 }
 
@@ -125,9 +139,17 @@ LcdQueryMode (
 
   Info->Version = 0;
 
+#if (defined(CPU_IMX8MQ) || defined(CPU_IMX8QXP))
   Info->HorizontalResolution = HD720_H_RES_PIXELS;
   Info->VerticalResolution = HD720_V_RES_PIXELS;
   Info->PixelsPerScanLine = HD720_H_RES_PIXELS;
+#elif defined(CPU_IMX8MP)
+  Info->HorizontalResolution = HD_H_RES_PIXELS;
+  Info->VerticalResolution = HD_V_RES_PIXELS;
+  Info->PixelsPerScanLine = HD_H_RES_PIXELS;
+#else
+#error "Unknown CPU family"
+#endif
 
   Info->PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
 

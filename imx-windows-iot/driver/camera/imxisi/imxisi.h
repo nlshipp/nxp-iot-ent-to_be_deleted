@@ -32,6 +32,7 @@ extern "C" {
 #include <wdf.h>
 #include <initguid.h>
 }
+#include "dsdtutil.hpp"
 #include "trace.h"
 #include "public.h"
 #include "ImxCpuRev.h"
@@ -80,7 +81,7 @@ typedef WdfIsiFile_ctx DEVICE_FILE_CONTEXT, *PDEVICE_FILE_CONTEXT;
 
 #define MAX_CHAN 2
 
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 
 #include "isi_iomap.h"
 
@@ -120,17 +121,18 @@ struct WdfIsi_ctx: io::ctx_acpi_csr_stub
     AcpiDsdRes_t m_DsdRes;
 
     reg<ISI_REGS> m_Isi1Reg; // TODO consider moving to DSD or resource class
-    UINT32 Isi1RegResId;
-    UINT32 MipiCsiSrc;
+    UINT32 m_Isi1RegResId;
+    UINT32 m_MipiCsiSrc;
+    UINT32 m_MaxMipiCsiSrc;
+    UINT32 m_IsiFbMemReserveResId;
+    bool m_IsiHasFbMemReserveRes;
+    reg<UINT32*> m_IsiFbMemReserve;
     volatile ISI_REGS *m_IsiRegistersPtr;
     Resources_t m_IsiRes;
 
     CHAR m_DeviceEndpoint[DEVICE_ENDPOINT_NAME_MAX_LEN];
     WCHAR m_DeviceEndpointUnicodeNameBuff[DEVICE_ENDPOINT_NAME_MAX_LEN];
     UNICODE_STRING m_DeviceEndpointUnicodeName;
-    UINT32 coreClockFrequencyHz;
-    UINT32 phyClockFrequencyHz;
-    UINT32 escClockFrequencyHz;
 
     // interrupt servicing
 

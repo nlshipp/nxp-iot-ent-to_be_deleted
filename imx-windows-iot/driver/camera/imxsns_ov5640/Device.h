@@ -29,8 +29,9 @@
 
 #pragma once
 
+#include "dsdtutil.hpp"
 #include "OperatorNew.hpp"
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 #include "ov5640/ImxOv5640.h"
 
 #define IMX_OV5640_POOL_TAG '65MX'
@@ -81,7 +82,6 @@ struct SNS0_ctx: io::ctx_acpi_csr_stub, CamWdf_Res
 
 public:
     SNS0_ctx(WDFDEVICE &device);
-    ~SNS0_ctx();
     static NTSTATUS EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit);
     static EVT_WDF_DEVICE_CONTEXT_CLEANUP EvtDeviceObjCtxCleanup;
     static EVT_WDF_OBJECT_CONTEXT_CLEANUP EvtDriverObjCtxCleanup;

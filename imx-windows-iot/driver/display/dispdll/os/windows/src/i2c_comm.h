@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -41,13 +40,14 @@ struct iotarget_handles {
     PFILE_OBJECT m_iotarget_file_object_ptr;
     PDEVICE_OBJECT m_iotarget_device_object_ptr;
     KEVENT m_event;
+    UCHAR* base;
 };
 
 typedef struct iotarget_handles iotarget_handles;
 
 NTSTATUS i2c_initialize(LARGE_INTEGER i2c_connection_id, iotarget_handles *i2c_tgt);
-NTSTATUS i2c_write(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length);
-NTSTATUS i2c_read(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length);
+NTSTATUS i2c_write(iotarget_handles *i2c_tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length);
+NTSTATUS i2c_read(iotarget_handles *i2c_tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length);
 void i2c_close(iotarget_handles *i2c_tgt);
 void i2c_clear_handle(iotarget_handles *i2c_tgt);
 

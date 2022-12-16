@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -50,6 +49,7 @@ extern "C"
 #include "linux\spinlock.h"
 #include "linux\types.h"
 #include "linux\of_device.h"
+#include "linux\preempt.h"
 #include "linux\atomic.h"
 #include "linux\ktime.h"
 #include "asm-generic\bug.h"
@@ -61,6 +61,7 @@ extern "C"
 #include "linux\clk.h"
 #include "linux\i2c.h"
 #include "linux\regmap.h"
+#include "drm\drm_connector.h"
 
 //
 // memory allocation
@@ -84,15 +85,48 @@ void *kmalloc(size_t size, gfp_t flags)
     return ptr;
 }
 
-void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp)
+/* aproximate linux krealloc - additionaly original size of the block is needed
+   and can only grow */
+void* modified_krealloc(void* orig_ptr, size_t orig_size, size_t new_size, gfp_t flags)
 {
-    return kmalloc(size, gfp | __GFP_ZERO);
+    void* new_ptr;
+
+    if (new_size == 0) {
+        kfree(orig_ptr);
+        return NULL;
+    }
+    else if (!orig_ptr) {
+        return kmalloc(new_size, flags);
+    }
+    else if (new_size <= orig_size) {
+        return orig_ptr;
+    }
+    else {
+        new_ptr = kmalloc(new_size, flags);
+        if (new_ptr) {
+            memcpy(new_ptr, orig_ptr, orig_size);
+            kfree(orig_ptr);
+        }
+    }
+    return new_ptr;
 }
 
-void devm_kfree(struct device *dev, const void *p)
+void* kmemdup(const void* src, size_t len, gfp_t gfp)
 {
-    kfree(p);
+    void* p;
+
+    p = kmalloc(len, gfp);
+    if (p)
+        memcpy(p, src, len);
+
+    return p;
 }
+
+void *devm_kmemdup(struct device *dev, const void *src, size_t len, gfp_t gfp)
+{
+    return kmemdup(src, len, gfp);
+}
+
 
 //
 // platform helpers
@@ -156,9 +190,14 @@ void devm_iounmap(struct device *dev, void __iomem *addr,
     iounmap(addr, size);
 }
 
+int platform_irq_count(struct platform_device *pdev)
+{
+    return _platform_irq_count(pdev);
+}
+
 int platform_get_irq(struct platform_device *pdev, unsigned int num)
 {
-	return num;
+    return num;
 }
 
 int platform_get_irq_byname(struct platform_device* pdev, const char* name)
@@ -209,6 +248,13 @@ const void *of_get_property(const struct device_node *np, const char *name,
     return nullptr;
 }
 
+bool of_property_read_bool(const struct device_node* np,
+    const char* propname)
+{
+    struct property *p = find_property_by_name(np, propname);
+    return p ? true : false;
+}
+
 int of_property_read_u32_array(const struct device_node *np,
     const char *propname,
     u32 *out_values, size_t sz)
@@ -254,6 +300,43 @@ const struct of_device_id *of_match_device(const struct of_device_id *matches,
     return best_match;
 }
 
+int of_property_read_string(const struct device_node* np,
+    const char* propname, const char** out_string)
+{
+    const struct property *p = find_property_by_name(np, propname);
+    if (!p)
+    {
+        return -EINVAL;
+    }
+    if (!p->value)
+    {
+        return -ENODATA;
+    }
+
+    *out_string = *(const char**)p->value;
+    return 0;
+}
+
+int of_property_match_string(const struct device_node* np,
+    const char* propname, const char* string)
+{
+    struct property* p = find_property_by_name(np, propname);
+    if (!p)
+    {
+        return -EINVAL;
+    }
+
+    for (int i = 0; i < p->length; i++)
+    {
+        if (!strcmp(((const char**)p->value)[i], string))
+        {
+            return i;
+        }
+    }
+
+    return -EINVAL;
+}
+
 int of_device_is_compatible(const struct device_node *device,
     const char *compat)
 {
@@ -273,10 +356,15 @@ int of_device_is_compatible(const struct device_node *device,
 struct clk *devm_clk_get(struct device *dev, const char *id)
 {
     struct clk_init_data_desc *clk_desc;
-    struct clk *clk = NULL;
-    struct clk *clk_parent = NULL;
-    if (!dev) {
-        return NULL;
+    struct clk *clk = nullptr;
+    struct clk *clk_parent = nullptr;
+    // nullptr is valid ret value here because we need to handle case when
+    // the clock is not defined in the DT and can be safely ignored by the driver
+    if (!dev)
+    {
+        DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_WARNING_LEVEL,
+            "Undefined clock\n");
+        return nullptr;
     }
 
     clk_desc = dev->of_clk;
@@ -306,15 +394,99 @@ struct clk *devm_clk_get(struct device *dev, const char *id)
         }
         clk_desc++;
     }
+
+    if (!clk)
+    {
+        DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_WARNING_LEVEL,
+            "Undefined clock\n");
+    }
+
     return clk;
+}
+
+int devm_clk_bulk_get(struct device *dev, int num_clks, struct clk_bulk_data *clks)
+{
+    int ret;
+    int i;
+
+    for (i = 0; i < num_clks; i++) {
+        clks[i].clk = NULL;
+    }
+    for (i = 0; i < num_clks; i++) {
+        clks[i].clk = devm_clk_get(dev, clks[i].id);
+        if (IS_ERR(clks[i].clk)) {
+            ret = PTR_ERR(clks[i].clk);
+            clks[i].clk = NULL;
+            dev_err(dev, "Failed to get clk '%s': %d\n", clks[i].id, ret);
+            return ret;
+        }
+    }
+
+    return 0;
+}
+
+void clk_bulk_disable_unprepare(int num_clks, const struct clk_bulk_data *clks)
+{
+
+    while (--num_clks >= 0)
+        clk_disable_unprepare(clks[num_clks].clk);
+}
+
+int clk_bulk_prepare_enable(int num_clks, const struct clk_bulk_data *clks)
+{
+    int ret;
+    int i;
+
+    for (i = 0; i < num_clks; i++) {
+        ret = clk_prepare_enable(clks[i].clk);
+        if (ret) {
+            pr_err("Failed to enable clk '%s': %d\n", clks[i].id, ret);
+            clk_bulk_disable_unprepare(i, clks);
+            return  ret;
+        }
+    }
+
+    return 0;
+}
+
+int dev_pm_domain_attach_by_name(struct device* dev, const char* name)
+{
+    int index = of_property_match_string(&dev->of_node, "power-domain-names",
+        name);
+    if (index < 0)
+        return -EINVAL;
+
+    struct property* p = find_property_by_name(&dev->of_node, "power-domains");
+    if (!p || index > p->length)
+    {
+        return -EINVAL;
+    }
+
+    return ((int*)p->value)[index];
 }
 
 //
 // interrupt handling
 //
 
+static void IrqDpcHandle(KDPC* pDPC, PVOID DeferredContext,
+    PVOID SystemArgument1, PVOID SystemArgument2)
+{
+    struct irq_desc *p_irq_desc = (struct irq_desc *)DeferredContext;
+
+    UNREFERENCED_PARAMETER(pDPC);
+    UNREFERENCED_PARAMETER(SystemArgument1);
+    UNREFERENCED_PARAMETER(SystemArgument2);
+
+    if (p_irq_desc->thread_fn) {
+        p_irq_desc->thread_fn(p_irq_desc->irq_data.irq, p_irq_desc->dev_id);
+    }
+}
+
 bool irq_handle(int irq)
 {
+    irqreturn_t ret;
+
     if (irq < 0 || irq > NR_IRQS)
     {
         DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL,
@@ -328,12 +500,48 @@ bool irq_handle(int irq)
     {
         if (irq_desc[irq].handler)
         {
-            irq_desc[irq].handler(data->irq, irq_desc[irq].dev_id);
+            ret = irq_desc[irq].handler(data->irq, irq_desc[irq].dev_id);
+            if ((ret == IRQ_WAKE_THREAD) && irq_desc[irq].thread_fn) {
+                KeInsertQueueDpc(&irq_desc[irq].thread_dpc, nullptr, nullptr);
+            }
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ *	request_threaded_irq - Add a handler for an interrupt line
+ *	@irq:	The interrupt line to allocate
+ *	@handler:	Function to be called when the IRQ occurs.
+*	@thread_fn:	Function to be called in DPC context (DISPATCH_LEVEL), when @handler returns IRQ_WAKE_THREAD.
+ *	@irqflags:	Handling flags
+ *	@devname:	Name of the device generating this interrupt
+ *	@dev_id:	A cookie passed to the handler function
+ *
+ *	This call allocates interrupt resources and enables the interrupt line and IRQ handling.
+ */
+int request_threaded_irq(unsigned int irq, irq_handler_t handler,
+    irq_handler_t thread_fn, unsigned long irqflags,
+    const char* devname, void* dev_id)
+{
+    if (irq >= NR_IRQS) {
+        return -1;
+    }
+
+    if (thread_fn) {
+        KeInitializeDpc(&irq_desc[irq].thread_dpc, IrqDpcHandle, &irq_desc[irq]);
+        irq_desc[irq].thread_fn = thread_fn;
+    } else {
+        irq_desc[irq].thread_fn = NULL;
+    }
+    irq_desc[irq].handler = handler;
+    irq_desc[irq].dev_id = dev_id;
+
+    irq_enable(&irq_desc[irq]);
+
+    return 0;
 }
 
 //
@@ -405,6 +613,24 @@ void __warn(const char* file, const char* func, int line)
     DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, "ERROR assert condition not true. file: %s function: %s line: %d", file, func, line);
 }
 
+void __warn_printfmt(const char* file, const char* func, int line, const char* fmt, ...)
+{
+    static CHAR Buffer[256];
+
+    sprintf(Buffer,
+        "ERROR assert condition not true. file: %s function: %s line: %d:",
+        file, func, line);
+    Buffer[255] = 0;
+
+    va_list argp;
+    va_start(argp, fmt);
+
+    vDbgPrintExWithPrefix(Buffer, DPFLTR_IHVVIDEO_ID,
+        DPFLTR_ERROR_LEVEL, fmt, argp);
+
+    va_end(argp);
+}
+
 //
 // spinlock
 //
@@ -441,7 +667,7 @@ void mdelay(unsigned int msecs)
 void msleep(unsigned int msecs)
 {
     LARGE_INTEGER Interval;
-    Interval.QuadPart = -10 * 1000 * msecs;  /* number of msecs in 100 ns units */
+    Interval.QuadPart = -10 * 1000 * (LONGLONG)msecs;  /* number of msecs in 100 ns units */
     KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 }
 
@@ -490,6 +716,11 @@ void dma_free_coherent(struct device *dev, size_t size,
 // time, jiffies
 //
 
+unsigned long get_hz(void)
+{
+    return (1UL * 1000 * 1000 * 10) / KeQueryTimeIncrement();
+}
+
 unsigned long long get_jiffies(void)
 {
     LARGE_INTEGER Ticks;
@@ -498,10 +729,22 @@ unsigned long long get_jiffies(void)
     return Ticks.QuadPart;
 }
 
+unsigned int _jiffies_to_msecs(const unsigned long long j)
+{
+    ULONG Increment = KeQueryTimeIncrement();
+    return (unsigned int)(j * Increment) / 1000L;
+}
+
 unsigned long long _msecs_to_jiffies(const unsigned int m)
 {
     ULONG Increment = KeQueryTimeIncrement();
     return (m * 10000L) / Increment;
+}
+
+unsigned long long nsecs_to_jiffies(u64 n)
+{
+    ULONG Increment = KeQueryTimeIncrement();
+    return (n / 100L) / Increment;
 }
 
 ktime_t ktime_get(void)
@@ -614,7 +857,7 @@ int atomic_inc_return(atomic_t *v)
 static void CompletionDpcRoutine(KDPC *pDPC, PVOID DeferredContext,
     PVOID SystemArgument1, PVOID SystemArgument2)
 {
-    completion *pDisableCompletion = (completion*)DeferredContext;
+    struct completion *pDisableCompletion = (completion*)DeferredContext;
 
     UNREFERENCED_PARAMETER(pDPC);
     UNREFERENCED_PARAMETER(SystemArgument1);
@@ -623,23 +866,23 @@ static void CompletionDpcRoutine(KDPC *pDPC, PVOID DeferredContext,
     KeSetEvent(&pDisableCompletion->event, 0, FALSE);
 }
 
-void init_completion(completion *x)
+void init_completion(struct completion *x)
 {
     KeInitializeEvent(&x->event, SynchronizationEvent, FALSE);
     KeInitializeDpc(&x->dpc, CompletionDpcRoutine, x);
 }
 
-void reinit_completion(completion *x)
+void reinit_completion(struct completion *x)
 {
     KeResetEvent(&x->event);
 }
 
-void wait_for_completion(completion *x)
+void wait_for_completion(struct completion *x)
 {
     KeWaitForSingleObject(&x->event, Executive, KernelMode, FALSE, NULL);
 }
 
-unsigned long wait_for_completion_timeout(completion *x,
+unsigned long wait_for_completion_timeout(struct completion *x,
     unsigned long long timeout)
 {
     LARGE_INTEGER   Timeout;
@@ -654,26 +897,114 @@ unsigned long wait_for_completion_timeout(completion *x,
     return (Status == STATUS_SUCCESS) ? 1 : 0;
 }
 
-void complete(completion *x)
+void complete(struct completion *x)
 {
     KeInsertQueueDpc(&x->dpc, nullptr, nullptr);
 }
 
 //
-// REGMAP-I2C
+// REGMAP
 //
+static NTSTATUS mmio_write32(iotarget_handles *tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
+{
+    UINT i;
+    PUINT uintbuff = (PUINT)buffer;
 
-struct regmap *devm_regmap_init_i2c(struct i2c_client *i2c)
+    for (i = 0; i < buffer_length; i++) {
+        writel(uintbuff[i], (tgt->base + reg_addr + i));
+    }
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS mmio_read32(iotarget_handles *tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
+{
+    UINT i;
+    PUINT uintbuff = (PUINT)buffer;
+
+    for (i = 0; i < buffer_length; i++) {
+        uintbuff[i] = readl(tgt->base + reg_addr + i);
+    }
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS mmio_write8(iotarget_handles* tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
+{
+    UINT i;
+    PUCHAR uintbuff = (PUCHAR)buffer;
+
+    for (i = 0; i < buffer_length; i++) {
+        writeb(uintbuff[i], (tgt->base + reg_addr + i));
+    }
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS mmio_read8(iotarget_handles* tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
+{
+    UINT i;
+    PUCHAR uintbuff = (PUCHAR)buffer;
+
+    for (i = 0; i < buffer_length; i++) {
+        uintbuff[i] = readb(tgt->base + reg_addr + i);
+    }
+    return STATUS_SUCCESS;
+}
+
+struct regmap *devm_regmap_init_mmio(struct device *dev, struct resource *res, const struct regmap_config* config)
 {
     struct regmap *map;
     map = (struct regmap *)kmalloc(sizeof(*map), GFP_KERNEL | __GFP_ZERO);
     if (map == NULL) {
         return (struct regmap *)ERR_PTR(-ENOMEM);
     }
+    if (config->val_bits == 32) {
+        map->regmap_read = &mmio_read32;
+        map->regmap_write = &mmio_write32;
+    } else if (config->val_bits == 8) {
+        map->regmap_read = &mmio_read8;
+        map->regmap_write = &mmio_write8;
+    } else {
+        kfree(map);
+        return (struct regmap*)ERR_PTR(-EINVAL);
+    }
+    map->io_target.base = (uint8_t *)devm_ioremap_resource(dev, res);
+    if (IS_ERR(map->io_target.base)) {
+        kfree(map);
+        return (struct regmap *)PTR_ERR(map->io_target.base);
+    }
+    return map;
+}
+
+void regmap_release_mmio(struct regmap *map, struct resource *res)
+{
+    if (map) {
+        if (res && map->io_target.base) {
+            iounmap(map->io_target.base, resource_size(res));
+        }
+        kfree(map);
+    }
+}
+
+struct regmap *devm_regmap_init_i2c(struct i2c_client *i2c)
+{
+    struct regmap *map = (struct regmap *)kmalloc(sizeof(*map),
+        GFP_KERNEL | __GFP_ZERO);
+    if (map == nullptr)
+    {
+        return (struct regmap *)ERR_PTR(-ENOMEM);
+    }
+
     map->regmap_read = &i2c_read;
     map->regmap_write = &i2c_write;
     i2c_clear_handle(&map->io_target);
-    i2c_initialize(i2c->connection_id, &map->io_target);
+
+    NTSTATUS Status = i2c_initialize(i2c->connection_id, &map->io_target);
+    if (Status != STATUS_SUCCESS)
+    {
+        _dev_err(nullptr, "i2c_initialize failed, status-0x%lx\n", Status);
+        kfree(map);
+        return (struct regmap*)ERR_PTR(-ENOMEM);
+    }
+
     return map;
 }
 
@@ -692,7 +1023,7 @@ int regmap_write(struct regmap *map, unsigned int reg, unsigned int val)
     if (!map || !map->regmap_write) {
         return -EINVAL;
     }
-    status = (map->regmap_write)(&map->io_target, (UINT8)reg, &val, 1);
+    status = (map->regmap_write)(&map->io_target, reg, &val, 1);
     return (NT_SUCCESS(status) ? 0 : -EIO);
 }
 
@@ -703,7 +1034,7 @@ int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val, siz
     if (!map || !map->regmap_write) {
         return -EINVAL;
     }
-    status = (map->regmap_write)(&map->io_target, (UINT8)reg, (PVOID)val, (ULONG)val_count);
+    status = (map->regmap_write)(&map->io_target, reg, (PVOID)val, (ULONG)val_count);
     return (NT_SUCCESS(status) ? 0 : -EIO);
 }
 
@@ -715,7 +1046,7 @@ int regmap_read(struct regmap *map, unsigned int reg, unsigned int *val)
         return -EINVAL;
     }
 
-    status = (map->regmap_read)(&map->io_target, (UINT8)reg, (PVOID)val, 1);
+    status = (map->regmap_read)(&map->io_target, reg, (PVOID)val, 1);
     return (NT_SUCCESS(status) ? 0 : -EIO);
 }
 
@@ -727,25 +1058,25 @@ int regmap_bulk_read(struct regmap *map, unsigned int reg, void *val, size_t val
         return -EINVAL;
     }
 
-    status = (map->regmap_read)(&map->io_target, (UINT8)reg, (PVOID)val, (ULONG)val_count);
+    status = (map->regmap_read)(&map->io_target, reg, (PVOID)val, (ULONG)val_count);
     return (NT_SUCCESS(status) ? 0 : -EIO);
 }
 
 int regmap_update_bits(struct regmap *map, unsigned int reg, unsigned int mask, unsigned int val)
 {
     NTSTATUS status;
-    unsigned int tmp, orig;
+    unsigned int tmp, orig = 0;
 
     if (!map || !map->regmap_read || !map->regmap_write) {
         return -EINVAL;
     }
-    status = (map->regmap_read)(&map->io_target, (UINT8)reg, &orig, 1);
+    status = (map->regmap_read)(&map->io_target, reg, &orig, 1);
     if (!NT_SUCCESS(status)) {
         return -EIO;
     }
     tmp = orig & ~mask;
     tmp |= val & mask;
-    status = (map->regmap_write)(&map->io_target, (UINT8)reg, &tmp, 1);
+    status = (map->regmap_write)(&map->io_target, reg, &tmp, 1);
 
     return (NT_SUCCESS(status) ? 0 : -EIO);
 }
@@ -760,7 +1091,7 @@ int regmap_register_patch(struct regmap *map, const struct reg_sequence *regs, i
         return -EINVAL;
     }
     for (i = 0; i < num_regs; i++) {
-        status = (map->regmap_write)(&map->io_target, (UINT8)regs[i].reg, (PVOID)&regs[i].def, 1);
+        status = (map->regmap_write)(&map->io_target, regs[i].reg, (PVOID)&regs[i].def, 1);
         ret |= (NT_SUCCESS(status) ? 0 : -EIO);
         if (regs[i].delay_us) {
             udelay(regs[i].delay_us);
@@ -820,6 +1151,32 @@ int _readl_poll_timeout(u32 *addr, u32 mask, u32 cmp_val,
         }
     }
     return -ETIMEDOUT;
+}
+
+//
+// Preemption
+//
+void preempt_disable(KIRQL *OldIrql)
+{
+    KeRaiseIrql(HIGH_LEVEL, OldIrql);
+}
+
+void preempt_enable(KIRQL OldIrql)
+{
+    KeLowerIrql(OldIrql);
+}
+
+//Hot plug detect
+void drm_bridge_hpd_notify(struct platform_device* pdev,
+    enum drm_connector_status status, unsigned int uid) {
+
+    DXGKRNL_INTERFACE* pDxgkInterface = (DXGKRNL_INTERFACE *)pdev->data;
+    DXGK_CHILD_STATUS ChildStatus;
+
+    ChildStatus.Type = StatusConnection;
+    ChildStatus.ChildUid = uid;
+    ChildStatus.HotPlug.Connected = (status == connector_status_connected) ? TRUE : FALSE;
+    pDxgkInterface->DxgkCbIndicateChildStatus(pDxgkInterface->DeviceHandle, &ChildStatus);
 }
 
 } // extern "C"

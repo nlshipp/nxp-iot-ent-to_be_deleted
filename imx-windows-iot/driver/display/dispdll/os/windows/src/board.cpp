@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -53,7 +52,9 @@ void board_init(struct platform_device* pdev)
     if (!strcmp(pdev->plat_name, "mn")) {
         return mn_board_init(pdev);
     }
-
+    if (!strcmp(pdev->plat_name, "qxp")) {
+        return qxp_board_init(pdev);
+    }
 }
 
 void board_deinit(struct platform_device* pdev)
@@ -72,6 +73,23 @@ void board_deinit(struct platform_device* pdev)
     if (!strcmp(pdev->plat_name, "mn")) {
         return mn_board_deinit(pdev);
     }
+    if (!strcmp(pdev->plat_name, "qxp")) {
+        return qxp_board_deinit(pdev);
+    }
+}
+
+int _platform_irq_count(struct platform_device* pdev)
+{
+    if (!pdev)
+    {
+        return -1;
+    }
+
+    if (!strcmp(pdev->plat_name, "qxp")) {
+        return qxp_irq_count();
+    }
+
+    return -1;
 }
 
 } // extern "C"

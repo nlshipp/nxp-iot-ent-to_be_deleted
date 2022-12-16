@@ -15,4 +15,16 @@ extern void __warn(const char* file, const char* func, int line);
 } while(0);
 #endif
 
+#ifndef WARN
+extern void __warn_printfmt(const char* file,
+	const char* func, int line, const char* fmt, ...);
+#define WARN(condition, format, ...)		\
+do {						\
+	int __ret_warn_on = !!(condition);				\
+	if (unlikely(__ret_warn_on))					\
+		__warn_printfmt(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__);	\
+	unlikely(__ret_warn_on);						\
+} while(0);
+#endif
+
 #endif

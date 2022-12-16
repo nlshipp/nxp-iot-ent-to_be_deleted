@@ -413,9 +413,10 @@ static void it6263_lvds_set_afe(struct it6263 *it6263)
 	lvds_update_bits(it6263, LVDS_REG_PLL, 0x07, 0);
 }
 
-static void it6263_lvds_config(struct it6263 *it6263)
+static void it6263_lvds_config(struct it6263 *it6263, bool reset)
 {
-	it6263_lvds_reset(it6263);
+	if (reset)
+		it6263_lvds_reset(it6263);
 	it6263_lvds_set_interface(it6263);
 	it6263_lvds_set_afe(it6263);
 }
@@ -476,7 +477,7 @@ void it6263_bridge_enable(struct i2c_client *client_hdmi)
 			break;
 		}
 
-		it6263_lvds_config(it6263);
+		it6263_lvds_config(it6263, true);
 
 		dev_dbg(&it6263->hdmi_i2c->dev,
 					"retry to lock input video %d\n", i);
@@ -594,7 +595,9 @@ static int it6263_check_chipid(struct it6263 *it6263)
 	return ret;
 }
 
-int it6263_probe(struct i2c_client *client_hdmi, struct i2c_client *client_lvds, bool split_mode, u32 ldb_bus_format)
+int it6263_probe(struct i2c_client *client_hdmi,
+	struct i2c_client *client_lvds, bool split_mode,
+	u32 ldb_bus_format, bool reset)
 {
 	struct device *dev = &client_hdmi->dev;
 	struct device_node *np = &dev->of_node;
@@ -622,6 +625,7 @@ int it6263_probe(struct i2c_client *client_hdmi, struct i2c_client *client_lvds,
 	it6263->hdmi_regmap = devm_regmap_init_i2c(it6263->hdmi_i2c);
 	if (IS_ERR(it6263->hdmi_regmap)) {
 		ret = PTR_ERR(it6263->hdmi_regmap);
+		it6263->hdmi_regmap = NULL;
 		return ret;
 	}
 
@@ -631,11 +635,13 @@ int it6263_probe(struct i2c_client *client_hdmi, struct i2c_client *client_lvds,
 		goto unregister_hdmi_i2c;
 	}
 
-	ret = regmap_write(it6263->hdmi_regmap, HDMI_REG_SW_RST, HDMI_RST_ALL);
-	if (ret)
-		goto unregister_lvds_i2c;
+	if (reset) {
+		ret = regmap_write(it6263->hdmi_regmap, HDMI_REG_SW_RST, HDMI_RST_ALL);
+		if (ret)
+			goto unregister_lvds_i2c;
 
-	usleep_range(1000, 2000);
+		usleep_range(1000, 2000);
+	}
 
 	ret = regmap_write(it6263->hdmi_regmap, HDMI_REG_LVDS_PORT,
 				LVDS_INPUT_CTRL_I2C_ADDR << 1);
@@ -656,7 +662,7 @@ int it6263_probe(struct i2c_client *client_hdmi, struct i2c_client *client_lvds,
 	if (ret)
 		goto unregister_lvds_i2c;
 
-	it6263_lvds_config(it6263);
+	it6263_lvds_config(it6263, reset);
 	it6263_hdmi_config(it6263);
 
 	return ret;

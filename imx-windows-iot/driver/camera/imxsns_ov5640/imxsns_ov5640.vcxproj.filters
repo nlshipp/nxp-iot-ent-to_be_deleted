@@ -14,6 +14,7 @@
       <Filter>utils</Filter>
     </ClCompile>
     <ClCompile Include="ov5640\ImxOv5640.cpp" />
+    <ClCompile Include="..\..\shared\acpi\dsdtutil.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h" />
@@ -24,6 +25,7 @@
     </ClInclude>
     <ClInclude Include="ov5640\ImxCameraInterface.h" />
     <ClInclude Include="ov5640\ImxOv5640.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include="imxsns_ov5640.inf" />
@@ -35,5 +37,8 @@
     <Filter Include="hardware">
       <UniqueIdentifier>{c74d2d25-8ca0-4132-ae85-910fbf55e99a}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
 </Project>

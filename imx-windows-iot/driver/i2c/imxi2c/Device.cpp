@@ -475,8 +475,8 @@ NTSTATUS OnMonitorPowerSettingCallback(
 
         // do not assign idle power settings for a driver which is not power managed
 
-#ifdef I2C_IS_PEP_MANAGED
-        status = WdfDeviceAssignS0IdleSettings(Device, &idleSettings);
+#ifdef I2C_POWER_MANAGEMENT
+        status = WdfDeviceAssignS0IdleSettings(device, &idleSettings);
 
         if (!NT_SUCCESS(status))
         {
@@ -966,7 +966,7 @@ VOID OnOther(
     //
     // Option: the driver may take the following steps
     //
-    //    1. Verify this specific DeviceIoContol code is supported,
+    //    1. Verify this specific DeviceIoControl code is supported,
     //       otherwise mark as STATUS_NOT_SUPPORTED and complete.
     //
     //    2. If this IOCTL uses SPB_TRANSFER_LIST and the driver has

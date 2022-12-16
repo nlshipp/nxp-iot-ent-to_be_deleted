@@ -27,8 +27,12 @@ public:
     static BOOLEAN s_bSwitchGpuVa;
     static BOOLEAN s_bLocalVidMemGeneralUse;
     static BOOLEAN s_bGdiHwAcceleration;
+    static BOOLEAN s_bMapDummyPage;
 
     static UINT    s_GdiDmaBufferSize;
+    static UINT    s_DmaBufferSize;
 
     static BOOLEAN s_bDodUseHwVSync;
+
+    static BOOLEAN s_bLimitAllocBelow4gbPa;
 };

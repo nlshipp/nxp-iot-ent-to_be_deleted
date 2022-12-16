@@ -47,19 +47,19 @@ NTSTATUS Ov10635_t::DumpMax9286()
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 Val;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "===================================\n");
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "MAX9286 registers:\n");
+    LOG_TRACE("%!FUNC!");
+    LOG_TRACE("===================================");
+    LOG_TRACE("MAX9286 registers:");
     for (UINT8 i = 0; i < 0x72; i++) {
         Status = ReadRegMax9286(i, Val);
         if (Status) {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "failed to read from MAX9286 reg 0x%02x", i);
+            LOG_TRACE("failed to read from MAX9286 reg 0x%02x", i);
         }
         else {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "reg 0x%02x: 0x%02x\n", i, Val);
+            LOG_TRACE("reg 0x%02x: 0x%02x", i, Val);
         }
     }
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "===================================\n");
+    LOG_TRACE("===================================");
 
     return Status;
 }
@@ -69,19 +69,19 @@ NTSTATUS Ov10635_t::DumpMax9271()
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 Val;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "===================================\n");
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "MAX9271 registers:\n");
+    LOG_TRACE("%!FUNC!");
+    LOG_TRACE("===================================");
+    LOG_TRACE("MAX9271 registers:");
     for (UINT8 i = 0; i < 0x20; i++) {
         Status = ReadRegMax9271(CHNL_0, i, Val);
         if (Status) {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "failed to read from MAX9271 reg 0x%02x", i);
+            LOG_TRACE("failed to read from MAX9271 reg 0x%02x", i);
         }
         else {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "reg 0x%02x: 0x%02x\n", i, Val);
+            LOG_TRACE("reg 0x%02x: 0x%02x", i, Val);
         }
     }
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "===================================\n");
+    LOG_TRACE("===================================");
 
     return Status;
 }
@@ -98,7 +98,7 @@ NTSTATUS Ov10635_t::Max9286_GetChipID(UINT8 &ChipID)
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 id = 0;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
     Status = ReadRegMax9286(0x1E, id);
 
     ChipID = id;
@@ -117,7 +117,7 @@ NTSTATUS Ov10635_t::Max9271_GetChipID(UINT8 &ChipID)
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 id = 0;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
     Status = ReadRegMax9271(CHNL_DEFAULT, 0x1E, id);
 
     ChipID = id;
@@ -138,7 +138,7 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
     UINT8 LinkStatus = 0;
     UINT8 ChipID = 0U;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
 
     if (aConfigPtr == nullptr) {
         aConfigPtr = &m_Defaults;
@@ -169,19 +169,19 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
         DelayMs(2);
 
         if (Status) {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() - Reverse channel configuration failed\n", __FUNCTION__);
+            LOG_ERROR("Reverse channel configuration failed");
             return STATUS_IO_DEVICE_ERROR;
         }
 
         /* MAX9271 - Verify MAX9271 Chip ID */
         Status = Max9271_GetChipID(ChipID);
         if ((Status) || (ChipID != 0x09)) {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Serializer MAX9271 not detected, device ID 0x%04X. (Should be 0x09)\n", ChipID);
+            LOG_ERROR("Serializer MAX9271 not detected, device ID 0x%04X. (Should be 0x09)", ChipID);
             return STATUS_NO_SUCH_DEVICE;
         }
     }
     else {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() - Reverse channel already configured, skipping\n", __FUNCTION__);
+        LOG_INFORMATION("Reverse channel already configured, skipping");
     }
 
     /* 2) MAX9286 Initial Setup */
@@ -190,7 +190,7 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
     DelayMs(2);
 
     if ((aConfigPtr->csiLanes < 1U) || (aConfigPtr->csiLanes > 4U)) {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Incorrent num of CSI data lanes requested: %d\n", aConfigPtr->csiLanes);
+        LOG_ERROR("Incorrent num of CSI data lanes requested: %d", aConfigPtr->csiLanes);
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -200,11 +200,11 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
     switch (aConfigPtr->cameraPixelFormat) {
     case kVIDEO_PixelFormatUYVY:
     case kVIDEO_PixelFormatYUYV:
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "kVIDEO_PixelFormatUYVY or kVIDEO_PixelFormatYUYV\n");
+        LOG_TRACE("kVIDEO_PixelFormatUYVY or kVIDEO_PixelFormatYUYV");
         Val |= IMX_MAX9286_DATA_TYPE_YUV422_8_BIT;
         break;
     default:
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Unsuported pixel format: 0x%x\n", aConfigPtr->cameraPixelFormat);
+        LOG_ERROR("Unsuported pixel format: 0x%x", aConfigPtr->cameraPixelFormat);
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -224,12 +224,12 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
 
     /* MAX9286 - Read status of video and configuration link between MAX9286 and MAX9271 */
     Status |= ReadRegMax9286(0x49, LinkStatus);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Link status between MAX9286 and MAX9271 is 0x%02X\n", LinkStatus);
+    LOG_TRACE("Link status between MAX9286 and MAX9271 is 0x%02X", LinkStatus);
 
     for (UINT8 i = 0; i < 1; i++) {
         Val = 0;
         if (LinkStatus & (IMX_MAX9286_CONFIGDET(i) | IMX_MAX9286_VIDEODET(i))) {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Serializer(Camera) detected od link %d, configuring...\n", i);
+            LOG_TRACE("Serializer(Camera) detected od link %d, configuring...", i);
 
             Val = 0xF0 | (1 << i);
             /* MAX9286 - Enable Link 0-3 Reverse Channel */
@@ -256,7 +256,7 @@ NTSTATUS Ov10635_t::Max_Init(camera_config_t* aConfigPtr)
             cameraInitialized[i] = true;
         }
         else {
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "No camera on link %d, skipping serializer's initialization\n", i);
+            LOG_WARNING("No camera on link %d, skipping serializer's initialization", i);
             cameraInitialized[i] = false;
         }
     }
@@ -282,7 +282,7 @@ NTSTATUS Ov10635_t::Max_VideoEnable()
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 Lock, LinkStatus = 0;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
 
     /* MAX9286 - Enable auto acknowledge */
     WriteRegMax9286(0x34, 0xB6);
@@ -295,7 +295,7 @@ NTSTATUS Ov10635_t::Max_VideoEnable()
     WriteRegMax9286(0x69, 0x30);
 
     ReadRegMax9286(0x49, LinkStatus);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Link status between MAX9286 and MAX9271 is 0x%02X\n", LinkStatus);
+    LOG_TRACE("Link status between MAX9286 and MAX9271 is 0x%02X", LinkStatus);
 
 
     WriteRegMax9286(0x00, 0xE1);
@@ -304,7 +304,7 @@ NTSTATUS Ov10635_t::Max_VideoEnable()
 
     ReadRegMax9286(0x31, Lock);
     if (!(Lock & 0x40)) {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Frame synchronization not locked\n");
+        LOG_ERROR("Frame synchronization not locked");
         return STATUS_NO_SUCH_DEVICE;
     }
 
@@ -325,7 +325,7 @@ NTSTATUS Ov10635_t::Ov10635_Init(camera_config_t* aConfigPtr)
     UINT32 arraySize = 0;
     UINT8 PixFmt = 0;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() Start\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
 
     if (aConfigPtr == nullptr) {
         aConfigPtr = &m_Defaults;
@@ -334,18 +334,17 @@ NTSTATUS Ov10635_t::Ov10635_Init(camera_config_t* aConfigPtr)
     switch (aConfigPtr->cameraPixelFormat) {
     case kVIDEO_PixelFormatUYVY:
         PixFmt = 0x3A;
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() - Ov10635 PixFmt 0x%02X (UYVY)\n", __FUNCTION__, PixFmt);
+        LOG_TRACE("Ov10635 PixFmt 0x%02X (UYVY)", PixFmt);
         break;
     case kVIDEO_PixelFormatYUYV:
         PixFmt = 0x38;
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() - Ov10635 PixFmt 0x%02X (YUYV)\n", __FUNCTION__, PixFmt);
+        LOG_TRACE("Ov10635 PixFmt 0x%02X (YUYV)", PixFmt);
         break;
     default:
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() - Unsuported pixel format: 0x%x, setting default 0x38(UYVY)\n", __FUNCTION__, aConfigPtr->cameraPixelFormat);
+        LOG_ERROR("Unsuported pixel format: 0x%x, setting default 0x38(UYVY)", aConfigPtr->cameraPixelFormat);
         PixFmt = 0x3A;
         return STATUS_INVALID_PARAMETER;
     }
-
 
    static Ov10635_t::reg_val_t InitParam[] = {
          { 0x0103, 0x01, 0},
@@ -1897,7 +1896,7 @@ NTSTATUS Ov10635_t::Ov10635_Init(camera_config_t* aConfigPtr)
             for (UINT32 i = 0; i < arraySize; i++) {
                 Status |= WriteRegOv10635((CHNL_IDX)cam, InitParam[i].regAddr, InitParam[i].regVal);
                 if (Status) {
-                    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "OV10635 initialization error, idx: %d, Status: 0x%08X\n", i, Status);
+                    LOG_ERROR("OV10635 initialization error, idx: %d, Status: %!STATUS!", i, Status);
                 }
                 if (InitParam[i].delay != 0) {
                     KeStallExecutionProcessor(InitParam[i].delay * 1000);
@@ -1907,10 +1906,8 @@ NTSTATUS Ov10635_t::Ov10635_Init(camera_config_t* aConfigPtr)
     }
 
     if (Status) {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "OV10635 initialization failed 0x%08X\n", Status);
+        LOG_ERROR("OV10635 initialization failed %!STATUS!", Status);
     }
-
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s() End\n", __FUNCTION__);
     return Status;
 }
 
@@ -1923,11 +1920,11 @@ NTSTATUS Ov10635_t::LinkProbe()
 {
     NTSTATUS Status = STATUS_SUCCESS;
     UINT8 linkStatus = 0;
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
+    LOG_TRACE("%!FUNC!");
 
     /* Read status of video and configuration link between MAX9286 and MAX9271 */
     Status |= ReadRegMax9286(0x49, linkStatus);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Link status between MAX9286 and MAX9271 is 0x%02X\n", linkStatus);
+    LOG_TRACE("Link status between MAX9286 and MAX9271 is %!STATUS!", linkStatus);
 
     for (int i = 0; i < IMX_MAX9286_CAMERAS_CNT; i++) {
         /* Check for previously initialized reverse channel with the MAX9271 serializer */
@@ -1955,7 +1952,7 @@ NTSTATUS Ov10635_t::Init()
     UINT8 ChipID = 0U;
     LARGE_INTEGER delay{ 0u };
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n",__FUNCTION__);
+    LOG_TRACE("%!FUNC!");
     if (m_Camera_res.m_HasRstGpio) {
         m_Camera_res.m_RstGpio.Set(1);
 
@@ -1966,7 +1963,7 @@ NTSTATUS Ov10635_t::Init()
     /* Verify MAX9286 Chip ID */
     Status = Max9286_GetChipID(ChipID);
     if ((Status) || (ChipID != 0x40)) {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Invalid MAX9286 device ID 0x%04X. (Should be 0x40)\n", ChipID);
+        LOG_ERROR("Invalid MAX9286 device ID 0x%04X. (Should be 0x40)", ChipID);
         return STATUS_NO_SUCH_DEVICE;
     }
 
@@ -1983,8 +1980,8 @@ NTSTATUS Ov10635_t::Init()
 NTSTATUS Ov10635_t::Deinit()
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Disable MAX9286 CSI-2 output\n");
+    LOG_TRACE("%!FUNC!");
+    LOG_TRACE("Disable MAX9286 CSI-2 output");
     Status |= WriteRegMax9286(0x15, 0x03);
     return Status;
 }
@@ -1997,8 +1994,8 @@ NTSTATUS Ov10635_t::Deinit()
 NTSTATUS Ov10635_t::Stop()
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s()\n", __FUNCTION__);
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "Disable MAX9286 CSI-2 output\n");
+    LOG_TRACE("%!FUNC!");
+    LOG_TRACE("Disable MAX9286 CSI-2 output");
     Status |= WriteRegMax9286(0x15, 0x03);
     return Status;
 }

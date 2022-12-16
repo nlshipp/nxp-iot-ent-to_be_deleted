@@ -9,7 +9,7 @@
 
 extern "C" {
 #include "linux/platform_device.h"
-#include "clk/imx_clk_imx8mn.h"
+#include "clk/clk_imx8mn.h"
 }
 
 class GcKmImx8mnDisplay : public GcKmBaseDisplay

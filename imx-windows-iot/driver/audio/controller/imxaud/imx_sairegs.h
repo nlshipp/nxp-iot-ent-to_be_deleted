@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Abstract:
@@ -8,7 +9,7 @@ Abstract:
 
 #pragma once
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 //
 // IMX8M: SAI Parameter Register (I2Sx_PARAM)
 //
@@ -94,7 +95,7 @@ typedef union {
 #define SAI_CTRL_INTERRUPTMASK 0x00001F00
 #define SAI_CTRL_ERRORFLAGS 0x001C0000
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 
 //
 // IMX8M: SAI Transmit Configuration 1 Register (I2Sx_TCR1)
@@ -138,7 +139,7 @@ typedef union {
     };
 } SAI_TRANSMIT_CONFIGURATION_REGISTER_2, *PSAI_TRANSMIT_CONFIGURATION_REGISTER_2;
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 
 //
 // IMX8M: SAI Transmit Configuration 3 Register (I2Sx_TCR3)
@@ -170,7 +171,7 @@ typedef union {
 } SAI_TRANSMIT_CONFIGURATION_REGISTER_3, *PSAI_TRANSMIT_CONFIGURATION_REGISTER_3;
 #endif
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 
 //
 // IMX8M: SAI Transmit Configuration 4 Register (I2Sx_TCR4)
@@ -248,7 +249,7 @@ typedef union {
     };
 } SAI_TRANSMIT_DATA_REGISTER, *PSAI_TRANSMIT_DATA_REGISTER;
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 
 //
 // IMX8M: SAI Transmit FIFO Register (I2Sx_TFRn)
@@ -447,7 +448,7 @@ typedef union {
     };
 } SAI_RECEIVE_MASK_REGISTER, *PSAI_RECEIVE_MASK_REGISTER;
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
 //
 // IMX8M: SAIx register block
 //
@@ -482,7 +483,7 @@ typedef struct SaiRegisters {
 #else
 
 //
-// IMX7D: SAIx register block
+// IMX7D/IMX8Q: SAIx register block
 //
 typedef struct SaiRegisters {
     SAI_TRANSMIT_CONTROL_REGISTER TransmitControlRegister;

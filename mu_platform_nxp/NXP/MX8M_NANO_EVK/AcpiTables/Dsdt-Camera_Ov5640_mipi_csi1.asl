@@ -177,7 +177,7 @@ Device (ISI0) // ISI on SoC peripheral
 {
   Name (_HID, "NXP0C12")  // _HID: Hardware ID
   Name (_UID, "0")  // _UID: Unique ID
-  Name (_CCA, 0x0)  // SDHC is not coherent
+  Name (_CCA, 0x0)
 
   Method (_CRS, 0, NotSerialized)  // _CRS: Current Resource Settings
   {
@@ -192,7 +192,6 @@ Device (ISI0) // ISI on SoC peripheral
   Name (_DSD, Package () {
     ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
       Package () {
-        Package (2) {"CameraClockFrequencyHz", 20000000},
         Package (2) {"CoreClockFrequencyHz", 133000000},
         Package (2) {"PhyClockFrequencyHz", 100000000},
         Package (2) {"EscClockFrequencyHz", 66666667},

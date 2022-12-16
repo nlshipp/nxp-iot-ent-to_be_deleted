@@ -32,6 +32,7 @@ extern "C" {
 #include <wdf.h>
 #include <initguid.h>
 }
+#include "dsdtutil.hpp"
 #include "Trace.h"
 #include "Public.h"
 #include "ImxCpuRev.h"
@@ -79,7 +80,7 @@ struct WdfCsiFile_ctx;
 typedef WdfCsiFile_ctx DEVICE_FILE_CONTEXT, *PDEVICE_FILE_CONTEXT;
 
 
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 
 #include "CsiIomap.h"
 

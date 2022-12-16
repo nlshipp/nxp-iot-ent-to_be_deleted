@@ -12,7 +12,8 @@
 
 #include <linux/err.h>
 #include <linux/kernel.h>
-#include "clk/imx_clk_imx8m.h"
+#include "clk/clk_imx8m.h"
+#include "clk/clk_imx8q.h"
 
 struct device;
 struct clk;
@@ -30,6 +31,8 @@ struct clk {
 		struct imx_clk_pll clk_pll;
 		struct imx_clk_gate clk_gate;
 		struct imx_clk_slice clk_slice;
+		struct imx_clk_lpcg_scu clk_lpcg_scu;
+		struct imx_clk_scu clk_scu;
 	};
 	struct clk *parent;
 
@@ -39,6 +42,21 @@ struct clk {
 	unsigned long(*clk_set_rate)(struct clk *clk, unsigned long rate);
 	int (*clk_set_parent)(struct clk *clk, struct clk * parent);
 	struct clk * (*clk_get_parent)(struct clk *clk);
+};
+
+/**
+ * struct clk_bulk_data - Data used for bulk clk operations.
+ *
+ * @id: clock consumer ID
+ * @clk: struct clk * to store the associated clock
+ *
+ * The CLK APIs provide a series of clk_bulk_() API calls as
+ * a convenience to consumers which require multiple clks.  This
+ * structure is used to manage data for these calls.
+ */
+struct clk_bulk_data {
+	const char		*id;
+	struct clk		*clk;
 };
 
 /**
@@ -74,6 +92,21 @@ struct clk *devm_clk_get(struct device *dev, const char *id);
  */
 static inline void devm_clk_put(struct device *dev, struct clk *clk) {}
 
+/**
+ * devm_clk_bulk_get - managed get multiple clk consumers
+ * @dev: device for clock "consumer"
+ * @num_clks: the number of clk_bulk_data
+ * @clks: the clk_bulk_data table of consumer
+ *
+ * Return 0 on success, an errno on failure.
+ *
+ * This helper function allows drivers to get several clk
+ * consumers in one operation with management, the clks will
+ * automatically be freed when the device is unbound.
+ */
+int devm_clk_bulk_get(struct device *dev, int num_clks,
+				   struct clk_bulk_data *clks);
+
 /* clk_prepare_enable helps cases using clk_enable in non-atomic context. */
 static inline int clk_prepare_enable(struct clk *clk)
 {
@@ -92,6 +125,9 @@ static inline void clk_disable_unprepare(struct clk *clk)
 	}
 	(void)(clk->clk_enable)(clk, false, false);
 }
+
+int clk_bulk_prepare_enable(int num_clks, const struct clk_bulk_data *clks);
+void clk_bulk_disable_unprepare(int num_clks, const struct clk_bulk_data *clks);
 
 /**
  * clk_get_rate - obtain the current clock rate (in Hz) for a clock source.

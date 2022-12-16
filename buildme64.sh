@@ -1,7 +1,6 @@
 #!/bin/bash
 # 
 # Copyright 2022 NXP 
-# All rights reserved. 
 #  
 # Redistribution and use in source and binary forms, with or without modification, 
 # are permitted provided that the following conditions are met: 
@@ -52,16 +51,18 @@ usage() { echo "Usage: $0 [-b BOARD_1] [-b BOARD_2] [-t TARGET_1] .. [-c]"      
           echo "            { all,"                                               1>&2
           echo "              8M, MX8M_EVK,"                                      1>&2
           echo "              8Mm, MX8M_MINI_EVK"                                 1>&2
-          echo "              8Mn, MX8M_NANO_EVK }"                               1>&2
-          echo "              8Mp, MX8M_PLUS_EVK }"                               1>&2
+          echo "              8Mn, MX8M_NANO_EVK "                                1>&2
+          echo "              8Mp, MX8M_PLUS_EVK "                                1>&2
+          echo "              8X, MX8QXP_MEK }"                                   1>&2
           echo ""                                                                 1>&2
           echo "          [-t|-target_app] "                                      1>&2
-          echo "            { all, u|uboot, optee, apps|tee_apps,"                1>&2
+          echo "            { all, u|uboot, atf, optee, apps|tee_apps,"           1>&2
           echo "              uimg|uboot_image, tools|uefi_tools, uefi,"          1>&2
           echo "              profile_dev, profile_secure, profile_frontpage,"    1>&2
-          echo "              secured_efi|secured_uefi, s|sign_images }"          1>&2
+          echo "              secured_efi|secured_uefi}"                          1>&2
           echo ""                                                                 1>&2
-          echo "          [-fw|-fw_bin]"                                          1>&2
+          echo "          [-fw|-fw_bin] - Build firmware_uuu.bin"                 1>&2
+          echo "                          Not needed with -t all"                 1>&2
           echo "          [-cap|-capsule]"                                        1>&2
           echo "          [-c|-clean]"                                            1>&2
           echo "          [-nu|-no_uuu]"                                          1>&2
@@ -70,9 +71,15 @@ usage() { echo "Usage: $0 [-b BOARD_1] [-b BOARD_2] [-t TARGET_1] .. [-c]"      
           echo "            { release|RELEASE - for Release version of uefi,"     1>&2
           echo "              debug|DEBUG     - for Debug version of uefi }"      1>&2
           echo ""                                                                 1>&2
+          echo "Advanced options for experienced users"                           1>&2
+          echo "          [-ao|-advance_option]"                                  1>&2
+          echo "            { rpmb_reset_fat, rpmb_write_key, no_rpmb_test_key"   1>&2
+          echo "              optee_core_v, optee_ta_v}"                          1>&2
+          echo ""                                                                 1>&2
           echo "Environment variables:          "                                 1>&2
           echo "          [TARGET_WINDOWS_BSP_DIR] - Path to imx-windows-iot,"    1>&2
           echo "               in which the firmware shall be updated."           1>&2
+          echo "          [KEY_ROOT] - Path to custom PKI root"                   1>&2
           echo "------------------------------------------------------------"     1>&2 ;
           exit 1; }
 
@@ -84,7 +91,9 @@ script_name=$0
 build_8m=0
 build_8m_mini=0
 build_8m_nano=0
+build_8mn_ddr4=0
 build_8m_plus=0
+build_8qxp=0
 
 clean=0
 build_uboot=0
@@ -94,9 +103,17 @@ build_tee_apps=0
 build_uboot_image=0
 build_uefi_tools=0
 build_uefi=0
-build_sign_images=0
-build_fw_monolith=0
 build_capsule=0
+build_secure=0
+rpmb_reset_fat="CFG_RPMB_RESET_FAT=n"
+rpmb_write_key="CFG_RPMB_WRITE_KEY=n"
+optee_core_v="CFG_TEE_CORE_DEBUG=n TRACE_LEVEL=0 CFG_TEE_CORE_LOG_LEVEL=0"
+optee_ta_v="CFG_TA_DEBUG=n CFG_TEE_CORE_TA_TRACE=0 CFG_TEE_TA_LOG_LEVEL=0"
+# (OpTEE) Use test key by default
+rpmb_key="CFG_RPMB_TESTKEY=y"
+
+# uboot is by default built with UUU support, the name of output firmware for this build type:
+firmware_out_file_name="firmware_uuu"
 
 build_all_selected=0
 build_configuration=RELEASE
@@ -135,12 +152,14 @@ do
         ;;
     -nu|-no_uuu)
         build_uboot_with_uuu_support=0
-        ;;
-    -fw|-fw_bin)
-        build_fw_monolith=1
+        # uboot is without UUU support, the name of output firmware will be:
+        firmware_out_file_name="firmware"
         ;;
     -cap|-capsule)
         build_capsule=1
+        ;;
+    -fw)
+        build_uboot_image=1
         ;;
     -t|-target_app)
         case "${2}" in
@@ -171,18 +190,17 @@ do
                 ;;
             secured_efi|secured_uefi)
                 build_uefi_profile=SECURE
+                build_secure=1
                 ;;
             profile_secure)
                 build_uefi_profile=SECURE
+                build_secure=1
                 ;;
             profile_dev)
                 build_uefi_profile=DEV
                 ;;
             profile_frontpage)
                 build_uefi_profile=FRONTPAGE
-                ;;
-            s|sign_images)
-                build_sign_images=1
                 ;;
             all)
                 build_all_selected=1
@@ -193,7 +211,6 @@ do
                 build_uboot_image=1
                 build_uefi_tools=1
                 build_uefi=1
-                build_fw_monolith=1
                 ;;
             *)
                 echo "Unknown option ${2} specified for -b --build" 
@@ -213,14 +230,21 @@ do
             8Mn|MX8M_NANO_EVK)
                 build_8m_nano=1
                 ;;
+            8Mn4|MX8MN_DDR4_EVK)
+                build_8mn_ddr4=1
+                ;;
             8Mp|MX8M_PLUS_EVK)
                 build_8m_plus=1
+                ;;
+            8X|MX8QXP_MEK)
+                build_8qxp=1
                 ;;
             all)
                 build_8m=1
                 build_8m_mini=1
                 build_8m_nano=1
                 build_8m_plus=1
+                build_8qxp=1
                 ;;
             *)
                 echo "Unknown option ${2} specified for -b --build" 
@@ -244,6 +268,37 @@ do
         esac
         shift
         ;;
+
+    -ao|-advance_option)
+        case "${2}" in
+            rpmb_reset_fat)
+                rpmb_reset_fat="CFG_RPMB_RESET_FAT=y"
+                ;;
+            rpmb_write_key)
+                rpmb_write_key="CFG_RPMB_WRITE_KEY=y"
+                ;;
+            no_rpmb_test_key)
+                rpmb_key="CFG_RPMB_TESTKEY=n"
+                ;;
+            optee_core_v)
+                optee_core_v="CFG_TEE_CORE_DEBUG=y TRACE_LEVEL=2 CFG_TEE_CORE_LOG_LEVEL=2"
+                ;;
+            optee_ta_v)
+                optee_ta_v="CFG_TA_DEBUG=y CFG_TEE_CORE_TA_TRACE=1 CFG_TEE_TA_LOG_LEVEL=2"
+                ;;
+            optee_core_vv)
+                optee_core_v="CFG_TEE_CORE_DEBUG=y TRACE_LEVEL=4 CFG_TEE_CORE_LOG_LEVEL=4"
+                ;;
+            optee_ta_vv)
+                optee_ta_v="CFG_TA_DEBUG=y CFG_TEE_CORE_TA_TRACE=1 CFG_TEE_TA_LOG_LEVEL=4"
+                ;;
+            *)
+                echo "Unknown option ${2} specified for -b --build"
+                usage
+                ;;
+        esac
+        shift
+        ;;
     *)
         echo "Unknown option ${1} specified"
         usage
@@ -256,9 +311,15 @@ done
 
 export IMX8_REPO_ROOT=$(pwd)
 export CST_ROOT=$IMX8_REPO_ROOT/cst
-export KEY_ROOT=$IMX8_REPO_ROOT/imx-windows-iot/build/firmware/test_keys_no_security
-export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
-export SRKH_FUSE_BIN=$KEY_ROOT/crts/SRK_1_2_3_4_fuse.bin
+
+if [ -z "$KEY_ROOT" ]; then
+    export KEY_ROOT=$IMX8_REPO_ROOT/imx-windows-iot/build/firmware/test_keys_no_security
+    echo "$(tput setaf 1)KEY_ROOT not specified! When using secure build, the resulting binaries will be signed by test keys !!!$(tput sgr 0)"
+    KEY_ROOT_AHAB="$KEY_ROOT/ahab"
+else
+    echo "Using KEY_ROOT at $KEY_ROOT"
+    KEY_ROOT_AHAB="$KEY_ROOT"
+fi
 
 if [ $build_uboot_image -eq 1 ]; then
     FILE=firmware-imx
@@ -268,9 +329,9 @@ if [ $build_uboot_image -eq 1 ]; then
     fi
 fi
 
-if [ $build_sign_images -eq 1 ]; then
+if [ $build_secure -eq 1 ]; then
     FILE=cst
-    if ! [ -e "$FILE" ]; then
+    if ! [ -d "$FILE" ] && ! [ -L "$FILE" ]; then
         echo "ERROR: $FILE directory does not exist. Download and extract the Code Signing Tools (CST) from NXP’s website. See i.MX_Win10_User's_Guide.pdf for instruction how to install required SW."
         exit
     fi
@@ -290,7 +351,7 @@ generate_fit_csf () {
         awk -v binary_path="$3" -v indentation=4 \
                         '/sld hab block/ { printf "%*sBlocks = 0x%08x 0x%06x 0x%05x \"%s\"", indentation, "", strtonum($4), strtonum($5), strtonum($6), binary_path }' $1 \
         && awk -v binary_path="$3" -v indentation=12 'BEGIN { ORS="" } \
-                        /print_fit_hab/ { x=NR+4;next}  (NR<=x) { printf ", \\\n%*s 0x%08x 0x%06x 0x%05x \"%s\"", indentation, "", strtonum($1), strtonum($2), strtonum($3), binary_path }' $2 \
+                        /print_fit_hab/ { x=NR+5;next}  (NR<=x) { printf ", \\\n%*s 0x%08x 0x%06x 0x%05x \"%s\"", indentation, "", strtonum($1), strtonum($2), strtonum($3), binary_path }' $2 \
         && echo ;
     } \
         | cat $IMX8_REPO_ROOT/imx-windows-iot/build/firmware/csf_templates/mx8/csf_fit.txt.template - \
@@ -323,31 +384,19 @@ generate_ivt_for_uefi () {
     perl genIVT.pl
 }
 
-# Requires paths to UEFI firmware binary as parameter.
+# Requires paths to UEFI firmware binary as parameter. Calculation of the IVT position/offset is derived from uefi binary length read out from uefi.fit.
 sign_uefi_binary () {
     SIGNED_UEFI_BIN=$(dirname $1)/signed_$(basename $1) ;\
     cp $1 $SIGNED_UEFI_BIN ;\
-    UEFI_SIZE=$(stat --printf=%s $SIGNED_UEFI_BIN) ;\
-    UEFI_PADDED_SIZE=$(printf "0x%x" $(( ( $UEFI_SIZE + 0xfff ) & ~0xfff ))) ;\
-    objcopy -I binary -O binary --pad-to $UEFI_PADDED_SIZE --gap-fill=0x00 $SIGNED_UEFI_BIN ;\
+    UEFI_SIZE=$(printf "0x%s\n" $(od uefi.fit --endian=big --skip-bytes 12 --read-bytes 4 --width=4 --format=x4 --address-radix=none)) ;\
+    UEFI_PADDED_SIZE=$(printf "0x%x" $(( ( ${UEFI_SIZE} + 0x40 + 0xfff ) & ~0xfff ))) ;\
+    truncate -s $((${UEFI_PADDED_SIZE})) $SIGNED_UEFI_BIN;\
     generate_ivt_for_uefi $UEFI_PADDED_SIZE ;\
     cat ivt.bin >> $SIGNED_UEFI_BIN ;\
     generate_uefi_csf $SIGNED_UEFI_BIN ;\
     $CST_ROOT/linux64/bin/cst -i csf_uefi.txt -o csf_uefi.bin ;\
-    cat csf_uefi.bin >> $SIGNED_UEFI_BIN
-}
-
-# Requires path to u-boot config file as a parameter.
-update_srkh_in_uboot_config () {
-    SRKH_VALUES=$(hexdump -e '/4 "0x"' -e '/4 "%X""\n"' $SRKH_FUSE_BIN) ; SRKH_VALUES=$(echo -n $SRKH_VALUES) ;\
-    tmpfile=$(mktemp) ;\
-    cp $1 $tmpfile ;\
-    sed 's/\<CONFIG_SPL_HAB_SRKH\>/<\0>/' $tmpfile \
-        | awk -v config_value="$SRKH_VALUES" 'BEGIN { config_line = "CONFIG_SPL_HAB_SRKH=\"" config_value "\""} \
-            /<CONFIG_SPL_HAB_SRKH>/ { print config_line ; pattern_found = 1 ; next } \
-            { print } \
-            END { if (!pattern_found) { print config_line } }' > $1 ;\
-    rm $tmpfile
+    cat csf_uefi.bin >> $SIGNED_UEFI_BIN;\
+    echo "UEFI SIZE: $UEFI_SIZE padded: $UEFI_PADDED_SIZE"
 }
 
 # Returns version string from iMX8CommonDsc.inc in hex format: 2022-01-03=>0x07E60103
@@ -391,6 +440,7 @@ build_board () {
     TARGET_FIRMWARE_COMPONENTS_DIR="${TARGET_WINDOWS_BSP_PREFIX}/components/Arm64BootFirmware/$bsp_folder" # eg. imx-windows-iot/components/Arm64BootFirmware/MX8M_EVK
     TARGET_FIRMWARE_DIR="${TARGET_WINDOWS_BSP_PREFIX}/BSP/firmware/$bsp_folder" # eg. imx-windows-iot/BSP/firmware/MX8M_EVK
 
+    # Build U-Boot
     if [ $build_uboot -eq 1 ]; then
         pushd uboot-imx/ || exit $?
         if [ $clean -eq 1 ]; then
@@ -398,7 +448,7 @@ build_board () {
             make clean
         fi
         make $uboot_defconfig || exit $?
-        make -s -j12 || exit $?
+        make -s -j12 SPL u-boot.bin || exit $?
         popd
     fi
 
@@ -419,14 +469,8 @@ build_board () {
             make clean PLATFORM=imx PLATFORM_FLAVOR=$optee_plat || exit $?
             rm -r ./out
         fi
-        make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat CFG_TEE_CORE_DEBUG=n TRACE_LEVEL=0 DEBUG=n CFG_TEE_CORE_LOG_LEVEL=0 CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
-
-        # debug
-        # make PLATFORM=imx -j12 PLATFORM_FLAVOR=$optee_plat \
-        #  CFG_TEE_CORE_DEBUG=y CFG_TEE_CORE_LOG_LEVEL=3 \
-        #  CFG_RPMB_FS=y CFG_RPMB_TESTKEY=y CFG_RPMB_WRITE_KEY=y CFG_REE_FS=n \
-        #  CFG_TA_DEBUG=y CFG_TEE_CORE_TA_TRACE=1 CFG_TEE_TA_LOG_LEVEL=2 \
-        #  CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072
+        echo "make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat $rpmb_write_key $rpmb_reset_fat $optee_core_v $rpmb_key CFG_RPMB_FS=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072"
+        make -s -j12 PLATFORM=imx PLATFORM_FLAVOR=$optee_plat $rpmb_write_key $rpmb_reset_fat $optee_core_v $rpmb_key CFG_RPMB_FS=y CFG_REE_FS=n CFG_IMXCRYPT=y CFG_CORE_HEAP_SIZE=131072 || exit $?
 
         popd
         export CROSS_COMPILE=$AARCH64_TOOLCHAIN_PATH
@@ -435,14 +479,15 @@ build_board () {
 
     if [ $build_tee_apps -eq 1 ]; then
         export TA_CROSS_COMPILE=$AARCH64_TOOLCHAIN_PATH
-        export TA_DEV_KIT_DIR=../../../../imx-optee-os/out/arm-plat-imx/export-ta_arm64
+        export TA_DEV_KIT_DIR=$IMX8_REPO_ROOT/imx-optee-os/out/arm-plat-imx/export-ta_arm64
         export TA_CPU=cortex-a53
         
         pushd MSRSec/TAs/optee_ta || exit $?
         if [ $clean -eq 1 ]; then
             rm -r ./out
         fi
-        make CFG_ARM64_ta_arm64=y CFG_FTPM_USE_WOLF=y CFG_AUTHVARS_USE_WOLF=y || exit $?
+        echo "CFG_ARM64_ta_arm64=y $optee_ta_v CFG_FTPM_USE_WOLF=y CFG_AUTHVARS_USE_WOLF=y"
+        make CFG_ARM64_ta_arm64=y $optee_ta_v CFG_FTPM_USE_WOLF=y CFG_AUTHVARS_USE_WOLF=y || exit $?
         popd
 
         mkdir -p mu_platform_nxp/Microsoft/OpteeClientPkg/Bin/AuthvarsTa/Arm64/Test || exit $?
@@ -451,36 +496,10 @@ build_board () {
         cp MSRSec/TAs/optee_ta/out/AuthVars/2d57c0f7-bddf-48ea-832f-d84a1a219301.elf mu_platform_nxp/Microsoft/OpteeClientPkg/Bin/AuthvarsTa/Arm64/Test/ && \
         cp MSRSec/TAs/optee_ta/out/fTPM/bc50d971-d4c9-42c4-82cb-343fb7f37896.ta mu_platform_nxp/Microsoft/OpteeClientPkg/Bin/fTpmTa/Arm64/Test/     && \
         cp MSRSec/TAs/optee_ta/out/fTPM/bc50d971-d4c9-42c4-82cb-343fb7f37896.elf mu_platform_nxp/Microsoft/OpteeClientPkg/Bin/fTpmTa/Arm64/Test/     || exit $?
-        
+
         export -n TA_CROSS_COMPILE
         export -n TA_DEV_KIT_DIR
         export -n TA_CPU
-    fi
-
-    if [ $build_uboot_image -eq 1 ]; then
-        pushd imx-mkimage/iMX8M || exit $?
-        cp -f ../../firmware-imx/firmware/ddr/synopsys/lpddr4_pmu_train_*.bin . && \
-        cp -f ../../firmware-imx/firmware/ddr/synopsys/ddr4_*.bin .             && \
-        cp -f ../../firmware-imx/firmware/hdmi/cadence/signed_hdmi_imx8m.bin .  && \
-        cp -f ../../imx-optee-os/out/arm-plat-imx/core/tee-raw.bin ./tee.bin    && \
-        cp -f ../../imx-atf/build/"$atf_plat"/release/bl31.bin .                    && \
-        cp -f ../../uboot-imx/u-boot-nodtb.bin  .                    && \
-        cp -f ../../uboot-imx/spl/u-boot-spl.bin .                   && \
-        cp -f ../../uboot-imx/arch/arm/dts/"$uboot_dtb" .            && \
-        cp -f ../../uboot-imx/tools/mkimage .                        && \
-        mv mkimage mkimage_uboot                                                    || exit $?
-        
-        cd ..
-        if [ $clean -eq 1 ]; then
-            make SOC=$mkimage_SOC clean
-        fi
-        if [ $atf_plat == "imx8mn" ]; then
-            make SOC=$mkimage_SOC flash_ddr4_evk 2>&1 | tee $MKIMAGE_WORK_DIR/spl_uboot.log || exit $?
-        else
-            make SOC=$mkimage_SOC flash_hdmi_spl_uboot 2>&1 | tee $MKIMAGE_WORK_DIR/spl_uboot.log || exit $?
-        fi
-        popd
-        cp imx-mkimage/iMX8M/flash.bin ${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin || exit $?
     fi
 
     if [ $build_uefi_tools -eq 1 ]; then
@@ -506,24 +525,105 @@ build_board () {
             rm -f Build/"${uefi_folder}"/${build_configuration}_GCC5/FV/Ffs/*ArmPlatformPrePiUniCore/*.efi
         fi
         export GCC5_AARCH64_PREFIX=$AARCH64_TOOLCHAIN_PATH
-    
+
         python3 NXP/"${uefi_folder}"/PlatformBuild.py --setup || exit $?
         python3 NXP/"${uefi_folder}"/PlatformBuild.py --update || exit $?
         python3 NXP/"${uefi_folder}"/PlatformBuild.py -v TARGET=$build_configuration \
         PROFILE=${build_uefi_profile} MAX_CONCURRENT_THREAD_NUMBER=10 TOOL_CHAIN_TAG=GCC5 BUILDREPORTING=TRUE BUILDREPORT_TYPES="PCD" || exit $?
 
         pushd Build/"${uefi_folder}"/${build_configuration}_GCC5/FV || exit $?
-        cp ../../../../../imx-windows-iot/build/firmware/its/uefi_imx8_unsigned.its .                   && \
-        ../../../../../uboot-imx/tools/mkimage -f uefi_imx8_unsigned.its -r uefi.fit || exit $?
+        # compress the uefi binary, keep the original file (-k)
+        rm -f IMXBOARD_EFI.fd.gz
+        gzip -k IMXBOARD_EFI.fd
+        # make the FIT image
+        if [ $atf_plat == "imx8qx" ]; then
+            cp $IMX8_REPO_ROOT/imx-windows-iot/build/firmware/its/uefi_imx8x_unsigned.its .                   && \
+            $IMX8_REPO_ROOT/uboot-imx/tools/mkimage -f uefi_imx8x_unsigned.its -r uefi.fit || exit $?
+        else
+            cp $IMX8_REPO_ROOT/imx-windows-iot/build/firmware/its/uefi_imx8m_unsigned.its .                   && \
+            $IMX8_REPO_ROOT/uboot-imx/tools/mkimage -f uefi_imx8m_unsigned.its -r uefi.fit || exit $?
+        fi
+
+        # copy UEFI fit into mkimage directory (+ add signature if required)
+        # iMX8QX UEFI is signed at container level
+        if [ $build_secure -eq 1 ] && [ $atf_plat != "imx8qx" ]; then
+            sign_uefi_binary uefi.fit || exit $?
+            cp -f signed_uefi.fit ${MKIMAGE_WORK_DIR}/uefi.fit || exit $?
+        else
+            cp -f uefi.fit ${MKIMAGE_WORK_DIR} || exit $?
+        fi
         popd
         popd
         cp mu_platform_nxp/Build/"${uefi_folder}"/${build_configuration}_GCC5/FV/uefi.fit ${TARGET_FIRMWARE_COMPONENTS_DIR}/uefi.fit || exit $?
     fi
 
-    if [ $build_sign_images -eq 1 ]; then
+    if [ $build_uboot_image -eq 1 ]; then
+        if [ $mkimage_SOC == "iMX8QX" ]; then
+            cp -f ${TARGET_FIRMWARE_COMPONENTS_DIR}/mx8qx*-ahab-container.img $MKIMAGE_WORK_DIR && \
+            cp -f uboot-imx/u-boot.bin  $MKIMAGE_WORK_DIR                                       && \
+            cp -f ${TARGET_FIRMWARE_COMPONENTS_DIR}/scfw_tcm.bin $MKIMAGE_WORK_DIR            || exit $?
+        else
+            cp -f firmware-imx/firmware/ddr/synopsys/lpddr4_pmu_train_*.bin $MKIMAGE_WORK_DIR && \
+            cp -f firmware-imx/firmware/ddr/synopsys/ddr4_*.bin $MKIMAGE_WORK_DIR             && \
+            cp -f firmware-imx/firmware/hdmi/cadence/signed_hdmi_imx8m.bin $MKIMAGE_WORK_DIR  && \
+            cp -f uboot-imx/u-boot-nodtb.bin  $MKIMAGE_WORK_DIR                    && \
+            cp -f uboot-imx/arch/arm/dts/"$uboot_dtb" $MKIMAGE_WORK_DIR            || exit $?
+        fi
+        cp -f imx-optee-os/out/arm-plat-imx/core/tee-raw.bin $MKIMAGE_WORK_DIR/tee.bin    && \
+        cp -f imx-atf/build/"$atf_plat"/release/bl31.bin $MKIMAGE_WORK_DIR                && \
+        cp -f uboot-imx/spl/u-boot-spl.bin $MKIMAGE_WORK_DIR                   && \
+        cp -f uboot-imx/tools/mkimage $MKIMAGE_WORK_DIR/mkimage_uboot          || exit $?
+
+        pushd imx-mkimage || exit $?
+        if [ $clean -eq 1 ]; then
+            make SOC=$mkimage_SOC clean
+        fi
+        if [ $build_8mn_ddr4 -eq 1 ]; then
+            make SOC=$mkimage_SOC flash_ddr4_evk 2>&1 | tee $MKIMAGE_WORK_DIR/spl_uboot.log || exit $?
+        elif [ $atf_plat == "imx8qx" ]; then
+            # Flash image consists of 3 containers - [SECO] + [SCFW + SPL] + [ATF + OP-TEE + UBoot + UEFI]
+            # 1. container is provided and signed by NXP
+            # Because of how mkimage works, it is easier first to separately create and sign the 3. container, then
+            # bundle 1. + 2. + 3. container, and then sign the 2. container within the bundle
+            echo "Building container 3"
+            make SOC=$mkimage_SOC REV=C0 u-boot-atf-optee-uefi-container.img 2>&1 > $MKIMAGE_WORK_DIR/container3.log || exit $?
+            if [ $build_secure -eq 1 ]; then
+                pushd $MKIMAGE_WORK_DIR
+                # Parse mkimage log, generate CSF and sign container 3
+                CONTAINER_PATH=u-boot-atf-optee-uefi-container.img \
+                SRK_TABLE_PATH="$KEY_ROOT_AHAB/crts/SRKtable.bin" \
+                CERT_PEM_PATH="$KEY_ROOT_AHAB/crts/SRK1_sha384_secp384r1_v3_usr_crt.pem" \
+                LOGFILE_PATH=container3.log \
+                ./gen_qxp_csf.sh > csf_container3.txt
+                $CST_ROOT/linux64/bin/cst -i csf_container3.txt -o container3.bin
+                mv -f container3.bin u-boot-atf-optee-uefi-container.img
+                popd
+            fi
+            echo "Building container 1+2"
+            make SOC=$mkimage_SOC REV=C0 flash_spl_uefi 2>&1 > $MKIMAGE_WORK_DIR/container12.log || exit $?
+            if [ $build_secure -eq 1 ]; then
+                pushd $MKIMAGE_WORK_DIR
+                # Parse mkimage log, generate CSF and sign container 1+2
+                CONTAINER_PATH=flash.bin \
+                SRK_TABLE_PATH="$KEY_ROOT_AHAB/crts/SRKtable.bin" \
+                CERT_PEM_PATH="$KEY_ROOT_AHAB/crts/SRK1_sha384_secp384r1_v3_usr_crt.pem" \
+                LOGFILE_PATH=container12.log \
+                ./gen_qxp_csf.sh > csf_container12.txt
+                $CST_ROOT/linux64/bin/cst -i csf_container12.txt -o signed_flash.bin
+                popd
+            fi
+        else
+            make SOC=$mkimage_SOC flash_hdmi_spl_uboot 2>&1 | tee $MKIMAGE_WORK_DIR/spl_uboot.log || exit $?
+        fi
+        popd
+        cp $MKIMAGE_WORK_DIR/flash.bin ${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin || exit $?
+        echo "flash.bin copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin || exit $?
+    fi
+
+    if [ $build_secure -eq 1 ] && [ $atf_plat != "imx8qx" ]; then
         pushd imx-mkimage || exit $?
         rm -f print_fit_hab
-        if [ $atf_plat == "imx8mn" ]; then
+        if [ $build_8mn_ddr4 -eq 1 ]; then
             make SOC=$mkimage_SOC print_fit_hab_ddr4 > $MKIMAGE_WORK_DIR/fit_hab.log || exit $?
         else
             make SOC=$mkimage_SOC print_fit_hab > $MKIMAGE_WORK_DIR/fit_hab.log || exit $?
@@ -532,50 +632,33 @@ build_board () {
         generate_fit_csf $MKIMAGE_WORK_DIR/spl_uboot.log $MKIMAGE_WORK_DIR/fit_hab.log $MKIMAGE_WORK_DIR/flash.bin || exit $?
         sign_uboot_binary $MKIMAGE_WORK_DIR/spl_uboot.log $MKIMAGE_WORK_DIR/flash.bin || exit $?
         popd
-
-        pushd mu_platform_nxp/Build/"${uefi_folder}"/${build_configuration}_GCC5/FV || exit $?
-        sign_uefi_binary uefi.fit || exit $?
-        popd
-        cp imx-mkimage/iMX8M/signed_flash.bin ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin || exit $?
-        cp mu_platform_nxp/Build/"${uefi_folder}"/${build_configuration}_GCC5/FV/signed_uefi.fit ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_uefi.fit || exit $?
+    fi
+    if [ $build_secure -eq 1 ]; then
+        cp ${MKIMAGE_WORK_DIR}/signed_flash.bin ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin || exit $?
+        echo "signed_flash.bin copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin || exit $?
     fi
 
     echo "-----------------------------------------------------------------"
-    if [ $build_uboot_image -eq 1 ]; then
-        echo "flash.bin copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin || exit $?
+
+    if [ $build_secure -ne 1 ]; then    
+        echo "${firmware_out_file_name}.bin created as:" ${TARGET_FIRMWARE_DIR}/${firmware_out_file_name}.bin || exit $?
+        dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin of=${TARGET_FIRMWARE_DIR}/${firmware_out_file_name}.bin bs=512 || exit $?
+    else
+        echo "signed_firmware.bin created as:" ${TARGET_FIRMWARE_DIR}/signed_${firmware_out_file_name}.bin || exit $?
+        dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin of=${TARGET_FIRMWARE_DIR}/signed_${firmware_out_file_name}.bin bs=512 || exit $?
     fi
-    if [ $build_uefi -eq 1 ]; then
-        echo "uefi.fit copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/uefi.fit || exit $?
-    fi
-    if [ $build_sign_images -eq 1 ]; then
-        echo "signed_flash.bin copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin || exit $?
-        echo "signed_uefi.fit copied to:" ${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_uefi.fit || exit $?
-    fi
-    
-    if [ $build_fw_monolith -eq 1 ]; then
-        # Merge U-boot and UEFI for easier deployment.
-        echo "firmware.bin created as:" ${TARGET_FIRMWARE_DIR}/firmware.bin || exit $?
-        dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/flash.bin of=${TARGET_FIRMWARE_DIR}/firmware.bin bs=512 || exit $?
-        dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/uefi.fit of=${TARGET_FIRMWARE_DIR}/firmware.bin bs=1024 seek=$uefi_offset_kb || exit $?
-        
-        if [ $build_sign_images -eq 1 ]; then
-            echo "signed_firmware.bin created as:" ${TARGET_FIRMWARE_DIR}/signed_firmware.bin || exit $?
-            dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_flash.bin of=${TARGET_FIRMWARE_DIR}/signed_firmware.bin bs=512 || exit $?
-            dd if=${TARGET_FIRMWARE_COMPONENTS_DIR}/signed_uefi.fit of=${TARGET_FIRMWARE_DIR}/signed_firmware.bin bs=1024 seek=$uefi_offset_kb || exit $?
-        fi
-        
-        if [ $build_capsule -eq 1 ]; then
-            echo "building capsule from firmware.bin" || exit $?
-            PYTHON_TOOLS=mu_platform_nxp/MU_BASECORE/BaseTools/Source/Python
-            export PYTHONPATH=$PYTHONPATH:$PYTHON_TOOLS
-            capsule_guid='62AF20A3-7016-424A-9BF8-9CCC86584090'
-            fw_ver=$(get_firmware_version FIRMWARE_VER)
-            lsv=$(get_firmware_version FIRMWARE_VER_LOWEST_SUPPORTED)
-            
-            python3 $PYTHON_TOOLS/Capsule/GenerateCapsule.py -v --encode ${TARGET_FIRMWARE_DIR}/firmware.bin --fw-version ${fw_ver} --lsv ${lsv} \
-            --guid $capsule_guid --monotonic-count 2 --signer-private-cert $PYTHON_TOOLS/Pkcs7Sign/TestCert.pem \
-            --other-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestSub.pub.pem --trusted-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestRoot.pub.pem -o ${TARGET_FIRMWARE_DIR}/FirmwareCapsuleIMX.cap || exit $?
-        fi
+
+    if [ $build_capsule -eq 1 ]; then
+        echo "building capsule from ${firmware_out_file_name}.bin" || exit $?
+        PYTHON_TOOLS=mu_platform_nxp/MU_BASECORE/BaseTools/Source/Python
+        export PYTHONPATH=$PYTHONPATH:$PYTHON_TOOLS
+        capsule_guid='62AF20A3-7016-424A-9BF8-9CCC86584090'
+        fw_ver=$(get_firmware_version FIRMWARE_VER)
+        lsv=$(get_firmware_version FIRMWARE_VER_LOWEST_SUPPORTED)
+
+        python3 $PYTHON_TOOLS/Capsule/GenerateCapsule.py -v --encode ${TARGET_FIRMWARE_DIR}/${firmware_out_file_name}.bin --fw-version ${fw_ver} --lsv ${lsv} \
+        --guid $capsule_guid --monotonic-count 2 --signer-private-cert $PYTHON_TOOLS/Pkcs7Sign/TestCert.pem \
+        --other-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestSub.pub.pem --trusted-public-cert $PYTHON_TOOLS/Pkcs7Sign/TestRoot.pub.pem -o ${TARGET_FIRMWARE_DIR}/FirmwareCapsuleIMX.cap || exit $?
     fi
     echo "Done"
 }
@@ -599,8 +682,7 @@ echo "build_tee_apps     $build_tee_apps"
 echo "build_uboot_image  $build_uboot_image"
 echo "build_uefi_tools   $build_uefi_tools"
 echo "build_uefi         $build_uefi"
-echo "build_sign_images  $build_sign_images"
-echo "build_fw_monolith  $build_fw_monolith"
+echo "build_secure       $build_secure"
 echo -----------------
 if [ $build_all_selected -eq 0 ]; then
     echo 
@@ -620,11 +702,12 @@ echo
 #   1) i.MX 8MQ EVK config
 #   2) i.MX 8M Mini EVK config
 #   3) i.MX 8M Nano EVK config
-#   3) i.MX 8M Plus EVK config
+#   4) i.MX 8M Plus EVK config
+#   5) i.MX 8X Plus CPU config
 
 # i.MX 8MQ EVK config
 if [ $build_8m -eq 1 ]; then
-    echo "Board type IMX8M EVK" 
+    echo "Board type IMX8M EVK"
     bsp_folder="MX8M_EVK"
     uefi_folder="MX8M_EVK"
     uboot_defconfig="imx8mq_evk_nt_defconfig"
@@ -638,13 +721,26 @@ if [ $build_8m -eq 1 ]; then
     optee_plat="mx8mqevk"
     uboot_dtb="imx8mq-evk.dtb"
     mkimage_SOC="iMX8M"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
     uefi_offset_kb=1940
-    
-    build_board
-    # check return value
-    if [ $? -gt 0 ]; then
-        exit $?
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_IMX_HAB or CONFIG_FIT_SIGNATURE (if present) or CONFIG_SPL_FIT_SIGNATURE
+        # take result and add CONFIG_IMX_HAB=y and CONFIG_FIT_SIGNATURE=y CONFIG_SPL_FIT_SIGNATURE=y to temporary defconfig file
+        # imx8mp_evk_nt_defconfig -> imx8mp_evk_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_IMX_HAB=)|(^CONFIG_SPL_FIT_SIGNATURE=)/!p' \
+            -e '$aCONFIG_IMX_HAB=y\nCONFIG_SPL_FIT_SIGNATURE=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
     fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
 fi
 
 # i.MX 8M Mini EVK config
@@ -663,18 +759,69 @@ if [ $build_8m_mini -eq 1 ]; then
     optee_plat="mx8mmevk"
     uboot_dtb="imx8mm-evk.dtb"
     mkimage_SOC="iMX8MM"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
     uefi_offset_kb=1940
-    
-    build_board
-    # check return value
-    if [ $? -gt 0 ]; then
-        exit $?
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_IMX_HAB or CONFIG_FIT_SIGNATURE (if present) or CONFIG_SPL_FIT_SIGNATURE
+        # take result and add CONFIG_IMX_HAB=y and CONFIG_FIT_SIGNATURE=y CONFIG_SPL_FIT_SIGNATURE=y to temporary defconfig file
+        # imx8mp_evk_nt_defconfig -> imx8mp_evk_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_IMX_HAB=)|(^CONFIG_SPL_FIT_SIGNATURE=)/!p' \
+            -e '$aCONFIG_IMX_HAB=y\nCONFIG_SPL_FIT_SIGNATURE=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
     fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
 fi
 
 # i.MX 8M Nano EVK config
 if [ $build_8m_nano -eq 1 ]; then
-echo "Board type IMX8MN EVK"
+    echo "Board type IMX8MN EVK"
+    bsp_folder="MX8M_NANO_EVK"
+    uefi_folder=${bsp_folder}
+    uboot_defconfig="imx8mn_evk_nt_defconfig"
+    if [ $build_uboot_with_uuu_support -eq 1 ]; then
+        uboot_defconfig="imx8mn_evk_nt_uuu_defconfig"
+        if [ $build_uboot -eq 1 ]; then
+            echo -e "$(tput setaf 1) Building uBoot image with uuu support! Defconfig: $uboot_defconfig $(tput sgr 0)"
+        fi
+    fi
+    atf_plat="imx8mn"
+    optee_plat="mx8mnevk"
+    uboot_dtb="imx8mn-evk.dtb"
+    mkimage_SOC="iMX8MN"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
+    uefi_offset_kb=1940
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_IMX_HAB or CONFIG_FIT_SIGNATURE (if present) or CONFIG_SPL_FIT_SIGNATURE
+        # take result and add CONFIG_IMX_HAB=y and CONFIG_FIT_SIGNATURE=y CONFIG_SPL_FIT_SIGNATURE=y to temporary defconfig file
+        # imx8mp_evk_nt_defconfig -> imx8mp_evk_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_IMX_HAB=)|(^CONFIG_SPL_FIT_SIGNATURE=)/!p' \
+            -e '$aCONFIG_IMX_HAB=y\nCONFIG_SPL_FIT_SIGNATURE=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
+    fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
+fi
+
+# i.MX 8M Nano DDR4 EVK config
+if [ $build_8mn_ddr4 -eq 1 ]; then
+    echo "Board type IMX8MN DDR4 EVK"
     bsp_folder="MX8M_NANO_EVK"
     uefi_folder=${bsp_folder}
     uboot_defconfig="imx8mn_ddr4_evk_nt_defconfig"
@@ -688,19 +835,31 @@ echo "Board type IMX8MN EVK"
     optee_plat="mx8mnevk"
     uboot_dtb="imx8mn-ddr4-evk.dtb"
     mkimage_SOC="iMX8MN"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
     uefi_offset_kb=1940
-    
-    build_board
-    # check return value
-    echo Build has returned $? !
-    if [ $? -gt 0 ]; then
-        exit $?
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_IMX_HAB or CONFIG_FIT_SIGNATURE (if present) or CONFIG_SPL_FIT_SIGNATURE
+        # take result and add CONFIG_IMX_HAB=y and CONFIG_FIT_SIGNATURE=y CONFIG_SPL_FIT_SIGNATURE=y to temporary defconfig file
+        # imx8mp_evk_nt_defconfig -> imx8mp_evk_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_IMX_HAB=)|(^CONFIG_SPL_FIT_SIGNATURE=)/!p' \
+            -e '$aCONFIG_IMX_HAB=y\nCONFIG_SPL_FIT_SIGNATURE=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
     fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
 fi
 
 # i.MX 8M Plus EVK config
 if [ $build_8m_plus -eq 1 ]; then
-echo "Board type IMX8MP EVK"
+    echo "Board type IMX8MP EVK"
     bsp_folder="MX8M_PLUS_EVK"
     uefi_folder=${bsp_folder}
     uboot_defconfig="imx8mp_evk_nt_defconfig"
@@ -714,12 +873,65 @@ echo "Board type IMX8MP EVK"
     optee_plat="mx8mpevk"
     uboot_dtb="imx8mp-evk.dtb"
     mkimage_SOC="iMX8MP"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/iMX8M
     uefi_offset_kb=1940
-    
-    build_board
-    # check return value
-    echo Build has returned $? !
-    if [ $? -gt 0 ]; then
-        exit $?
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_IMX_HAB or CONFIG_FIT_SIGNATURE (if present) or CONFIG_SPL_FIT_SIGNATURE
+        # take result and add CONFIG_IMX_HAB=y and CONFIG_FIT_SIGNATURE=y CONFIG_SPL_FIT_SIGNATURE=y to temporary defconfig file
+        # imx8mp_evk_nt_defconfig -> imx8mp_evk_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_IMX_HAB=)|(^CONFIG_SPL_FIT_SIGNATURE=)/!p' \
+            -e '$aCONFIG_IMX_HAB=y\nCONFIG_SPL_FIT_SIGNATURE=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
     fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
 fi
+
+# i.MX8X Plus CPU config
+if [ $build_8qxp -eq 1 ]; then
+echo "Board type IMX8QXP MEK"
+    bsp_folder="MX8QXP_MEK"
+    uefi_folder=${bsp_folder}
+    uboot_defconfig="imx8qxp_mek_nt_defconfig"
+    if [ $build_uboot_with_uuu_support -eq 1 ]; then
+        uboot_defconfig="imx8qxp_mek_nt_uuu_defconfig"
+        if [ $build_uboot -eq 1 ]; then
+            echo -e "$(tput setaf 1) Building uBoot image with uuu support! Defconfig: $uboot_defconfig $(tput sgr 0)"
+        fi
+    fi
+    atf_plat="imx8qx"
+    optee_plat="mx8qxpmek"
+    uboot_dtb="fsl-imx8qxp-mek.dtb"
+    mkimage_SOC="iMX8QX"
+    export MKIMAGE_WORK_DIR=$IMX8_REPO_ROOT/imx-mkimage/${mkimage_SOC}
+    uefi_offset_kb=1940
+    # Create temporary u-boot config which enables HAB checks
+    if [ "$build_secure" == "1" ]; then
+        # Remove lines starting with CONFIG_AHAB_BOOT (if present)
+        # take result and add CONFIG_AHAB_BOOT=y to temporary defconfig file
+        # imx8qxp_mek_nt_defconfig -> imx8qxp_mek_nt_signed_TEMP_defconfig
+        uboot_defconfig_temp="${uboot_defconfig/_defconfig/_signed_TEMP_defconfig}"
+        sed -n -E \
+            -e '/(^CONFIG_AHAB_BOOT=)/!p' \
+            -e '$aCONFIG_AHAB_BOOT=y' \
+            "uboot-imx/configs/$uboot_defconfig" > "uboot-imx/configs/${uboot_defconfig_temp}"
+        uboot_defconfig="$uboot_defconfig_temp"
+    echo "Created temporary uboot defconfig file ${uboot_defconfig}"
+    fi
+
+    build_board
+    CMD_RET=$?
+    echo "$mkimage_SOC Build has returned $CMD_RET !"
+    BUILD_RV=$((BUILD_RV + CMD_RET))
+fi
+
+echo "Total failures: $BUILD_RV"
+exit $BUILD_RV

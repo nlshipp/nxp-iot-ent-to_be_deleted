@@ -85,6 +85,7 @@
   <ItemGroup>
     <ClInclude Include="imxpwm.hpp" />
     <ClInclude Include="imxpwmhw.hpp" />
+    <ClInclude Include="imxpwm_pofx.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="pwm.h" />
     <ClInclude Include="pwmutil.h" />
@@ -99,6 +100,7 @@
     <ClCompile Include="file.cpp" />
     <ClCompile Include="ioctl.cpp" />
     <ClCompile Include="isr.cpp" />
+    <ClCompile Include="imxpwm_pofx.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource.rc" />

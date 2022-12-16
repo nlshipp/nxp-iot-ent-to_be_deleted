@@ -121,9 +121,6 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Resource.rc" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="mp_enet_phy.c" />
     <ClCompile Include="mp_mdio.c" />
     <ClCompile Include="mp_acpi.c" />
@@ -146,7 +143,11 @@
     <ClInclude Include="mp_data_path.h" />
     <ClInclude Include="mp_dbg.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="trace.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

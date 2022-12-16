@@ -90,6 +90,10 @@ public:
         GcKmContext            *pContext,
         ULONGLONG               RootPhysicalAddress,
         BOOLEAN                 bForceContextSwitch) = NULL;
+
+    virtual NTSTATUS CpuTransfer(
+        ULONGLONG               RootPhysicalAddress,
+        DXGK_BUILDPAGINGBUFFER_TRANSFERVIRTUAL* pTransferVirtual) = NULL;
 };
 
 class GcKmNode

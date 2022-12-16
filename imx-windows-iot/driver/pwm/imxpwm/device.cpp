@@ -23,6 +23,7 @@
 #include "ImxCpuRev.h"
 #include "trace.h"
 #include "device.tmh"
+#include "imxpwm_pofx.h"
 
 IMXPWM_PAGED_SEGMENT_BEGIN; //==================================================
 
@@ -315,6 +316,32 @@ ImxPwmEvtDeviceD0Entry (
 
 _Use_decl_annotations_
 NTSTATUS
+ImxPwmEvtDeviceD0Exit(
+    WDFDEVICE WdfDevice,
+    WDF_POWER_DEVICE_STATE /*TargetState*/
+)
+{
+    PAGED_CODE();
+    IMXPWM_ASSERT_MAX_IRQL(PASSIVE_LEVEL);
+    NTSTATUS status = STATUS_SUCCESS;
+
+    IMXPWM_DEVICE_CONTEXT* deviceContextPtr = ImxPwmGetDeviceContext(WdfDevice);
+    IMXPWM_PIN_STATE* pinPtr = &deviceContextPtr->Pin;
+
+    if (pinPtr->IsStarted) {
+        status = ImxPwmStop(deviceContextPtr);
+        if (!NT_SUCCESS(status)) {
+            IMXPWM_LOG_ERROR(
+                "ImxPwmEvtDeviceD0Exit ImxPwmStop(...) failed. (status = %!STATUS!)",
+                status);
+        }
+    }
+
+    return status;
+}
+
+_Use_decl_annotations_
+NTSTATUS
 ImxPwmCreateDeviceInterface (
     IMXPWM_DEVICE_CONTEXT* DeviceContextPtr
     )
@@ -402,7 +429,10 @@ ImxPwmEvtDeviceAdd (
             ImxPwmEvtDeviceReleaseHardware;
         wdfPnpPowerEventCallbacks.EvtDeviceD0Entry =
             ImxPwmEvtDeviceD0Entry;
-
+#ifdef PWM_POWER_MANAGEMENT
+        wdfPnpPowerEventCallbacks.EvtDeviceD0Exit =
+            ImxPwmEvtDeviceD0Exit;
+#endif
         WdfDeviceInitSetPnpPowerEventCallbacks(
             DeviceInitPtr,
             &wdfPnpPowerEventCallbacks);
@@ -669,6 +699,14 @@ ImxPwmEvtDeviceAdd (
     IMXPWM_LOG_INFORMATION(
         "Published device interface %wZ",
         &deviceContextPtr->DeviceInterfaceSymlinkNameWsz);
+
+#ifdef PWM_POWER_MANAGEMENT
+    status = PowerManagementSetup(wdfDevice);
+    if (!NT_SUCCESS(status)) {
+        IMXPWM_LOG_ERROR("SingleCompEvtDeviceAdd(..) failed. (status=%!STATUS!)", status);
+        return status;
+    }
+#endif
 
     return STATUS_SUCCESS;
 }

@@ -32,6 +32,7 @@ extern "C" {
 #include <wdf.h>
 #include <initguid.h>
 }
+#include "dsdtutil.hpp"
 #include "trace.h"
 #include "public.h"
 #include "ImxCpuRev.h"
@@ -58,7 +59,7 @@ typedef WdfMipiRequest_ctx  REQUEST_CONTEXT, *PREQUEST_CONTEXT;
 struct WdfMipiFile_ctx;
 typedef WdfMipiFile_ctx DEVICE_FILE_CONTEXT, *PDEVICE_FILE_CONTEXT;
 
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 #include "mipi_csi2csis_iomap.h"
 
 struct WdfMipi_ctx: io::ctx_acpi_csr_stub

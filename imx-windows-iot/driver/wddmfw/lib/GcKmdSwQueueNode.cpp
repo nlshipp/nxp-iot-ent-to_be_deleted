@@ -323,6 +323,15 @@ GcKmSwQueueNode::DoWork(void)
                 Status = m_pMmu->SwitchGpuVaSpace(&RootPageTable);
                 if (!NT_SUCCESS(Status))
                 {
+
+                    break;
+                }
+
+                if (pDmaBufInfo->m_DmaBufState.m_bPaging && pDmaBufInfo->m_DmaBufState.m_bCpuTransfer)
+                {
+                    // Need to handle paging using CPU
+                    Status = m_pHwEngine->CpuTransfer(m_pMmu->GetPhysicalAddress(&RootPageTable), 
+                                                      &pDmaBufInfo->m_TransferVirtual);
                     break;
                 }
 
@@ -368,7 +377,11 @@ GcKmSwQueueNode::DoWork(void)
                 NotifyDmaBufCompletion(pDmaBufSubmission);
             }
 
-            ExInterlockedInsertTailList(&m_DmaBufSubmissionFree, &pDmaBufSubmission->m_QueueEntry, &m_DmaBufQueueLock);
+            KIRQL OldIrql;
+
+            KeAcquireSpinLock(&m_DmaBufQueueLock, &OldIrql);
+            InsertTailList(&m_DmaBufSubmissionFree, &pDmaBufSubmission->m_QueueEntry);
+            KeReleaseSpinLock(&m_DmaBufQueueLock, OldIrql);
 
             if (!((STATUS_SUCCESS == Status) || (STATUS_TIMEOUT == Status)))
             {
@@ -385,24 +398,21 @@ GcKmSwQueueNode::DequeueDmaBuffer(
     KSPIN_LOCK *pDmaBufQueueLock)
 {
     LIST_ENTRY *pQueueEntry;
+    KIRQL OldIrql = {};
 
     if (pDmaBufQueueLock)
     {
-        pQueueEntry = ExInterlockedRemoveHeadList(&m_DmaBufQueue, pDmaBufQueueLock);
-    }
-    else
-    {
-        if (!IsListEmpty(&m_DmaBufQueue))
-        {
-            pQueueEntry = RemoveHeadList(&m_DmaBufQueue);
-        }
-        else
-        {
-            pQueueEntry = NULL;
-        }
+        KeAcquireSpinLock(pDmaBufQueueLock, &OldIrql);
     }
 
-    return CONTAINING_RECORD(pQueueEntry, GcDmaBufSubmission, m_QueueEntry);
+    pQueueEntry = IsListEmpty(&m_DmaBufQueue) ? NULL : RemoveHeadList(&m_DmaBufQueue);
+
+    if (pDmaBufQueueLock)
+    {
+        KeReleaseSpinLock(pDmaBufQueueLock, OldIrql);
+    }
+
+    return pQueueEntry ? CONTAINING_RECORD(pQueueEntry, GcDmaBufSubmission, m_QueueEntry) : NULL;
 }
 
 void
@@ -570,7 +580,8 @@ GcKmSwQueueNode::QueueDmaBuffer(
             pDmaBufInfo->m_DmaBufferSize = pSubmitCommandVirtual->DmaBufferSize;
         }
 
-        if (pSubmitCommandVirtual->DmaBufferUmdPrivateDataSize || pSubmitCommandVirtual->Flags.Paging)
+        if (pSubmitCommandVirtual->DmaBufferUmdPrivateDataSize || 
+           (pSubmitCommandVirtual->Flags.Paging && !pDmaBufInfo->m_DmaBufState.m_bCpuTransfer))
         {
             pDmaBufInfo->m_DmaBufState.m_Value = 0;
         }

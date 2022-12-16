@@ -119,6 +119,7 @@ typedef struct {
 #define _IMX_SEL_INP_VALUE(InpSel) \
           (((InpSel) >> 8) & 0x07)
 
+#if defined(IOMUXC_BASE_PTR)
 #define _IMX_SEL_INP_REGISTER(InpSel) \
           ((((InpSel) & 0xFF) * 4) + IOMUXC_SELECT_INPUT_BASE_ADDRESS)
 
@@ -126,6 +127,7 @@ typedef struct {
 #define _IMX_MAKE_INP_SEL(InpSelReg, InpSelVal) \
           (((((InpSelReg) - IOMUXC_SELECT_INPUT_BASE_ADDRESS) / 4) & 0xFF) | \
           (((InpSelVal) & 0x7) << 8))
+#endif
 
 // 5 bits
 #define _IMX_MAKE_MUX_CTL(Sion, MuxAlt) \
@@ -167,10 +169,12 @@ typedef struct {
 #define IMX_MUX_CTL_PACK_OFFSET         9
 #define IMX_SELECT_INPUT_PACK_OFFSET    14
 
+#if defined(IOMUXC_BASE_PTR)
 #define _IMX_MAKE_PADCFG_INPSEL(Dse, Sre, Ode, Pue, Hys, Lvttl, Sion, MuxAlt, SelInpReg, SelInpValue) \
           (_IMX_MAKE_PAD_CTL(Dse, Sre, Ode, Pue, Hys, Lvttl) | \
           (_IMX_MAKE_MUX_CTL(Sion, MuxAlt) << IMX_MUX_CTL_PACK_OFFSET) | \
           (_IMX_MAKE_INP_SEL(SelInpReg, SelInpValue) << IMX_SELECT_INPUT_PACK_OFFSET))
+#endif
 
 #define _IMX_MAKE_PADCFG(Dse, Sre, Ode, Pue, Hys, Lvttl, Sion, MuxAlt) \
           (_IMX_MAKE_PAD_CTL(Dse, Sre, Ode, Pue, Hys, Lvttl) | \

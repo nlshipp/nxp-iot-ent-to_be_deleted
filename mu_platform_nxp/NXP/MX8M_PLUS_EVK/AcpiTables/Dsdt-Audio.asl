@@ -1,5 +1,5 @@
 /*
-* Description: iMX8M Synchronous Audio Interface (SAI)
+* Description: iMX8M Plus Synchronous Audio Interface (SAI)
 *
 *  Copyright (c) 2018, Microsoft Corporation. All rights reserved.
 *  Copyright 2022 NXP

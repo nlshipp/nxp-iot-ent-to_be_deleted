@@ -57,6 +57,13 @@
 ################################################################################
 [LibraryClasses.common]
   ArmPlatformLib|$(BOARD_DIR)/Library/iMX8BoardLib/iMX8BoardLib.inf
+  iMX8ClkPwrLib|iMX8Pkg/Library/iMX8ClkPwrLib/iMX8ClkPwrLib.inf
+  SerialPortLib|iMXPlatformPkg/Library/UartSerialPortLib/UartSerialPortLib.inf
+  iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
+
+!if $(CONFIG_HEADLESS) != TRUE
+  LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8LcdHwLib.inf
+!endif
 
 [Components.common]
   #
@@ -65,6 +72,13 @@
   MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
   $(BOARD_DIR)/AcpiTables/AcpiTables.inf
+  
+  #
+  # Usb Support
+  #
+!if $(CONFIG_USB) == TRUE
+  MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
+!endif
 
   #
   # SMBIOS/DMI
@@ -96,6 +110,48 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdConOutGopSupport|TRUE
 
 [PcdsFixedAtBuild.common]
+  #                                        PcdSystemMemoryBase
+  # +-------------------+===> (0x40000000) PcdArmLcdDdrFrameBufferBase (Frame buffer)
+  # | HDMI framebuffer  |  ^
+  # |                   |  |  (0x007E9000) PcdArmLcdDdrFrameBufferSize ~8MB
+  # |                   |  v
+  # +-------------------+===> (0x407E9000) PcdGlobalDataBaseAddress
+  # | Global Data       |  ^
+  # |                   |  |  (0x00001000) PcdGlobalDataSize 4KB
+  # |                   |  v
+  # +-------------------+===> (0x407EA000) 
+  # | Operating System  |  ^
+  # | Memory            |  |
+  # |                   |  |
+  # |                   |  v
+  # +-------------------+===> (0xBE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
+  # | TZ Private Memory |  ^
+  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
+  # |                   |  v
+  # +-------------------+===> (0xBFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
+  # | TZ Shared Memory  |  ^
+  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
+  # |                   |  v
+  # +-------------------|===>
+!if $(CONFIG_OPTEE) == TRUE
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xBE000000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
+
+  #
+  # TrustZone shared memory (4Mb)
+  # This memory is managed by the normal world but shared with the OpTEE OS.
+  # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
+  #    CFG_SHMEM_START & CFG_SHMEM_SIZE
+  # NOTE: The first page of the SHMEM is owned by OPTEE for mobj bookkeeping
+  # and we should not touch it. We will skip the first 4K of SHMEM and take that
+  # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
+  #
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xBFC00000
+  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
+!endif
+  # System Memory base
+  gArmTokenSpaceGuid.PcdSystemMemoryBase|0x40000000
+  
   # System memory size (2GB)
 !if $(CONFIG_OPTEE) == TRUE
   # OpTEE is loaded at top of memory by Arm-TF. Reduce memory size to avoid collision.
@@ -107,6 +163,28 @@
 # there is 0Gb in the 1Gb bank of memory after top of 32 bit address space
   giMX8TokenSpaceGuid.PcdBank1MemoryBase|0x0000000100000000
   giMX8TokenSpaceGuid.PcdBank1MemorySize|0x0000000000000000
+
+  # GOP driver memory
+!if $(CONFIG_HEADLESS) == TRUE
+  # Global data area
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x40000000
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
+
+  # Reserved for TPM2 ACPI
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x40001000
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
+!else
+  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferBase|0x40000000
+  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferSize|0x007E9000	# ~8 MB (4 * 1920 * 1080)
+
+  # Global data area
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x407E9000
+  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
+
+  # Reserved for TPM2 ACPI
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x407EA000
+  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
+!endif
 
   #
   # NV Storage PCDs. Use base of 0x30370000 for SNVS?
@@ -156,6 +234,11 @@
   # uSDHC3 | eMMC
   # uSDHC4 | N/A
   #
+  giMXPlatformTokenSpaceGuid.PcdSdhc1Base|0x30B40000
+  giMXPlatformTokenSpaceGuid.PcdSdhc2Base|0x30B50000
+  giMXPlatformTokenSpaceGuid.PcdSdhc3Base|0x30B60000
+  giMXPlatformTokenSpaceGuid.PcdSdhc4Base|0x00000000
+
   giMXPlatformTokenSpaceGuid.PcdSdhc1Enable|FALSE
   giMXPlatformTokenSpaceGuid.PcdSdhc2Enable|TRUE
   giMXPlatformTokenSpaceGuid.PcdSdhc3Enable|TRUE

@@ -36,6 +36,7 @@ Imx8mDod.Display = 12 ; drivers
 %imx8mdod.DeviceDesc%=imx8mdod_Device, ACPI\VERI7000
 %imx8mdod.DeviceDesc%=imx8mdod_Device, ACPI\VERI7001
 %imx8mdod.DeviceDesc%=imx8mdod_Device, ACPI\VERI7003
+%imx8mdod.DeviceDesc%=imx8mdod_Device, ACPI\VERI7004
 
 [imx8mdod_Device.NT]
 CopyFiles=Imx8mDod.Miniport, Imx8mDod.Display

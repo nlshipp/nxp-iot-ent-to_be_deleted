@@ -88,6 +88,9 @@ typedef struct _PNP_I2C_SERIAL_BUS_DESCRIPTOR {
 #define IDLE_TIMEOUT_MONITOR_ON 2000
 #define IDLE_TIMEOUT_MONITOR_OFF 50
 
+// define I2C_POWER_MANAGEMENT macro to include the driver in Power Management
+//#define I2C_POWER_MANAGEMENT 1
+
 // Target settings.
 
 typedef enum ADDRESS_MODE {
@@ -275,6 +278,12 @@ typedef struct _DEVICE_CONTEXT_ {
 
     ULONG ModuleClock_kHz;
     ULONG PeripheralAccessClock_kHz;
+
+    // POWER MANAGEMENT RELATED DATA
+    // Handle of registration with Power Framework
+    POHANDLE PoHandle;
+    // Tracks the active/idle state of the component
+    BOOLEAN IsActive;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 

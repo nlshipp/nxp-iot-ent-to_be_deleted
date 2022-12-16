@@ -85,7 +85,7 @@ namespace ISI_REG_BITFIELDS
 {
     /*! @name CTRL - Channel Control Register */
     /*! @{ */
-    const static UINT32 CTRL_SRC_MASK = 0x1;
+    const static UINT32 CTRL_SRC_MASK = 0x3; // Three bits on QXP, Single bit 8MP
     const static UINT32 CTRL_SRC_SHIFT = 0U;
     const static UINT32 CTRL_SRC(UINT32 SRC_ID)
     {

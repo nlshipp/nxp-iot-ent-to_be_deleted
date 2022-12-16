@@ -4,7 +4,7 @@
 * Copyright (c) 2015 Microsoft
 * SPDX-License-Identifier: MS-PL
 * NXP modifications are licensed under the same license
-* Copyright 2020 NXP
+* Copyright 2020, 2022 NXP
 *
 */
 
@@ -56,7 +56,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  pDriverObject, _In_ PUNICODE_STRING pR
     Attributes.EvtCleanupCallback = EvtDriverContextCleanup;
     WDF_DRIVER_CONFIG_INIT(&Config, EvtDeviceAdd);
     if (!NT_SUCCESS(ntStatus = WdfDriverCreate(pDriverObject, pRegistryPath, &Attributes, &Config, WDF_NO_HANDLE))) {
-        DBG_PRINT_ERROR_WITH_STATUS(ntStatus,"WdfDriverCreate() failed.");
+        DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfDriverCreate() failed.");
         WPP_CLEANUP(pDriverObject);
     }
     DBG_DRV_METHOD_END_WITH_STATUS(ntStatus);
@@ -95,7 +95,7 @@ NTSTATUS EvtDeviceAdd(_In_ WDFDRIVER hDriver, _Inout_ PWDFDEVICE_INIT pDeviceIni
     UCMTCPCI_DEVICE_CONFIG       Config;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
     WDF_OBJECT_ATTRIBUTES        Attributes;
-    
+
     DBG_DEV_METHOD_BEG();
     UNREFERENCED_PARAMETER(hDriver);
     PAGED_CODE();
@@ -115,7 +115,7 @@ NTSTATUS EvtDeviceAdd(_In_ WDFDRIVER hDriver, _Inout_ PWDFDEVICE_INIT pDeviceIni
             break;
         }
         pDevContext = DeviceGetContext(hDevice);
-        pDevContext->Device  = hDevice;                                                /* Save the device handle in the context. */        
+        pDevContext->Device = hDevice;                                                 /* Save the device handle in the context. */
         UCMTCPCI_DEVICE_CONFIG_INIT(&Config);
         if (!NT_SUCCESS(ntStatus = UcmTcpciDeviceInitialize(hDevice, &Config))) {      /* Register this device with UcmTcpciCx. */
             DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "[WDFDEVICE: 0x%p] UcmTcpciDeviceInitialize failed", hDevice);
@@ -145,6 +145,11 @@ NTSTATUS EvtPrepareHardware(_In_ WDFDEVICE hDevice, _In_ WDFCMRESLIST hResources
     pDevContext = DeviceGetContext(hDevice);
     KeInitializeEvent(&pDevContext->IoctlAndIsrSyncEvent, NotificationEvent, FALSE);
     do {
+        pDevContext->AcpiContext.Pdo        = WdfDeviceWdmGetPhysicalDevice(hDevice);
+        pDevContext->AcpiContext.MemPoolTag = USBC_TAG_ACPI;
+        if (!NT_SUCCESS(ntStatus = Acpi_Init(&pDevContext->AcpiContext))) {
+            DBG_DEV_PRINT_INFO("Acpi_Init() failed");
+        }
         if (!NT_SUCCESS(ntStatus = IO_Initialize(pDevContext, hResourcesRaw, hResourcesTranslated))) {  /* Initialize the I2C communication channel to read from/write to the hardware. */
             break;
         }
@@ -212,13 +217,13 @@ NTSTATUS EvtDeviceD0Entry(_In_ WDFDEVICE hDevice, _In_ WDF_POWER_DEVICE_STATE Pr
         }
         TCPC_PHY_ReadAllRegs(pDevContext,__FUNCTION__);
         if (!NT_SUCCESS(ntStatus = I2C_RegsIo(pDevContext, DevCapabilities_I2C_IO_Cmds))) {
-            DBG_DEV_PRINT_ERROR_WITH_STATUS(ntStatus, "Get TCPC controller DevCapabilities() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "Get TCPC controller DevCapabilities() failed.");
         }
         Capabilities.IsPowerDeliveryCapable = TRUE;
         UCMTCPCI_PORT_CONTROLLER_CONFIG_INIT(&Config, &Ident, &Capabilities);
         /* Create a UCMTCPCIPORTCONTROLLER framework object. */
         if (!NT_SUCCESS(ntStatus = UcmTcpciPortControllerCreate(hDevice, &Config, WDF_NO_OBJECT_ATTRIBUTES, &hPortController))) {
-            DBG_DEV_PRINT_ERROR_WITH_STATUS(ntStatus, "[WDFDEVICE: 0x%p] UcmTcpciPortControllerCreate failed.", hDevice);
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "[WDFDEVICE: 0x%p] UcmTcpciPortControllerCreate failed.", hDevice);
             break;
         }
         pDevContext = DeviceGetContext(hDevice);                            /* Save the UCMTCPCIPORTCONTROLLER in our device context. */
@@ -228,14 +233,14 @@ NTSTATUS EvtDeviceD0Entry(_In_ WDFDEVICE hDevice, _In_ WDF_POWER_DEVICE_STATE Pr
         QueueConfig.EvtIoDeviceControl = EvtIoDeviceControl;
         QueueConfig.EvtIoStop          = EvtIoStop;
         if (!NT_SUCCESS(ntStatus = WdfIoQueueCreate(hDevice, &QueueConfig, WDF_NO_OBJECT_ATTRIBUTES, &hQueue))) {  /* Create the hardware request queue. */
-            DBG_DEV_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfIoQueueCreate failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfIoQueueCreate failed.");
             break;
         }
         UcmTcpciPortControllerSetHardwareRequestQueue(pDevContext->PortController, hQueue);                        /* Set this queue as the one to which UcmTcpciCx will forward its hardware requests. */
         /* Direct UcmTcpciCx to start the port controller. At this point, UcmTcpciCx will assume control of USB Type-C and Power Delivery. */
         /* After the port controller is started, UcmTcpciCx may start putting requests into the hardware request queue. */
         if (!NT_SUCCESS(ntStatus = UcmTcpciPortControllerStart(hPortController))) {
-            DBG_DEV_PRINT_ERROR_WITH_STATUS(ntStatus, "[UCMTCPCIPORTCONTROLLER: 0x%p] UcmTcpciPortControllerStart failed.", hPortController);
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "[UCMTCPCIPORTCONTROLLER: 0x%p] UcmTcpciPortControllerStart failed.", hPortController);
             break;
         }
     } while (0);
@@ -288,6 +293,7 @@ NTSTATUS EvtReleaseHardware(_In_ WDFDEVICE hDevice, _In_ WDFCMRESLIST hResources
     UNREFERENCED_PARAMETER(hResourcesTranslated);
     PAGED_CODE();
     pDevContext = DeviceGetContext(hDevice);
+    Acpi_Deinit(&pDevContext->AcpiContext);
     if (pDevContext->PortController != WDF_NO_HANDLE)  {        
         UcmTcpciPortControllerStop(pDevContext->PortController);   /* Direct UcmTcpciCx to stop the port controller and then delete the backing object. */
         WdfObjectDelete(pDevContext->PortController);
@@ -346,21 +352,21 @@ BOOLEAN OnInterruptPassiveIsr(_In_ WDFINTERRUPT hPortControllerInterrupt, _In_ U
         interruptRecognized = TRUE;         /* Since there are bits set in the alert register, we can safely assume that the interrupt is ours to process. */
         NumAlertsInReport = 0;
         do {
-            if (AlertRegister.B.CC_STATUS == 1) {
-                DBG_IOCTL_PRINT_INFO("CCStatus == 1");
-                UCMTCPCI_PORT_CONTROLLER_ALERT_DATA_INIT(&alertData);
-                alertData.AlertType = UcmTcpciPortControllerAlertCCStatus;
-                /* We must read the CC status register and send the contents to UcmTcpciCx along with the CC status alert. */
-                if (!NT_SUCCESS(ntStatus = RdRegSync(TCPC_PHY_CC_STATUS, &alertData.CCStatus, IMX_ISR))) break;
-                hardwareAlerts[NumAlertsInReport] = alertData;
-                ++NumAlertsInReport;
-            }
             if (AlertRegister.B.POWER_STATUS == 1) {
                 DBG_IOCTL_PRINT_INFO("PowerStatus == 1");
                 UCMTCPCI_PORT_CONTROLLER_ALERT_DATA_INIT(&alertData);
                 alertData.AlertType = UcmTcpciPortControllerAlertPowerStatus;
                 /* We must read the power status register and send the contents to UcmTcpciCx along with the power status alert. */
                 if (!NT_SUCCESS(ntStatus = RdRegSync(TCPC_PHY_POWER_STATUS, &alertData.PowerStatus, IMX_ISR))) break;
+                hardwareAlerts[NumAlertsInReport] = alertData;
+                ++NumAlertsInReport;
+            }
+            if (AlertRegister.B.CC_STATUS == 1) {
+                DBG_IOCTL_PRINT_INFO("CCStatus == 1");
+                UCMTCPCI_PORT_CONTROLLER_ALERT_DATA_INIT(&alertData);
+                alertData.AlertType = UcmTcpciPortControllerAlertCCStatus;
+                /* We must read the CC status register and send the contents to UcmTcpciCx along with the CC status alert. */
+                if (!NT_SUCCESS(ntStatus = RdRegSync(TCPC_PHY_CC_STATUS, &alertData.CCStatus, IMX_ISR))) break;
                 hardwareAlerts[NumAlertsInReport] = alertData;
                 ++NumAlertsInReport;
             }
@@ -457,9 +463,9 @@ BOOLEAN OnInterruptPassiveIsr(_In_ WDFINTERRUPT hPortControllerInterrupt, _In_ U
                 DBG_IOCTL_PRINT_INFO("!!!!!!!!! <<- UcmTcpciPortControllerAlert --- !!!!!!!!! ");
             }
         } else {
+            DBG_PRINT_ERROR("Some RegIo() failed, ntStatus: 0x%08X", ntStatus);
             break;
         }
-        ++NumAlertReports;
     }
     if ((IoctlAndIsrSyncCounter=InterlockedDecrement(&pDevContext->IoctlAndIsrSyncCounter)) != 0) {
         DBG_IOCTL_CMD_DUMP("ISR: InterlockedDecrement(&InterlockedDecrement->I2C_Lock) = %d", IoctlAndIsrSyncCounter);
@@ -498,8 +504,8 @@ VOID EvtIoDeviceControl(_In_ WDFQUEUE hQueue, _In_ WDFREQUEST hRequest, _In_ siz
     switch (IoControlCode) {
         case IOCTL_UCMTCPCI_PORT_CONTROLLER_GET_STATUS:
             if (NT_SUCCESS(ntStatus = WdfRequestRetrieveOutputBuffer(hRequest, sizeof(UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS), &pBuffer, NULL))) {
-                pI2CIOCmd[0] = {&((UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS *)pBuffer)->CCStatus,    IMX_IOCTL_GET_STATUS, I2C_IO_CMD_RD_REG_IOCTL(TCPC_PHY_CC_STATUS)};
-                pI2CIOCmd[1] = {&((UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS *)pBuffer)->PowerStatus, IMX_IOCTL_GET_STATUS, I2C_IO_CMD_RD_REG_IOCTL(TCPC_PHY_POWER_STATUS)};
+                pI2CIOCmd[0] = {&((UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS *)pBuffer)->PowerStatus, IMX_IOCTL_GET_STATUS, I2C_IO_CMD_RD_REG_IOCTL(TCPC_PHY_POWER_STATUS)};
+                pI2CIOCmd[1] = {&((UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS *)pBuffer)->CCStatus,    IMX_IOCTL_GET_STATUS, I2C_IO_CMD_RD_REG_IOCTL(TCPC_PHY_CC_STATUS)};
                 pI2CIOCmd[2] = {&((UCMTCPCI_PORT_CONTROLLER_GET_STATUS_OUT_PARAMS *)pBuffer)->FaultStatus, IMX_IOCTL_GET_STATUS, I2C_IO_CMD_RD_REG_IOCTL(TCPC_PHY_FAULT_STATUS) | I2C_IO_CMD_LAST_CMD};
             }
             break;
@@ -574,7 +580,7 @@ VOID EvtIoDeviceControl(_In_ WDFQUEUE hQueue, _In_ WDFREQUEST hRequest, _In_ siz
                         pI2CIOCmd[0] = {NULL, IMX_IOCTL_SET_CONTROL, I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_FAULT_CONTROL, ((UCMTCPCI_PORT_CONTROLLER_SET_CONTROL_IN_PARAMS *)pBuffer)->FaultControl.AsUInt8) | I2C_IO_CMD_LAST_CMD};
                         break;
                     default:
-                        DBG_IOCTL_PRINT_ERROR("Invalid control register type.");
+                        DBG_PRINT_ERROR("Invalid control register type.");
                         ntStatus = STATUS_INVALID_DEVICE_REQUEST;
                 }
             }
@@ -600,15 +606,28 @@ VOID EvtIoDeviceControl(_In_ WDFQUEUE hQueue, _In_ WDFREQUEST hRequest, _In_ siz
                 pI2CIOCmd[0] = {NULL, IMX_IOCTL_SET_CONFIG_STANDARD_OUTPUT, I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_CONFIG_STANDARD_OUTPUT, ((UCMTCPCI_PORT_CONTROLLER_SET_CONFIG_STANDARD_OUTPUT_IN_PARAMS *)pBuffer)->ConfigStandardOutput.AsUInt8) | I2C_IO_CMD_LAST_CMD};
             break;
         case IOCTL_UCMTCPCI_PORT_CONTROLLER_SET_COMMAND:
-            if (NT_SUCCESS(ntStatus = WdfRequestRetrieveInputBuffer(hRequest, sizeof(UCMTCPCI_PORT_CONTROLLER_SET_COMMAND_IN_PARAMS), &pBuffer, NULL)))
-                pI2CIOCmd[0] = {NULL, IMX_IOCTL_SET_COMMAND, I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_COMMAND, ((UCMTCPCI_PORT_CONTROLLER_SET_COMMAND_IN_PARAMS *)pBuffer)->Command) | I2C_IO_CMD_LAST_CMD};
+            if (NT_SUCCESS(ntStatus = WdfRequestRetrieveInputBuffer(hRequest, sizeof(UCMTCPCI_PORT_CONTROLLER_SET_COMMAND_IN_PARAMS), &pBuffer, NULL))) {
+                int i = 0;
+#ifdef BUG_FIX_PC_AUTO_DISCHARGE_DISCONNECT
+                if (((UCMTCPCI_PORT_CONTROLLER_SET_COMMAND_IN_PARAMS*)pBuffer)->Command == UcmTcpciPortControllerCommandLook4Connection) {
+                    TCPC_PHY_t* pPhyRegs = &pDevContext->TCPI_PhyRegs;
+                    if (pPhyRegs->POWER_CONTROL.R & (UINT32)(TCPC_PHY_POWER_CONTROL_AUTO_DISCHARGE_DISCONNECT_MASK | TCPC_PHY_POWER_CONTROL_ENABLE_VCONN_MASK)) {
+                        pPhyRegs->POWER_CONTROL.R &= (UINT32)~(TCPC_PHY_POWER_CONTROL_AUTO_DISCHARGE_DISCONNECT_MASK | TCPC_PHY_POWER_CONTROL_ENABLE_VCONN_MASK | TCPC_PHY_POWER_CONTROL_VCONN_POWER_SUPPORTED_MASK);
+                        DBG_PRINT_ERROR("ERROR BUG FIX!!! PC.AUTO_DISCHARGE_DISCONNECT = 1 | PC.ENABLE_VCONN, This bit must be cleared before LOOK4CONNECTION command is called.");
+                        pI2CIOCmd[0] = { NULL,  IMX_IOCTL_SET_COMMAND, I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_POWER_CONTROL, pPhyRegs->POWER_CONTROL.R) };
+                        i++;
+                    }
+                }
+#endif
+                pI2CIOCmd[i] = { NULL, IMX_IOCTL_SET_COMMAND, I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_COMMAND, ((UCMTCPCI_PORT_CONTROLLER_SET_COMMAND_IN_PARAMS*)pBuffer)->Command) | I2C_IO_CMD_LAST_CMD };
+            }
             break;
         case IOCTL_UCMTCPCI_PORT_CONTROLLER_SET_MESSAGE_HEADER_INFO:
             if (NT_SUCCESS(ntStatus = WdfRequestRetrieveInputBuffer(hRequest, sizeof(UCMTCPCI_PORT_CONTROLLER_SET_MESSAGE_HEADER_INFO_IN_PARAMS), &pBuffer, NULL)))
                 pI2CIOCmd[0] = {NULL, IMX_IOCTL_SET_MESSAGE_HEADER_INFO,  I2C_IO_CMD_WR_REG_IOCTL(TCPC_PHY_MESSAGE_HEADER_INFO, ((UCMTCPCI_PORT_CONTROLLER_SET_MESSAGE_HEADER_INFO_IN_PARAMS *)pBuffer)->MessageHeaderInfo.AsUInt8) | I2C_IO_CMD_LAST_CMD};
             break;
         default:
-            DBG_IOCTL_PRINT_ERROR("Received unexpected IoControlCode 0x%08X, %s", IoControlCode, Dbg_GetIOCTLName(IoControlCode));
+            DBG_PRINT_ERROR("Received unexpected IoControlCode 0x%08X, %s", IoControlCode, Dbg_GetIOCTLName(IoControlCode));
             ntStatus = STATUS_NOT_SUPPORTED;
     }
     if (NT_SUCCESS(ntStatus)) {

@@ -53,6 +53,9 @@ struct mutex {
 */
 #define mutex_init(mutex)
 
+#define DEFINE_MUTEX(mutexname) \
+	struct mutex mutexname = { 0 }
+
 #define mutex_lock(lock)
 #define mutex_unlock(lock)
 

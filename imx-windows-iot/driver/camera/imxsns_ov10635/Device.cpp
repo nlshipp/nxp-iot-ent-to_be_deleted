@@ -254,19 +254,12 @@ NTSTATUS SNS0_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT D
 
 void SNS0_ctx::EvtDeviceObjCtxCleanup(_In_ WDFOBJECT DeviceObject)
 {
+    UNREFERENCED_PARAMETER(DeviceObject);
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "EvtDeviceObjCtxCleanup()");
-    ((SNS0_ctx *)GetDeviceContext(DeviceObject))->SNS0_ctx::~SNS0_ctx();
 }
 
-SNS0_ctx::SNS0_ctx(WDFDEVICE &device) : m_WdfDevice(device), ctx_acpi_csr_stub(), CamWdf_Res(device), m_Camera(*this), m_DsdRes(device) /* CamWdf_Res is parent */ {};
+SNS0_ctx::SNS0_ctx(WDFDEVICE &WdfDevice) : m_WdfDevice(WdfDevice), io::ctx_acpi_csr_stub(), CamWdf_Res(WdfDevice), m_Camera(*this), m_DsdRes(WdfDeviceWdmGetPhysicalDevice(WdfDevice)) /* CamWdf_Res is parent */ {};
 
-SNS0_ctx::~SNS0_ctx()
-/*!
- * SNS0_ctx constructor initializes context to defaults.
- */
-{
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "~SNS0_ctx");
-};
 
 NTSTATUS SNS0_ctx::CreateDeviceInterface()
 /*!

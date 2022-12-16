@@ -69,7 +69,7 @@ set DEBUG_IP=
 set NET_DEBUG=
 set KD_NET=no
 set NO_UNATTEND=
-
+set APPLY=0
 :: Parse options
 :GETOPTS
 if /I "%~1" == "/?" ( goto USAGE
@@ -78,7 +78,8 @@ if /I "%~1" == "/?" ( goto USAGE
 ) else (if /I "%~1" == "/cumulative_update" ( set CUMULATIVE_UPDATE=yes
                                               set CUMULATIVE_UPDATE_PATH=%2& shift 
                                               set SPLIT_WIM=yes
-) else (if /I "%~1" == "/apply" ( set DISK_NUM=%2& shift
+) else (if /I "%~1" == "/apply" ( set APPLY=1
+                                  set DISK_NUM=%2& shift
 ) else (if /I "%~1" == "/device" ( shift
 ) else (if /I "%~1" == "/clean" ( set CLEAN=1
 ) else (if /I "%~1" == "/winpedebug_serial" ( set WINPE_DEBUG_SERIAL=yes
@@ -107,20 +108,39 @@ if not (%1)==() goto GETOPTS
 :: Print newline
 echo:
 
+set WIN_PE_STARTNET_CMD=%WIN_PE_DST_DIR%\startnet.cmd.txt
+set WIN_ENTERPRISE_INSTALL_CMD=%WIN_PE_DST_DIR%\install.cmd.txt
+
+
 if not "%CLEAN%" == "" goto CLEAN
 
 
 set DRIVER_DIR=%SCRIPT_DIR%drivers
 set BINPATCH_DIR="%SCRIPT_DIR%\binpatch\"
-
-if not "%DISK_NUM%" == "" goto APPLY
-
-
-set WIN_PE_STARTNET_CMD=%WIN_PE_DST_DIR%\startnet.cmd.txt
-set WIN_ENTERPRISE_INSTALL_CMD=%WIN_PE_DST_DIR%\install.cmd.txt
-
 set PATCH_SDPORT_DIR=%BINPATCH_DIR%\Sdport
 
+if not "%DISK_NUM%" == "" goto APPLY
+if not "%APPLY%" == "0" (
+    echo Option /apply needs to be used with disk number for applying Windows PE layout.
+    echo Use /? for more help
+    goto :ErrExit
+)
+
+
+
+
+if %CUMULATIVE_UPDATE% == yes (
+    if '%CUMULATIVE_UPDATE_PATH%' == '' (
+        echo Cumulative update path need to be selected with option /cumulative_update
+        goto ErrExit
+    ) else (
+        set CUMULATIVE_UPDATE_PATH=%CUMULATIVE_UPDATE_PATH:"=%
+        if not exist "!CUMULATIVE_UPDATE_PATH!" (
+            echo Cumulative update !CUMULATIVE_UPDATE_PATH! not found.
+            goto ErrExit
+        ) 
+    )
+) 
 
 if "%PATCH_SDPORT%" == "yes" (
     if not "%TEST_SIGNING%" == "yes" (
@@ -132,18 +152,28 @@ if "%PATCH_SDPORT%" == "yes" (
 
 
 if not "%NET_DEBUG%" == "" (
-    if "%CREATE_WIN_PE_LAYOUT%" == "1" (
-        if "%DEBUG_IP%" == "" (
-            echo IP for debugging over net is not specified.
-            echo Use argument /debug_ip to specify.
+    if "%DEBUG_IP%" == "" (
+        echo IP for debugging over net is not specified.
+        echo Use argument /debug_ip to specify.
+        goto ErrExit
+    ) else (
+        echo %DEBUG_IP%| findstr /r /b /e "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*">nul
+        if errorlevel 1 (
+            echo IP for debugging is in incorrect format.
             goto ErrExit
         )
     )
 )
 
+if not exist "%WIN_PE_SRC_DIR_ABS%\Media" (
+    echo You must install the Windows PE Add-on for the ADK
+    echo https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/download-winpe--windows-pe
+    echo:
+    goto err
+)
 
 if "%CREATE_WIN_ENTERPRISE_IMAGE%" == "1" (
-    if "%MSFT_WIN_ENTERPRISE_IMAGE%" == "" (
+    if '%MSFT_WIN_ENTERPRISE_IMAGE%' == '' (
         set WIM_COUNT=0
         for /f "tokens=*" %%i in ('dir /b *.wim') do (
             set /a WIM_COUNT+=1
@@ -185,7 +215,8 @@ if "%CREATE_WIN_ENTERPRISE_IMAGE%" == "1" (
                 set MSFT_WIN_ENTERPRISE_IMAGE=%%i
             )
         )
-        
+    ) else (
+        set MSFT_WIN_ENTERPRISE_IMAGE=%MSFT_WIN_ENTERPRISE_IMAGE:"=%
     )
 
 )
@@ -248,7 +279,6 @@ if not "%NET_DEBUG%" == "" (
 
 
 
-if "%CREATE_WIN_ENTERPRISE_IMAGE%" == "1" (
 
 
 if "%NO_UNATTEND%" == "" (
@@ -270,9 +300,13 @@ echo Unattended install answer file:        !UNATTEND!
 echo Disable updates:                       %DISABLE_UPDATES%
 echo Disable transparency:                  %DISABLE_TRANSPARENCY%
 echo Split wim:                             %SPLIT_WIM%
-echo Cummulative update:                    %CUMULATIVE_UPDATE%, path: %CUMULATIVE_UPDATE_PATH%
+echo Cummulative update:                    %CUMULATIVE_UPDATE%, path: !CUMULATIVE_UPDATE_PATH!
 echo:
 
+
+if not "%CREATE_WIN_ENTERPRISE_IMAGE%" == "1" (
+    goto create_winpe_layout
+)
 
 echo *********************************************************************************************************************************************************
 echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -323,25 +357,18 @@ echo ---------------------------------------------------------------------------
 echo dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Driver /Driver:"%DRIVER_DIR%" /Recurse /ForceUnsigned
 dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Driver /Driver:"%DRIVER_DIR%" /Recurse /ForceUnsigned || goto ErrExit
 
-if not "%CUMULATIVE_UPDATE_PATH%" == "" (
+if not "!CUMULATIVE_UPDATE_PATH!" == "" (
     echo:
     echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
     echo *** Installing cumulative updates from %CUMULATIVE_UPDATE_PATH% into the i.MX Windows IoT Enterprise image
     echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
-	echo dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Package /PackagePath="%CUMULATIVE_UPDATE_PATH%"
-	dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Package /PackagePath="%CUMULATIVE_UPDATE_PATH%" || goto ErrExit
+	echo dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Package /PackagePath="!CUMULATIVE_UPDATE_PATH!"
+	dism /Image:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /Add-Package /PackagePath="!CUMULATIVE_UPDATE_PATH!" || goto ErrExit
 )
 
 echo:
 echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
-echo *** Step 1.4 Adding disptrl.dll into the i.MX Windows IoT Enterprise image
-echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
-echo xcopy /Y /R /F '%DRIVER_DIR%\Galcore_m\dispctrl.dll %IMX_WIN_ENTRPRISE_MOUNT_DIR%\windows\system32\drivers
-xcopy /Y /R /F "%DRIVER_DIR%\Galcore_m\dispctrl.dll" "%IMX_WIN_ENTRPRISE_MOUNT_DIR%\windows\system32\drivers\*.dll" || goto ErrExit
-
-echo:
-echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
-echo *** Step 1.5 Applying SdPort test binary into the i.MX Windows IoT Enterprise image
+echo *** Step 1.4 Applying SdPort test binary into the i.MX Windows IoT Enterprise image
 echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
 if "%PATCH_SDPORT%" == "yes" (
 	takeown /f "%IMX_WIN_ENTRPRISE_MOUNT_DIR%\windows\system32\drivers\sdport.sys" || goto ErrExit
@@ -376,7 +403,7 @@ if "%WIN_DEBUG_NET%" == "yes" (
 
 echo:
 echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
-echo *** Step 1.6 Unmounting i.MX Windows IoT Enterprise image from: %IMX_WIN_ENTRPRISE_MOUNT_DIR%
+echo *** Step 1.5 Unmounting i.MX Windows IoT Enterprise image from: %IMX_WIN_ENTRPRISE_MOUNT_DIR%
 echo ---------------------------------------------------------------------------------------------------------------------------------------------------------
 echo dism /unmount-wim /mountdir:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /commit
 dism /unmount-wim /mountdir:"%IMX_WIN_ENTRPRISE_MOUNT_DIR%" /commit || goto ErrExit
@@ -389,10 +416,12 @@ echo ***************************************************************************
 echo *** Step 1 DONE. i.MX Windows IoT Enterprise image succesfully created at %IMX_WIN_ENTERPRISE_IMAGE%.
 echo *********************************************************************************************************************************************************
 echo:
-) 
 
+:create_winpe_layout
 
-if "%CREATE_WIN_PE_LAYOUT%" == "1" (
+if not "%CREATE_WIN_PE_LAYOUT%" == "1" (
+    exit /b 0
+)
 
 echo *********************************************************************************************************************************************************
 echo *********************************************************************************************************************************************************
@@ -444,7 +473,6 @@ if not exist "%WIN_PE_SRC_DIR_ABS%\Media" (
     echo https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/download-winpe--windows-pe
     goto err
 )
-echo:
 if not exist "%WDK_SRC_DIR_ABS%" (
     echo You must install the Windows Driver Kit for devcon.exe tool
     echo https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
@@ -466,7 +494,7 @@ if "%WINPE_DEBUG_SERIAL%" == "yes" (
 
 if "%WINPE_DEBUG_NET%" == "yes" (
     echo *** Step 2.2.2 Enabling kernel debugging for WinPE over net, store: "%WIN_PE_DST_DIR%\EFI\Microsoft\boot\bcd"
-    bcdedit /store "%WIN_PE_DST_DIR%\EFI\Microsoft\boot\bcd" /dbgsettings net hostip:%DEBUG_IP% port:50085 key:a.b.c.d || goto err
+    bcdedit /store "%WIN_PE_DST_DIR%\EFI\Microsoft\boot\bcd" /dbgsettings net hostip:%DEBUG_IP% port:50085 key:a.b.c.d || (echo Enabling WinPE debug failed. Check whether IP for debugging is valid. & goto err)
     bcdedit /store "%WIN_PE_DST_DIR%\EFI\Microsoft\boot\bcd" /debug {default} on                             || goto err
 )
 
@@ -668,14 +696,33 @@ echo *** Step 2 DONE. i.MX Windows PE layout succesfully created at "%WIN_PE_DST
 echo *********************************************************************************************************************************************************
 echo *********************************************************************************************************************************************************
 
-)
-
 
 exit /b 0
 
 :APPLY
+
+    REM Check size of selected drive and determine whether it is an SD card to protect hard-drives from overwriting
+    REM save size of selected disk in bytes into DISKSIZE
+    for /f "usebackq skip=1 tokens=*" %%i in (`wmic diskdrive %DISK_NUM% get size ^| findstr /r /v "^$"`) do set DISKSIZE=%%i
+    
+    if "%DISKSIZE%" == "" (
+        echo Selected disk^(%DISK_NUM%^) is invalid. Select a valid disk using option /apply.
+        exit /b 1
+    )
+
+    REM remove spaces from DISKSIZE
+    set DISKSIZE=%DISKSIZE: =%
+    REM convert DISKSIZE fro B to GB
+    set /A GB=%DISKSIZE:~0,-3%/1024/1024
+    REM Check the size of selected drive, if larger than 64GB, it's probably a hard drive, so the script will end
+    REM conversion is not 100% precise due to limitations of batch scripts, so comparing to 65 instead of 64
+    if !GB! GEQ 65 (
+        echo Selected disk is too big. Make sure to choose a SD card as this operation would clear the selected disk.
+        exit /b 1
+    )
+
     if %DISK_NUM% == 0 (
-        echo Disk number is zero !!!!.
+        echo Disk number is zero.
         exit /b 1    
     )
     echo Applying image at "%WIN_PE_DST_DIR%" to physical disk %DISK_NUM%

@@ -42,7 +42,7 @@
   ArmSmcLib
 
 [Sources.common]
-  $(BOARD_LIB_COMMON_DIR)/iMX8Mem.c
+  iMX8Mem.c
   iMX8BoardInit.c
 
 [Sources.AARCH64]
@@ -65,6 +65,9 @@
   # Framebuffer Memory
   gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferBase
   gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferSize
+  # GPU Reserved Memory Memory
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemoryBase
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemorySize
 
   gArmPlatformTokenSpaceGuid.PcdCoreCount
 

@@ -136,6 +136,7 @@
     <Inf Include="imxusdhc.inf" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resource.h" />
     <ClInclude Include="usdhchw.h" />
     <ClInclude Include="devpropslist.hpp" />
     <ClInclude Include="precomp.hpp" />

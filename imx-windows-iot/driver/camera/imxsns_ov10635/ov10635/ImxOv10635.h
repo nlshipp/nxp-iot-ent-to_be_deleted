@@ -119,6 +119,7 @@ private:
     NTSTATUS ReadRegMax9271(const enum CHNL_IDX ChipIdx, const UINT8 RegAddr, UINT8& Val)
     {
         NTSTATUS Status = STATUS_SUCCESS;
+
         switch (ChipIdx) {
         case CHNL_0:
             Status = m_Camera_res.m_I2cMax9271_0.ReadAddr8(RegAddr, &Val, sizeof(UINT8));
@@ -136,7 +137,7 @@ private:
             Status = m_Camera_res.m_I2cMax9271.ReadAddr8(RegAddr, &Val, sizeof(UINT8));
             break;
         default:
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s Unknown video link\n",__FUNCTION__);
+            Status = STATUS_INVALID_PARAMETER_1;
             break;
         }
         return Status;
@@ -166,7 +167,7 @@ private:
             Status = m_Camera_res.m_I2cMax9271.WriteBytes(bytes, sizeof(bytes));
             break;
         default:
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s Unknown video link\n", __FUNCTION__);
+            Status = STATUS_INVALID_PARAMETER_1;
             break;
         }
 
@@ -196,7 +197,7 @@ private:
             Status = m_Camera_res.m_I2cOv10635.ReadAddr16(Reg, &Val, sizeof(UINT8));
             break;
         default:
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s Unknown video link\n", __FUNCTION__);
+            Status = STATUS_INVALID_PARAMETER_1;
             break;
         }
         return Status;
@@ -224,7 +225,7 @@ private:
             Status = m_Camera_res.m_I2cOv10635.WriteBytes(bytes, sizeof(bytes));
             break;
         default:
-            DbgPrintEx(DPFLTR_IHVDRIVER_ID, 0xFFFFFFFF, "%s Unknown video link\n", __FUNCTION__);
+            Status = STATUS_INVALID_PARAMETER_1;
             break;
         }
         return Status;

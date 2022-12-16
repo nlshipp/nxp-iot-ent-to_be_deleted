@@ -8,9 +8,11 @@
     <Filter Include="OpenMax">
       <UniqueIdentifier>{ea57667b-8834-4a2a-814b-05ade5d05334}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{29aa63b7-c631-4864-9096-b88f2878e41d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="imxomxg1.cpp" />
     <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_h264.c">
@@ -60,8 +62,16 @@
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_mpeg2.h">
       <Filter>OpenMax</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="imxomxg1.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

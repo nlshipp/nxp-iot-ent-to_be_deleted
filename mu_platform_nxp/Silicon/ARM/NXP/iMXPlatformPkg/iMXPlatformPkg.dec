@@ -135,4 +135,11 @@
   #
   giMXPlatformTokenSpaceGuid.PcdGpioBankMemoryRange|16384|UINT32|0x15
 
+  #
+  # iMX SCFW configuration
+  #
+  # PcdMuSCFWRegisterBase - Define a base address of MU to SCFW
+  #
+  giMXPlatformTokenSpaceGuid.PcdMuSCFWRegisterBase|0x00000000|UINT64|0x16
+
 [PcdsFeatureFlag.common]

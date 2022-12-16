@@ -4,7 +4,7 @@
 * Copyright (c) 2015 Microsoft
 * SPDX-License-Identifier: MS-PL
 * NXP modifications are licensed under the same license
-* Copyright 2020 NXP
+* Copyright 2020, 2022 NXP
 *
 */
 
@@ -40,12 +40,17 @@ NTSTATUS IO_Initialize(_In_ PDEV_CONTEXT pDevContext, _In_ WDFCMRESLIST hResourc
     BOOLEAN                         connFound = FALSE;
     BOOLEAN                         interruptFound = FALSE;
     ULONG                           resourceCount;
-    int                             pinCount = 0;
-    int                             i2cCount = 0;
+    unsigned int                    pinCount = 0;
+    unsigned int                    i2cCount = 0;
+    ULONG                           CrossBarSwitchPinIndex = 1;
 
     DBG_I2C_METHOD_BEG();
     PAGED_CODE();
     UNREFERENCED_PARAMETER(hResourcesRaw);
+
+    Acpi_GetIntegerPropertyValue(&pDevContext->AcpiContext, "SwitchPin_Index", &CrossBarSwitchPinIndex);
+    Acpi_GetIntegerPropertyValue(&pDevContext->AcpiContext, "SwitchPin_Polarity", &pDevContext->GPIO_IO_CrossBarActiveHigh);
+
     /* Check for I2C and Interrupt resources from the resources that PnP manager has allocated to our device. */
     resourceCount = WdfCmResourceListGetCount(hResourcesTranslated);
     for (ULONG i = 0; i < resourceCount; i++) {
@@ -58,20 +63,20 @@ NTSTATUS IO_Initialize(_In_ PDEV_CONTEXT pDevContext, _In_ WDFCMRESLIST hResourc
                         pDevContext->I2C_ConnectionId.HighPart = descriptor->u.Connection.IdHighPart;
                         connFound = TRUE;
                     }
-                    DBG_DEV_PRINT_INFO("I2C resource found with connection id: 0x%llx", pDevContext->I2C_ConnectionId.QuadPart);
+                    DBG_DEV_PRINT_INFO("I2C resource found at index: %lu with connection id: 0x%llx", i, pDevContext->I2C_ConnectionId.QuadPart);
                 }
                 if ((descriptor->u.Connection.Class == CM_RESOURCE_CONNECTION_CLASS_GPIO) && (descriptor->u.Connection.Type == CM_RESOURCE_CONNECTION_TYPE_GPIO_IO)) {
-                    if (++pinCount == 2) {
+                    if (pinCount++ == CrossBarSwitchPinIndex) {
                         pDevContext->GPIO_ConnectionId.LowPart  = descriptor->u.Connection.IdLowPart;
                         pDevContext->GPIO_ConnectionId.HighPart = descriptor->u.Connection.IdHighPart;
-                        DBG_DEV_PRINT_INFO("USB Type-C SuperSpeed switch pin resource found with connection id: 0x%llx", pDevContext->GPIO_ConnectionId.QuadPart);
+                        DBG_DEV_PRINT_INFO("USB Type-C SuperSpeed switch pin resource found at index: %lu with connection id: 0x%llx", i, pDevContext->GPIO_ConnectionId.QuadPart);
                     }
                 }
                 break;
             case CmResourceTypeInterrupt:   /* We've found an interrupt resource. */
                 interruptFound = TRUE;
                 interruptIndex = i;
-                DBG_DEV_PRINT_INFO("Interrupt resource found at index: %lu", interruptIndex);
+                DBG_DEV_PRINT_INFO("Interrupt resource found at index: %lu", i);
                 break;
             default:            
                 break;                       /* We don't care about other descriptors. */
@@ -80,12 +85,12 @@ NTSTATUS IO_Initialize(_In_ PDEV_CONTEXT pDevContext, _In_ WDFCMRESLIST hResourc
     do {
         if (!connFound) {                    /* Fail if either connection or interrupt resource was not found. */
             ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed finding required I2C resource.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed finding required I2C resource.");
             break;
         }
         if (!interruptFound) {
             ntStatus = STATUS_INSUFFICIENT_RESOURCES;
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed finding required interrupt resource.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed finding required interrupt resource.");
             break;
         }
         /* The alerts from the port controller hardware will be handled in a passive ISR. */
@@ -95,7 +100,7 @@ NTSTATUS IO_Initialize(_In_ PDEV_CONTEXT pDevContext, _In_ WDFCMRESLIST hResourc
         interruptConfig.InterruptTranslated = WdfCmResourceListGetDescriptor(hResourcesTranslated, interruptIndex);
         interruptConfig.InterruptRaw        = WdfCmResourceListGetDescriptor(hResourcesRaw, interruptIndex);
         if (!NT_SUCCESS(ntStatus = WdfInterruptCreate(pDevContext->Device, &interruptConfig, WDF_NO_OBJECT_ATTRIBUTES, &AlertInterrupt))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfInterruptCreate() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfInterruptCreate() failed.");
             break;
         }
     } while (0);
@@ -128,25 +133,25 @@ NTSTATUS GPIO_Open(_In_ PDEV_CONTEXT pDevContext) {
         RESOURCE_HUB_CREATE_PATH_FROM_ID(&usDevicePath, pDevContext->GPIO_ConnectionId.LowPart, pDevContext->GPIO_ConnectionId.HighPart);
         DBG_CONFIG_DUMP("Opening handle to GPIO target via %wZ", &usDevicePath);
         if (!NT_SUCCESS(ntStatus = WdfIoTargetCreate(pDevContext->Device, WDF_NO_OBJECT_ATTRIBUTES, &pDevContext->GPIO_hTarget))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetCreate() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetCreate() failed.");
             break;
         }
         /* Open a handle to the controller. */
         WDF_IO_TARGET_OPEN_PARAMS_INIT_OPEN_BY_NAME(&OpenParams, &usDevicePath, GENERIC_WRITE);
         if (!NT_SUCCESS(ntStatus = WdfIoTargetOpen(pDevContext->GPIO_hTarget, &OpenParams))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetOpen() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetOpen() failed.");
             break;
         }
         WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
         Attributes.ParentObject = pDevContext->GPIO_hTarget;
         if (!NT_SUCCESS(ntStatus = WdfRequestCreate(&Attributes, pDevContext->GPIO_hTarget, &pDevContext->GPIO_hRequest))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfRequestCreate() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfRequestCreate() failed.");
             break;
         }
         WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
         Attributes.ParentObject = pDevContext->GPIO_hRequest;
         if (!NT_SUCCESS(ntStatus = WdfMemoryCreatePreallocated(&Attributes, &pDevContext->GPIO_IO_Data, sizeof(pDevContext->GPIO_IO_Data), &pDevContext->GPIO_hMemory))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfMemoryCreatePreallocated() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfMemoryCreatePreallocated() failed.");
             break;
         }
     } while (0);
@@ -174,7 +179,7 @@ NTSTATUS I2C_Open(_In_ PDEV_CONTEXT pDevContext) {
         RESOURCE_HUB_CREATE_PATH_FROM_ID(&usDevicePath, pDevContext->I2C_ConnectionId.LowPart, pDevContext->I2C_ConnectionId.HighPart);
         DBG_CONFIG_DUMP("Opening handle to I2C target via %wZ", &usDevicePath);
         if (!NT_SUCCESS(ntStatus = WdfIoTargetCreate(pDevContext->Device, WDF_NO_OBJECT_ATTRIBUTES, &pDevContext->I2C_hTarget))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfIoTargetCreate failed");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfIoTargetCreate failed");
             break;
         }
         /* Open a handle to the I2C controller. */
@@ -183,35 +188,35 @@ NTSTATUS I2C_Open(_In_ PDEV_CONTEXT pDevContext) {
         OpenParams.CreateDisposition = FILE_OPEN;
         OpenParams.FileAttributes    = FILE_ATTRIBUTE_NORMAL;
         if (!NT_SUCCESS(ntStatus = WdfIoTargetOpen(pDevContext->I2C_hTarget, &OpenParams))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed to open I2C I/O target.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "Failed to open I2C I/O target.");
             break;
         }
         WDF_OBJECT_ATTRIBUTES_INIT(&RequestAttributes);
         RequestAttributes.ParentObject = pDevContext->I2C_hTarget;
         if (!NT_SUCCESS(ntStatus = WdfRequestCreate(&RequestAttributes, pDevContext->I2C_hTarget, &pDevContext->I2C_hRequest))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfRequestCreate failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfRequestCreate failed.");
             break;
         }
         /* Create a WDFMEMORY object. Do call WdfMemoryAssignBuffer before use it. */
         if (!NT_SUCCESS(ntStatus = WdfMemoryCreatePreallocated(WDF_NO_OBJECT_ATTRIBUTES, static_cast<PVOID>(&ntStatus), sizeof(ntStatus), &pDevContext->I2C_hRxMemory))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryCreatePreallocated failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryCreatePreallocated failed.");
             break;
         }
         if (!NT_SUCCESS(ntStatus = WdfMemoryCreatePreallocated(WDF_NO_OBJECT_ATTRIBUTES, static_cast<PVOID>(&ntStatus), sizeof(ntStatus), &pDevContext->I2C_hTxMemory))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryCreatePreallocated failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryCreatePreallocated failed.");
             break;
         }
         SPB_TRANSFER_LIST_INIT(&(pDevContext->I2C_RxTrList.List), 2);
         pDevContext->I2C_RxTrList.List.Transfers[0] = SPB_TRANSFER_LIST_ENTRY_INIT_SIMPLE(SpbTransferDirectionToDevice,   0, &pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegAddress, 1);
         pDevContext->I2C_RxTrList.List.Transfers[1] = SPB_TRANSFER_LIST_ENTRY_INIT_SIMPLE(SpbTransferDirectionFromDevice, 0, &pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegValue, 0);
         if (!NT_SUCCESS(ntStatus = WdfMemoryAssignBuffer(pDevContext->I2C_hRxMemory, static_cast<PVOID>(&pDevContext->I2C_RxTrList), sizeof(pDevContext->I2C_RxTrList)))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryAssignBuffer failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryAssignBuffer failed.");
             break;
         }
         SPB_TRANSFER_LIST_INIT(&(pDevContext->I2C_TxTrList), 1);
         pDevContext->I2C_TxTrList.Transfers[0] = SPB_TRANSFER_LIST_ENTRY_INIT_SIMPLE(SpbTransferDirectionToDevice, 0, &pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegAddress, 1);
         if (!NT_SUCCESS(ntStatus = WdfMemoryAssignBuffer(pDevContext->I2C_hTxMemory, static_cast<PVOID>(&pDevContext->I2C_TxTrList), sizeof(pDevContext->I2C_TxTrList)))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryAssignBuffer failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "WdfMemoryAssignBuffer failed.");
             break;
         }
         WDF_REQUEST_SEND_OPTIONS_INIT(&pDevContext->I2C_ReqSendOptions, WDF_REQUEST_SEND_OPTION_SYNCHRONOUS);
@@ -269,20 +274,22 @@ NTSTATUS GPIO_PlugOrientation_Set(_In_ PDEV_CONTEXT pDevContext, TCPC_PHY_TCPC_C
 
     DBG_I2C_METHOD_BEG();
     do {
-        if (TCPC_CONTROL.B.PLUG_ORIENTATION) {
-            pDevContext->GPIO_IO_Data = 0x00;
+        if (TCPC_CONTROL.B.PLUG_ORIENTATION) {  
+            /* VCON to CC1, CC2 for communtiation = signal switch required */
+            pDevContext->GPIO_IO_Data = pDevContext->GPIO_IO_CrossBarActiveHigh ? 0x01 : 0x00;
         } else {
-            pDevContext->GPIO_IO_Data = 0x01;
+            /* VCON to CC2, CC1 for communtiation = no signal switch */
+            pDevContext->GPIO_IO_Data = pDevContext->GPIO_IO_CrossBarActiveHigh ? 0x00 : 0x01;
         }
         DBG_TCPCI_REG_DUMP("GPIO_PlugOrientation_Set - Setting Plug Orientation GPIO pin, value = %d", pDevContext->GPIO_IO_Data);
         if (!NT_SUCCESS(ntStatus = WdfIoTargetFormatRequestForIoctl(pDevContext->GPIO_hTarget, pDevContext->GPIO_hRequest, IOCTL_GPIO_WRITE_PINS, pDevContext->GPIO_hMemory, 0, pDevContext->GPIO_hMemory, 0))) {
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetFormatRequestForIoctl() failed.");
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "GPIO - WdfIoTargetFormatRequestForIoctl() failed.");
             break;
         }
         /* Send the request to the GPIO Target. */
         if (WdfRequestSend(pDevContext->GPIO_hRequest, pDevContext->GPIO_hTarget, NULL) == FALSE) {
             ntStatus = WdfRequestGetStatus(pDevContext->GPIO_hRequest);
-            DBG_I2C_PRINT_ERROR_WITH_STATUS(ntStatus, "[WDFREQUEST: 0x%p] WdfRequestSend for GPIO write failed.", pDevContext->GPIO_hRequest);
+            DBG_PRINT_ERROR_WITH_STATUS(ntStatus, "[WDFREQUEST: 0x%p] WdfRequestSend for GPIO write failed.", pDevContext->GPIO_hRequest);
             break;
         }
     } while (0);
@@ -334,7 +341,17 @@ void UpdateRegsAndBuffer(_In_ DEV_CONTEXT *pDevContext, _In_ NTSTATUS  ntStatus)
     } else {
         if (I2C_Cmd.Cmd.RegSize == 1) {
             /* Copy value read from/written to 1 byte size register to the local copy of register. */
-            ((UINT8*)(&pDevContext->TCPI_PhyRegs))[I2C_Cmd.Cmd.RegAddress] = *(UINT8*)(&pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegValue);                   
+            ((UINT8*)(&pDevContext->TCPI_PhyRegs))[I2C_Cmd.Cmd.RegAddress] = *(UINT8*)(&pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegValue);
+            if (I2C_Cmd.Cmd.RegAddress == TCPC_PHY_CC_STATUS) {
+                TCPC_PHY_t* pPhyRegs = &pDevContext->TCPI_PhyRegs;
+                if (pPhyRegs->POWER_STATUS.B.VCONN_PRESENT) {
+                    if ((pPhyRegs->CC_STATUS.R & (TCPC_PHY_CC_STATUS_LOOKING4CONNECTION_MASK | TCPC_PHY_CC_STATUS_CONNECTRESULT_MASK)) == 0) {
+                        /* Not looking for connection and presentinf Rp */
+                        if (pPhyRegs->CC_STATUS.B.CC1_STATE > 0) pPhyRegs->CC_STATUS.B.CC1_STATE = 2;
+                        if (pPhyRegs->CC_STATUS.B.CC2_STATE > 0) pPhyRegs->CC_STATUS.B.CC2_STATE = 2;
+                    }
+                }
+            }
             if (I2C_Cmd.pBuffer) {
                 ((UINT8*)(I2C_Cmd.pBuffer))[0] = *(UINT8*)(&pDevContext->I2C_Buffer.I2C_Cmd.Cmd.RegValue);
             }

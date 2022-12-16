@@ -49,7 +49,7 @@ Environment:
 //
 #define THIS_DEVICE_TYPE FILE_DEVICE_KS
 
-#include "common/ImxVideoCommon.h"
+#include "common/ImxVideoCommon.hpp"
 
 DEFINE_GUID (GUID_DEVINTERFACE_SNS0_DRIVER,
     0x3b4611d3,0x4330,0x4800,0x8a,0x7a,0x85,0x5f,0x98,0x44,0x4a,0x59);

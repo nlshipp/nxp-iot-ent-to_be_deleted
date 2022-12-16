@@ -12,6 +12,7 @@
 #define _LINUX_I2C_H
 
 #include <linux/device.h>	/* for struct device */
+#include <uapi/linux/i2c.h>
 
 struct i2c_client {
 	unsigned short addr;		/* chip address - NOTE: 7bit	*/
@@ -33,5 +34,49 @@ static inline void i2c_set_clientdata(struct i2c_client *client, void *data)
 	dev_set_drvdata(&client->dev, data);
 }
 
+/*
+ * i2c_adapter is the structure used to identify a physical i2c bus along
+ * with the access algorithms necessary to access it.
+ */
+struct i2c_adapter {
+	const struct i2c_algorithm *algo; /* the algorithm to access the bus */
+	void *algo_data;
+
+	/* data fields that are valid for all devices	*/
+	int timeout;			/* in jiffies */
+	int retries;
+	struct device dev;		/* the adapter device */
+
+	char name[48];
+};
+
+static inline void *i2c_get_adapdata(const struct i2c_adapter *adap)
+{
+	return dev_get_drvdata(&adap->dev);
+}
+
+static inline void i2c_set_adapdata(struct i2c_adapter *adap, void *data)
+{
+	dev_set_drvdata(&adap->dev, data);
+}
+
+struct i2c_algorithm {
+	/*
+	 * master_xfer should return the number of messages successfully
+	 * processed, or a negative value on error
+	 */
+	int (*master_xfer)(struct i2c_adapter *adap, struct i2c_msg *msgs,
+			   int num);
+
+	/* To determine what the adapter supports */
+	u32 (*functionality)(struct i2c_adapter *adap);
+
+};
+
+int i2c_add_adapter(struct i2c_adapter *adap);
+void i2c_del_adapter(struct i2c_adapter *adap);
+/* Transfer num messages.
+ */
+int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num);
 
 #endif /* _LINUX_I2C_H */

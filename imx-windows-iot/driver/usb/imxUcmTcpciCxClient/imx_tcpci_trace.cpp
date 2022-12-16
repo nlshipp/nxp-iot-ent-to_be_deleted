@@ -1,5 +1,5 @@
 /*
-* Copyright 2018-2020 NXP
+* Copyright 2018-2020, 2022 NXP
 * All rights reserved.
 * 
 * Redistribution and use in source and binary forms, with or without modification,
@@ -82,26 +82,10 @@ const char* Dbg_GetIOCTLName(ULONG i) {
 
 const char* Dbg_GetRegName(UINT32 i) {
     switch (i) {
-        MAKECASE(TCPC_PHY_EXTENDED_STATUS_MASK)
-        MAKECASE(TCPC_PHY_ALERT_EXTENDED_MASK)
-        MAKECASE(TCPC_PHY_CONFIG_STANDARD_OUTPUT)
-        MAKECASE(TCPC_PHY_TCPC_CONTROL)
-        MAKECASE(TCPC_PHY_ROLE_CONTROL)
-        MAKECASE(TCPC_PHY_FAULT_CONTROL)
-        MAKECASE(TCPC_PHY_POWER_CONTROL)
-        MAKECASE(TCPC_PHY_CC_STATUS)
-        MAKECASE(TCPC_PHY_EXTENDED_STATUS)
-        MAKECASE(TCPC_PHY_ALERT_EXTENDED)
         MAKECASE(TCPC_PHY_CFG_EXT_1)
         MAKECASE(TCPC_PHY_GENERIC_TIMER)
         MAKECASE(TCPC_PHY_RX_BUF_BYTE_X)
         MAKECASE(TCPC_PHY_TX_BUF_BYTE_X)
-        MAKECASE(TCPC_PHY_VBUS_VOLTAGE)
-        MAKECASE(TCPC_PHY_VBUS_SINK_DISCONNECT_THRESHOLD)
-        MAKECASE(TCPC_PHY_VBUS_STOP_DISCHARGE_THRESHOLD)
-        MAKECASE(TCPC_PHY_VBUS_VOLTAGE_ALARM_HI_CFG)
-        MAKECASE(TCPC_PHY_VBUS_VOLTAGE_ALARM_LO_CFG)
-        MAKECASE(TCPC_PHY_VBUS_HV_TARGET)
         MAKECASE(TCPC_PHY_EXT_CFG_ID)
         MAKECASE(TCPC_PHY_EXT_ALERT)
         MAKECASE(TCPC_PHY_EXT_ALERT_MASK)
@@ -510,6 +494,31 @@ void TCPC_PHY_DumpReg(const char *CallerName, TCPC_PHY_t *pRegs, UINT32 RegAddre
                 pRegs->FAULT_STATUS_MASK.B.I2C_INTERFACE_ERROR_INT_MASK
             );
             break;
+
+        case TCPC_PHY_EXTENDED_STATUS:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value:   0x%02X (vSafe0=%d)", CallerName, params ? "Wr" : "Rd", "EXTENDED_STATUS", TCPC_PHY_EXTENDED_STATUS, pRegs->EXTENDED_STATUS.R,
+                pRegs->EXTENDED_STATUS.B.VSAFE0V
+            );
+            break;
+        case TCPC_PHY_EXTENDED_STATUS_MASK:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value:   0x%02X (vSafe0=%d)", CallerName, params ? "Wr" : "Rd", "EXTENDED_STATUS_MASK", TCPC_PHY_EXTENDED_STATUS_MASK, pRegs->EXTENDED_STATUS_MASK.R,
+                pRegs->EXTENDED_STATUS_MASK.B.VSAFE0V_INT_MASK
+            );
+            break;
+        case TCPC_PHY_ALERT_EXTENDED:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value:   0x%02X (TimerExpired=%d, SrcFstRoleSwap %d, SnkFstRoleSwap %d)", CallerName, params ? "Wr" : "Rd", "ALERT_EXTENDED", TCPC_PHY_ALERT_EXTENDED, pRegs->ALERT_EXTENDED.R,
+                pRegs->ALERT_EXTENDED.B.TIMER_EXPIRED,
+                pRegs->ALERT_EXTENDED.B.SOURCE_FAST_ROLE_SWAP,
+                pRegs->ALERT_EXTENDED.B.SINK_FAST_ROLE_SWAP
+                );
+            break;
+        case TCPC_PHY_ALERT_EXTENDED_MASK:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value:   0x%02X (TimerExpired=%d, SrcFstRoleSwap %d, SnkFstRoleSwap %d)", CallerName, params ? "Wr" : "Rd", "ALERT_EXTENDED_MASK", TCPC_PHY_ALERT_EXTENDED_MASK, pRegs->ALERT_EXTENDED_MASK.R,
+                pRegs->ALERT_EXTENDED_MASK.B.TIMER_EXPIRED_INT_MASK,
+                pRegs->ALERT_EXTENDED_MASK.B.SOURCE_FAST_ROLE_SWAP_INT_MASK,
+                pRegs->ALERT_EXTENDED_MASK.B.SINK_FAST_ROLE_SWAP_INT_MASK
+            );
+            break;
         case TCPC_PHY_CONFIG_STANDARD_OUTPUT:
             DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value:   0x%02X (HiImpdOuts=%d, DbgAccCncted#=%d, AudAccCncted#=%d, ActCblCncted=%d, MUXCtrl=%s, ConnPrsnt=%d, ConOrnt=%s)", CallerName, params?"Wr":"Rd", "CONFIG_STANDARD_OUTPUT", TCPC_PHY_CONFIG_STANDARD_OUTPUT, pRegs->CONFIG_STANDARD_OUTPUT.R,
                 pRegs->CONFIG_STANDARD_OUTPUT.B.HIGH_IMPEDANCE_OUTPUTS,
@@ -717,6 +726,45 @@ void TCPC_PHY_DumpReg(const char *CallerName, TCPC_PHY_t *pRegs, UINT32 RegAddre
             break;
         case TCPC_PHY_RX_BUF_BYTE_X:
             TCPC_PHY_DumpRxBuffer((UCMTCPCI_PORT_CONTROLLER_RECEIVE_BUFFER *)(void*)pDevContext->I2C_Buffer.I2C_Cmd.pBuffer, CallerName);
+            break;
+        case TCPC_PHY_VBUS_VOLTAGE:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (VBusVoltage       =%4d[mV] (%s, %s)", CallerName, params ? "Wr" : "Rd", "VBUS_VOLTAGE", TCPC_PHY_VBUS_VOLTAGE, pRegs->VBUS_VOLTAGE.R,
+                pRegs->VBUS_VOLTAGE.B.VBUS_VOLTAGE_MEASUREMENT * 25* (1 << (pRegs->VBUS_VOLTAGE.B.SCALE_FACTOR)),
+                (pRegs->DEV_CAP_1.B.VBUS_MEAS_AND_ALARM_CAPABLE == 1) ? "Supported" : "Not supported",
+                (pRegs->POWER_CONTROL.B.VBUS_VOLTAGE_MONITOR == 1) ? "Disabled" : "Enabled"
+            );
+            break;
+        case TCPC_PHY_VBUS_SINK_DISCONNECT_THRESHOLD:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (SinkDisconTrshld  =%4d[mV] (%s)", CallerName, params ? "Wr" : "Rd", "VBUS_SINK_DISCONNECT_THRESHOLD", TCPC_PHY_VBUS_SINK_DISCONNECT_THRESHOLD, pRegs->VBUS_SINK_DISCONNECT_THRESHOLD.R,
+                pRegs->VBUS_SINK_DISCONNECT_THRESHOLD.B.VOLTAGE_TRIP_POINT * 25,
+                (pRegs->DEV_CAP_2.B.SINK_DISCONNECT_DETECTION == 1) ? "Supported" : "Not supported"
+            );
+            break;
+        case TCPC_PHY_VBUS_STOP_DISCHARGE_THRESHOLD:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (SinkDisconTrshld  =%4d[mV] (%s)", CallerName, params ? "Wr" : "Rd", "VBUS_STOP_DISCHARGE_THRESHOLD", TCPC_PHY_VBUS_STOP_DISCHARGE_THRESHOLD, pRegs->VBUS_STOP_DISCHARGE_THRESHOLD.R,
+                pRegs->VBUS_STOP_DISCHARGE_THRESHOLD.B.VOLTAGE_TRIP_POINT * 25,
+                (pRegs->DEV_CAP_2.B.STOP_DISCHARGE_THRESHOLD == 1) ? "Supported" : "Not supported"
+            );
+            break;
+        case TCPC_PHY_VBUS_VOLTAGE_ALARM_HI_CFG:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (HiVltgAlarmTrshld =%4d[mV] (%s, %s))", CallerName, params ? "Wr" : "Rd", "VBUS_VOLTAGE_ALARM_HI_CFG", TCPC_PHY_VBUS_VOLTAGE_ALARM_HI_CFG, pRegs->VBUS_VOLTAGE_ALARM_HI_CFG.R,                
+                pRegs->VBUS_VOLTAGE_ALARM_HI_CFG.B.VOLTAGE_TRIP_POINT * 25 * (1 << (pRegs->DEV_CAP_2.B.VBUS_VOLTAGE_ALARM_LSB)),
+                (pRegs->DEV_CAP_1.B.VBUS_MEAS_AND_ALARM_CAPABLE == 1) ? "Supported" : "Not supported",
+                (pRegs->POWER_CONTROL.B.DISABLE_VOLTAGE_ALARMS == 1) ? "Disabled" : "Enabled"
+            );
+            break;
+        case TCPC_PHY_VBUS_VOLTAGE_ALARM_LO_CFG:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (LowVltgAlarmTrshld=%4d[mV] (%s, %s))", CallerName, params ? "Wr" : "Rd", "VBUS_VOLTAGE_ALARM_LO_CFG", TCPC_PHY_VBUS_VOLTAGE_ALARM_LO_CFG, pRegs->VBUS_VOLTAGE_ALARM_LO_CFG.R,
+                pRegs->VBUS_VOLTAGE_ALARM_LO_CFG.B.VOLTAGE_TRIP_POINT * 25 *( 1 << (pRegs->DEV_CAP_2.B.VBUS_VOLTAGE_ALARM_LSB)),
+                (pRegs->DEV_CAP_1.B.VBUS_MEAS_AND_ALARM_CAPABLE == 1) ? "Supported" : "Not supported",
+                (pRegs->POWER_CONTROL.B.DISABLE_VOLTAGE_ALARMS == 1) ? "Disabled" : "Enabled"
+            );
+            break;
+        case TCPC_PHY_VBUS_HV_TARGET:
+            DBG_TCPCI_REG_DUMP("%-30s Reg%s: %-39s(0x%02X), Value: 0x%04X (HiVloltageLevl    =%4d[mV] (%s))", CallerName, params ? "Wr" : "Rd", "VBUS_HV_TARGET", TCPC_PHY_VBUS_HV_TARGET, pRegs-> VBUS_HV_TARGET.R,
+                pRegs->VBUS_HV_TARGET.R * 20,
+                (pRegs->DEV_CAP_1.B.VBUS_HIGH_VOLTAGE_TARGET == 1) ? "Supported" : "Not supported"
+                );
             break;
         default:
             if (Length == 1) {

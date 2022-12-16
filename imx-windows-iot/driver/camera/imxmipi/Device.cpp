@@ -34,6 +34,10 @@
 #ifdef _ARM64_
 #include <ImxCpuRev.h>
 #endif
+extern "C" {
+#include <svc/ipc.h>
+#include <svc/misc/misc_api.h>
+}
 #include "device.tmh"
 
 extern "C" {
@@ -52,6 +56,7 @@ extern "C" {
         NTSTATUS status;
         WDF_DRIVER_CONFIG config;
         WDF_OBJECT_ATTRIBUTES attributes;
+
         // Initialize WPP Tracing
         WPP_INIT_TRACING(DriverObject, RegistryPath);
 
@@ -169,8 +174,6 @@ NTSTATUS WdfMipi_ctx::EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INI
     return status;
 }
 
-// PAGED_SEGMENT_END
-
 WdfMipi_ctx::WdfMipi_ctx(WDFDEVICE &WdfDevice)
 /*!
  * CsiIsrCtx_t constructor initializes context to defaults.
@@ -178,16 +181,30 @@ WdfMipi_ctx::WdfMipi_ctx(WDFDEVICE &WdfDevice)
  * @param WdfDevice handle to WDF device object.
  */
     : m_WdfDevice(WdfDevice),
-      m_Mipi1Reg(WdfDevice),
       m_IsOpen(false),
-      m_DsdRes(WdfDevice),
-      m_MipiCsiRes(this)
+      m_Resources(this)
 {
-
     PAGED_CODE();
 }
 
-NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
+Resources_t::Resources_t(DEVICE_CONTEXT* deviceCtxPtr)
+/*!
+ * Resources_t constructor initializes context to defaults.
+ *
+ * @param DEVICE_CONTEXT pointer a to device context.
+ */
+    : m_DeviceCtxPtr(deviceCtxPtr),
+      m_Mipi1Reg(deviceCtxPtr->m_WdfDevice),
+      m_MipiCsrReg(deviceCtxPtr->m_WdfDevice),
+      m_ScfwIpcHandle{0},
+      m_HasScfwI2cRes(false),
+      m_HasMipiCsrRegRes(false),
+      m_DsdRes(WdfDeviceWdmGetPhysicalDevice(deviceCtxPtr->m_WdfDevice))
+{
+    PAGED_CODE();
+}
+
+NTSTATUS Resources_t::Get_DsdAcpiResources()
 /*!
  * Load device resources and device specific data.
  *
@@ -201,7 +218,7 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
         const AcpiDsdRes_t::_DSDVAL_GET_DESCRIPTOR ParamTable[] = {
         {
             "EscClockFrequencyHz",
-            &escClockFrequencyHz,
+            &m_EscClockFrequencyHz,
             (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
         },
         {
@@ -212,12 +229,12 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
         },
         {
             "PhyClockFrequencyHz",
-            &phyClockFrequencyHz,
+            &m_PhyClockFrequencyHz,
             (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
         },
         {
             "Mipi1RegResId",
-            &Mipi1RegResId,
+            &m_Mipi1RegResId,
             (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
         },
         {
@@ -226,7 +243,6 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
             (unsigned)ACPI_METHOD_ARGUMENT_INTEGER,
         },
         };
-
         status = m_DsdRes.GetDsdResources(ParamTable, sizeof(ParamTable) / sizeof(ParamTable[0]));
         if (NT_SUCCESS(status)) {
             TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_CpuId = 0x%x", m_CpuId);
@@ -235,12 +251,33 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
                 {
                     UINT32 gpr = 0;
 
-                    status = m_MipiCsiRes.AcpiRgpr(gpr);
+                    status = AcpiRgpr(gpr);
                 }
                 break;
             default:
                 break;
             }
+        }
+        if (NT_SUCCESS(status)) {
+            NTSTATUS tmpStatus = m_DsdRes.GetInteger("MipiCsrRegResId", &(m_MipiCsrRegResId));
+            
+            if (!NT_SUCCESS(tmpStatus)) {
+                m_HasMipiCsrRegRes = false;
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Failed to query ACPI MipiCsrRegResId value. (status = %!STATUS!)", status);
+            }
+            else {
+                m_HasMipiCsrRegRes = true;
+            }
+
+            tmpStatus = m_DsdRes.GetInteger("ScfwI2cResId", &(m_ScfwI2cResId));
+            if (!NT_SUCCESS(tmpStatus)) {
+                m_HasScfwI2cRes = false;
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Failed to query ACPI ScfwI2cResId value. (status = %!STATUS!)", status);
+            }
+            else {
+                m_HasScfwI2cRes = true;
+            }
+            
         }
     }
     else {
@@ -249,7 +286,7 @@ NTSTATUS WdfMipi_ctx::Get_DsdAcpiResources()
     return status;
 }
 
-NTSTATUS WdfMipi_ctx::AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val)
+NTSTATUS Resources_t::AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val)
 /*!
  * Call Acpi metod that returns UINT32 argument.
  *
@@ -262,7 +299,7 @@ NTSTATUS WdfMipi_ctx::AcpiReadInt(ULONG MethodNameUlong, UINT32 &Val)
     NTSTATUS status;
     PACPI_EVAL_OUTPUT_BUFFER buff;
 
-    status = m_DsdRes.EvalMethodSync(m_WdfDevice, MethodNameUlong, &buff);
+    status = m_DsdRes.EvalMethodSync(MethodNameUlong, &buff);
     if (NT_SUCCESS(status)) {
         auto *argument = buff->Argument;
 
@@ -300,10 +337,10 @@ NTSTATUS Resources_t::AcpiRgpr(UINT32 &Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-    return m_DeviceCtxPtr->AcpiReadInt('RPGR', Val);
+    return AcpiReadInt('RPGR', Val);
 }
 
-NTSTATUS WdfMipi_ctx::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val)
+NTSTATUS Resources_t::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val)
 /*!
  * Call Acpi metod with UINT32 argument.
  *
@@ -322,7 +359,7 @@ NTSTATUS WdfMipi_ctx::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Val)
     inputBuffer.MethodNameAsUlong = MethodNameUlong; // Has to be spelled backwards because of endianity or something
     inputBuffer.IntegerArgument = Val;
 
-    status = m_DsdRes.EvalMethodSync(m_WdfDevice, (ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buff);
+    status = m_DsdRes.EvalMethodSync((ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buff);
     return status;
 }
 
@@ -335,7 +372,7 @@ NTSTATUS Resources_t::AcpiWgpr(UINT32 Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-    return m_DeviceCtxPtr->AcpiWriteInt('RPGW', Val);
+    return AcpiWriteInt('RPGW', Val);
 }
 
 NTSTATUS Resources_t::AcpiSetMipiRcr(UINT32 Val)
@@ -347,7 +384,30 @@ NTSTATUS Resources_t::AcpiSetMipiRcr(UINT32 Val)
  * @returns STATUS_SUCCESS or error code.
  */
 {
-    return m_DeviceCtxPtr->AcpiWriteInt('TSRW', Val);
+    return AcpiWriteInt('TSRW', Val);
+}
+
+NTSTATUS Resources_t::ScfwSetMipiRcr(UINT32 Val)
+/*!
+ * Set MIPI reset register via SCFW call.
+ *
+ * @param Val value to be set in MIPI reset.
+ *
+ * @returns STATUS_SUCCESS or error code.
+ */
+{
+    NTSTATUS status = STATUS_NOT_IMPLEMENTED;
+
+    if (m_HasScfwI2cRes) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Resources_t::ScfwSetMipiRcr(%d).", Val);
+
+        sc_err_t scError = sc_misc_set_control(&m_ScfwIpcHandle, SC_R_CSI_0, SC_C_MIPI_RESET, Val);
+        if (scError != SC_ERR_NONE) {
+            status = STATUS_UNSUCCESSFUL;
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "sc_misc_set_control failed 0x%x", scError);
+        }
+    }
+    return status;
 }
 
 NTSTATUS WdfMipi_ctx::EvtPrepareHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST ResourcesRaw, _In_ WDFCMRESLIST ResourcesTranslated)
@@ -386,46 +446,76 @@ NTSTATUS WdfMipi_ctx::PrepareHw(WDFCMRESLIST ResourcesRaw, WDFCMRESLIST Resource
 
     NTSTATUS status = STATUS_SUCCESS;
 
+    status = m_Resources.LoadResources(ResourcesTranslated);
+    if (NT_SUCCESS(status)) {
+        status = m_Mipi.PrepareHw(m_Resources);
+    }
+    if (NT_SUCCESS(status)) {
+        status = CreateInterface();
+    }
+    return status;
+}
+
+NTSTATUS WdfMipi_ctx::CreateInterface()
+{
+    PAGED_CODE();
+
+    NTSTATUS status = STATUS_SUCCESS;
+    ANSI_STRING deviceEndpointAnsiName;
+
+    _Analysis_assume_nullterminated_(m_DeviceEndpoint);
+    status = RtlInitAnsiStringEx(&deviceEndpointAnsiName, (PCSZ)(m_Resources.m_DeviceEndpoint));
+    if (NT_SUCCESS(status)) {
+        RtlInitEmptyUnicodeString(&m_Resources.m_DeviceEndpointUnicodeName, m_Resources.m_DeviceEndpointUnicodeNameBuff, sizeof(m_Resources.m_DeviceEndpointUnicodeNameBuff));
+        status = RtlAnsiStringToUnicodeString(&m_Resources.m_DeviceEndpointUnicodeName, &deviceEndpointAnsiName, FALSE);
+    }
+
+    if (NT_SUCCESS(status)) {
+        status = WdfDeviceCreateSymbolicLink(m_WdfDevice, &m_Resources.m_DeviceEndpointUnicodeName);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Create WdfDeviceCreateSymbolicLink (%ws): %!STATUS!", m_Resources.m_DeviceEndpointUnicodeName.Buffer, status);
+    }
+#if (DBG)
+    if (NT_SUCCESS(status)) {
+        status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_IMXMIPI, NULL);
+        if (!NT_SUCCESS(status)) {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to create interface %!STATUS!", status);
+        }
+    }
+#endif
+    return status;
+}
+
+NTSTATUS Resources_t::LoadResources(WDFCMRESLIST ResourcesTranslated)
+{
+    PAGED_CODE();
+
+    NTSTATUS status = STATUS_SUCCESS;
+
     status = Get_CrsAcpiResources(ResourcesTranslated);
     if (NT_SUCCESS(status)) {
-        mem_res *memRes = NULL;
-
         status = Get_DsdAcpiResources();
         if (NT_SUCCESS(status)) {
-            if (NT_SUCCESS(status) && (NULL != (memRes = m_MeResList.at(Mipi1RegResId)))) {
+            mem_res *memRes = NULL;
+            connection_res *connectionRes = NULL;
+            if (NT_SUCCESS(status) && (NULL != (memRes = m_MeResList.at(m_Mipi1RegResId)))) {
                 status = m_Mipi1Reg.IoSpaceMap(*memRes);
             }
             if (NT_SUCCESS(status) && memRes == NULL) {
                 status = STATUS_INSUFFICIENT_RESOURCES;
             }
-            if (NT_SUCCESS(status)) {
-                m_MipiCsiRes.m_CpuId = m_CpuId;
-                m_MipiCsiRes.m_MipiRegistersPtr = m_Mipi1Reg.Reg();
-                m_MipiCsiRes.escClockFrequencyHz = escClockFrequencyHz;
-                status = m_Mipi.PrepareHw(m_MipiCsiRes);
+            if (NT_SUCCESS(status) && m_HasMipiCsrRegRes && (NULL != (memRes = m_MeResList.at(m_MipiCsrRegResId)))) {
+                status = m_MipiCsrReg.IoSpaceMap(*memRes);
             }
-        }
-        if (NT_SUCCESS(status)) {
-            ANSI_STRING deviceEndpointAnsiName;
+            if (NT_SUCCESS(status) && m_HasScfwI2cRes && (NULL != (connectionRes = m_I2cResList.at(m_ScfwI2cResId)))) {
+                sc_ipc_id_struct_t scIpcConfig = { {connectionRes->m_IdLowPart, connectionRes->m_IdHighPart}, {0} };
 
-            _Analysis_assume_nullterminated_(m_DeviceEndpoint);
-            status = RtlInitAnsiStringEx(&deviceEndpointAnsiName, (PCSZ)(m_DeviceEndpoint));
-            if (NT_SUCCESS(status)) {
-                RtlInitEmptyUnicodeString(&m_DeviceEndpointUnicodeName, m_DeviceEndpointUnicodeNameBuff, sizeof(m_DeviceEndpointUnicodeNameBuff));
-                status = RtlAnsiStringToUnicodeString(&m_DeviceEndpointUnicodeName, &deviceEndpointAnsiName, FALSE);
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_ScfwI2c.IoTargetInit.");
+                status = sc_ipc_open(&m_ScfwIpcHandle, &scIpcConfig);
             }
             if (NT_SUCCESS(status)) {
-                status = WdfDeviceCreateSymbolicLink(m_WdfDevice, &m_DeviceEndpointUnicodeName);
-                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "Create WdfDeviceCreateSymbolicLink (%ws): %!STATUS!", m_DeviceEndpointUnicodeName.Buffer, status);
+                m_MipiRegistersPtr = m_Mipi1Reg.Reg();
+                m_MipiCsrRegistersPtr = m_MipiCsrReg.Reg();
             }
-#if (DBG)
-            if (NT_SUCCESS(status)) {
-                status = WdfDeviceCreateDeviceInterface(m_WdfDevice, &GUID_DEVINTERFACE_IMXMIPI, NULL);
-                if (!NT_SUCCESS(status)) {
-                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to create interface %!STATUS!", status);
-                }
-            }
-#endif
         }
     }
     return status;
@@ -447,15 +537,25 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
     PDEVICE_CONTEXT deviceContextPtr = DeviceGetContext(WdfDevice);
     ASSERT(deviceContextPtr != NULL);
 
+    return deviceContextPtr->m_Resources.FreeMemory();
+}
+
+NTSTATUS Resources_t::FreeMemory()
+{
     regBase alocs[] = {
-        deviceContextPtr->m_Mipi1Reg,
+        m_Mipi1Reg,
+        m_MipiCsrReg,
     };
 
     for (auto a : alocs) {
         a.IoSpaceUnmap();
     }
+    if (m_HasScfwI2cRes) {
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DEVICE, "m_ScfwI2c.IoTargetClose.");
+        sc_ipc_close(&m_ScfwIpcHandle);
+    }
     {
-        auto &resList = deviceContextPtr->m_MeResList;
+        auto &resList = m_MeResList;
         auto *a = resList.Pop();
 
         while (a != NULL) {
@@ -464,7 +564,7 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
         }
     }
     {
-        auto &resList = deviceContextPtr->m_GpioResList;
+        auto &resList = m_GpioResList;
         auto *a = resList.Pop();
 
         while (a != NULL) {
@@ -473,7 +573,7 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
         }
     }
     {
-        auto &resList = deviceContextPtr->m_I2cResList;
+        auto &resList = m_I2cResList;
         auto *a = resList.Pop();
 
         while (a != NULL) {
@@ -482,7 +582,7 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
         }
     }
     {
-        auto &resList = deviceContextPtr->m_IntResList;
+        auto &resList = m_IntResList;
         auto *a = resList.Pop();
 
         while (a != NULL) {
@@ -490,7 +590,7 @@ NTSTATUS WdfMipi_ctx::EvtReleaseHw(_In_ WDFDEVICE WdfDevice, _In_ WDFCMRESLIST R
             a = resList.Pop();
         }
     }
-    deviceContextPtr->m_DsdRes.Cleanup();
+    m_DsdRes.Cleanup();
 
     return STATUS_SUCCESS;
 }
@@ -750,6 +850,7 @@ void WdfMipi_ctx::ConfigureRequest(PREQUEST_CONTEXT RequestCtxPtr)
             TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
         }
         else {
+            configPtr->DisableLaneMask =  0xF & ~((1UL << (UINT32)configPtr->csiLanes) - 1UL);
             status = m_Mipi.Init(*configPtr);
             if (NT_SUCCESS(status)) {
                 status = m_Mipi.Start(*configPtr);

@@ -32,7 +32,7 @@ extern "C" {
 //
 // Define the tracing flags.
 //
-// Tracing GUID - 2ab7178c-18a3-44ed-bae1-b9f34f4dca7b
+// Tracing GUID - {2ab7178c-18a3-44ed-bae1-b9f34f4dca7b}
 //
 
 #define WPP_CONTROL_GUIDS                                              \

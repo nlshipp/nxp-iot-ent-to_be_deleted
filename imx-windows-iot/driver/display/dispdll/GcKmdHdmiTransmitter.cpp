@@ -1,8 +1,9 @@
 /******************************************************************************
  *
  * Copyright (C) 2016-2017 Cadence Design Systems, Inc.
- * Copyright 2022 NXP
  * All rights reserved worldwide.
+ *
+ * Copyright 2022 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -134,14 +135,19 @@ NTSTATUS HdmiTransmitter::GetEdid(PVOID Data, ULONG Length, UINT8 Block, UINT8 S
     }
 
     int hactive = 0, vactive = 0;
-    if (!GetModeSize(hdmi_data.buff, min(Length, hdmi_data.len),
-        &hactive, &vactive))
-    {
-        return STATUS_INTERNAL_ERROR;
-    }
+    GetModeSize(hdmi_data.buff, min(Length, hdmi_data.len),
+        &hactive, &vactive);
 
-    // if mode is higher than 1080p fall back to predefined 1080p mode
-    if (hactive * vactive > 1920 * 1080)
+    // if edid.len == 0 it means that monitor is not connected
+    // or does not support EDID, we fall back to predefined 720p mode
+    if (hdmi_data.len == 0)
+    {
+        RtlCopyMemory(Data, edid_mon_1280_720_60, EDID_SIZE);
+        RtlCopyMemory(m_CachedEdid, edid_mon_1280_720_60, EDID_SIZE);
+    }
+    // 4K mode is not supported,
+    // if mode > 1080p we fall back to predefined 1080p mode
+    else if (hactive * vactive > 1920 * 1080)
     {
         RtlCopyMemory(Data, edid_mon_1920_1080_60, EDID_SIZE);
         RtlCopyMemory(m_CachedEdid, edid_mon_1920_1080_60, EDID_SIZE);

@@ -25,7 +25,6 @@
 extern "C" {
 #include <wdm.h>
 }
-
 #include <windef.h>
 #include <stdio.h>
 #include <ntstrsafe.h>
@@ -39,40 +38,11 @@ extern "C" {
 #include <ksmedia.h>
 #include "ImxCpuRev.h"
 
-
 /*************************************************
 
     Misc Definitions
 
 *************************************************/
-#pragma warning (disable : 4100 4127 4131 4189 4701 4706)
-#define STR_MODULENAME "avshws: "
-#define DEBUGLVL_VERBOSE 2
-#define DEBUGLVL_TERSE 1
-#define DEBUGLVL_ERROR 0
-
-const int DebugLevel = DEBUGLVL_TERSE;
-
-#if (DBG)
-#define _DbgPrint
-//KdPrint
-#define _DBG 1
-#define _DbgPrintF(lvl, strings) \
-{ \
-    if (lvl <= DebugLevel) {\
-        DbgPrint(STR_MODULENAME);\
-        DbgPrint##strings;\
-        DbgPrint("\n");\
-        if ((lvl) == DEBUGLVL_ERROR) {\
-            NT_ASSERT(0);\
-        } \
-    }\
-}
-#else // !DBG
-   #define _DbgPrint(...)
-   #define _DBG 0
-   #define _DbgPrintF(lvl, strings)
-#endif // !DBG
 
 #define ABS(x) ((x) < 0 ? (-(x)) : (x))
 

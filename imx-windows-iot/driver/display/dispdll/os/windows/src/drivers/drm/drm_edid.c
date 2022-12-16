@@ -30,21 +30,186 @@
  */
 
 #include <asm/errno.h>
+#include <linux/err.h>
 #include <linux/hdmi.h>
+#include <linux/i2c.h>
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
+#include <drm/drm_displayid.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_modes.h>
 #include <drm/drm_print.h>
 #include <drm/drm_property.h>
+#include <drm/drm_scdc_helper.h>
 
 #include <uapi/linux/fb.h>
 
- /*
-  * From CEA/CTA-861 spec.
-  *
-  * Do not access directly, instead always use cea_mode_for_vic().
-  */
+#define version_greater(edid, maj, min) \
+	(((edid)->version > (maj)) || \
+	 ((edid)->version == (maj) && (edid)->revision > (min)))
+
+#define EDID_EST_TIMINGS 16
+#define EDID_STD_TIMINGS 8
+#define EDID_DETAILED_TIMINGS 4
+
+/*
+ * EDID blocks out in the wild have a variety of bugs, try to collect
+ * them here (note that userspace may work around broken monitors first,
+ * but fixes should make their way here so that the kernel "just works"
+ * on as many displays as possible).
+ */
+
+/* First detailed mode wrong, use largest 60Hz mode */
+#define EDID_QUIRK_PREFER_LARGE_60		(1 << 0)
+/* Reported 135MHz pixel clock is too high, needs adjustment */
+#define EDID_QUIRK_135_CLOCK_TOO_HIGH		(1 << 1)
+/* Prefer the largest mode at 75 Hz */
+#define EDID_QUIRK_PREFER_LARGE_75		(1 << 2)
+/* Detail timing is in cm not mm */
+#define EDID_QUIRK_DETAILED_IN_CM		(1 << 3)
+/* Detailed timing descriptors have bogus size values, so just take the
+ * maximum size and use that.
+ */
+#define EDID_QUIRK_DETAILED_USE_MAXIMUM_SIZE	(1 << 4)
+/* use +hsync +vsync for detailed mode */
+#define EDID_QUIRK_DETAILED_SYNC_PP		(1 << 6)
+/* Force reduced-blanking timings for detailed modes */
+#define EDID_QUIRK_FORCE_REDUCED_BLANKING	(1 << 7)
+/* Force 8bpc */
+#define EDID_QUIRK_FORCE_8BPC			(1 << 8)
+/* Force 12bpc */
+#define EDID_QUIRK_FORCE_12BPC			(1 << 9)
+/* Force 6bpc */
+#define EDID_QUIRK_FORCE_6BPC			(1 << 10)
+/* Force 10bpc */
+#define EDID_QUIRK_FORCE_10BPC			(1 << 11)
+/* Non desktop display (i.e. HMD) */
+#define EDID_QUIRK_NON_DESKTOP			(1 << 12)
+
+static const struct edid_quirk {
+	char vendor[4];
+	int product_id;
+	u32 quirks;
+} edid_quirk_list[] = {
+	/* Acer AL1706 */
+	{ "ACR", 44358, EDID_QUIRK_PREFER_LARGE_60 },
+	/* Acer F51 */
+	{ "API", 0x7602, EDID_QUIRK_PREFER_LARGE_60 },
+
+	/* AEO model 0 reports 8 bpc, but is a 6 bpc panel */
+	{ "AEO", 0, EDID_QUIRK_FORCE_6BPC },
+
+	/* BOE model on HP Pavilion 15-n233sl reports 8 bpc, but is a 6 bpc panel */
+	{ "BOE", 0x78b, EDID_QUIRK_FORCE_6BPC },
+
+	/* CPT panel of Asus UX303LA reports 8 bpc, but is a 6 bpc panel */
+	{ "CPT", 0x17df, EDID_QUIRK_FORCE_6BPC },
+
+	/* SDC panel of Lenovo B50-80 reports 8 bpc, but is a 6 bpc panel */
+	{ "SDC", 0x3652, EDID_QUIRK_FORCE_6BPC },
+
+	/* BOE model 0x0771 reports 8 bpc, but is a 6 bpc panel */
+	{ "BOE", 0x0771, EDID_QUIRK_FORCE_6BPC },
+
+	/* Belinea 10 15 55 */
+	{ "MAX", 1516, EDID_QUIRK_PREFER_LARGE_60 },
+	{ "MAX", 0x77e, EDID_QUIRK_PREFER_LARGE_60 },
+
+	/* Envision Peripherals, Inc. EN-7100e */
+	{ "EPI", 59264, EDID_QUIRK_135_CLOCK_TOO_HIGH },
+	/* Envision EN2028 */
+	{ "EPI", 8232, EDID_QUIRK_PREFER_LARGE_60 },
+
+	/* Funai Electronics PM36B */
+	{ "FCM", 13600, EDID_QUIRK_PREFER_LARGE_75 |
+	  EDID_QUIRK_DETAILED_IN_CM },
+
+	/* LGD panel of HP zBook 17 G2, eDP 10 bpc, but reports unknown bpc */
+	{ "LGD", 764, EDID_QUIRK_FORCE_10BPC },
+
+	/* LG Philips LCD LP154W01-A5 */
+	{ "LPL", 0, EDID_QUIRK_DETAILED_USE_MAXIMUM_SIZE },
+	{ "LPL", 0x2a00, EDID_QUIRK_DETAILED_USE_MAXIMUM_SIZE },
+
+	/* Samsung SyncMaster 205BW.  Note: irony */
+	{ "SAM", 541, EDID_QUIRK_DETAILED_SYNC_PP },
+	/* Samsung SyncMaster 22[5-6]BW */
+	{ "SAM", 596, EDID_QUIRK_PREFER_LARGE_60 },
+	{ "SAM", 638, EDID_QUIRK_PREFER_LARGE_60 },
+
+	/* Sony PVM-2541A does up to 12 bpc, but only reports max 8 bpc */
+	{ "SNY", 0x2541, EDID_QUIRK_FORCE_12BPC },
+
+	/* ViewSonic VA2026w */
+	{ "VSC", 5020, EDID_QUIRK_FORCE_REDUCED_BLANKING },
+
+	/* Medion MD 30217 PG */
+	{ "MED", 0x7b8, EDID_QUIRK_PREFER_LARGE_75 },
+
+	/* Lenovo G50 */
+	{ "SDC", 18514, EDID_QUIRK_FORCE_6BPC },
+
+	/* Panel in Samsung NP700G7A-S01PL notebook reports 6bpc */
+	{ "SEC", 0xd033, EDID_QUIRK_FORCE_8BPC },
+
+	/* Rotel RSX-1058 forwards sink's EDID but only does HDMI 1.1*/
+	{ "ETR", 13896, EDID_QUIRK_FORCE_8BPC },
+
+	/* Valve Index Headset */
+	{ "VLV", 0x91a8, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b0, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b1, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b2, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b3, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b4, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b5, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b6, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b7, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b8, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91b9, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91ba, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91bb, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91bc, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91bd, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91be, EDID_QUIRK_NON_DESKTOP },
+	{ "VLV", 0x91bf, EDID_QUIRK_NON_DESKTOP },
+
+	/* HTC Vive and Vive Pro VR Headsets */
+	{ "HVR", 0xaa01, EDID_QUIRK_NON_DESKTOP },
+	{ "HVR", 0xaa02, EDID_QUIRK_NON_DESKTOP },
+
+	/* Oculus Rift DK1, DK2, CV1 and Rift S VR Headsets */
+	{ "OVR", 0x0001, EDID_QUIRK_NON_DESKTOP },
+	{ "OVR", 0x0003, EDID_QUIRK_NON_DESKTOP },
+	{ "OVR", 0x0004, EDID_QUIRK_NON_DESKTOP },
+	{ "OVR", 0x0012, EDID_QUIRK_NON_DESKTOP },
+
+	/* Windows Mixed Reality Headsets */
+	{ "ACR", 0x7fce, EDID_QUIRK_NON_DESKTOP },
+	{ "HPN", 0x3515, EDID_QUIRK_NON_DESKTOP },
+	{ "LEN", 0x0408, EDID_QUIRK_NON_DESKTOP },
+	{ "LEN", 0xb800, EDID_QUIRK_NON_DESKTOP },
+	{ "FUJ", 0x1970, EDID_QUIRK_NON_DESKTOP },
+	{ "DEL", 0x7fce, EDID_QUIRK_NON_DESKTOP },
+	{ "SEC", 0x144a, EDID_QUIRK_NON_DESKTOP },
+	{ "AUS", 0xc102, EDID_QUIRK_NON_DESKTOP },
+
+	/* Sony PlayStation VR Headset */
+	{ "SNY", 0x0704, EDID_QUIRK_NON_DESKTOP },
+
+	/* Sensics VR Headsets */
+	{ "SEN", 0x1019, EDID_QUIRK_NON_DESKTOP },
+
+	/* OSVR HDK and HDK2 VR Headsets */
+	{ "SVR", 0x1019, EDID_QUIRK_NON_DESKTOP },
+};
+
+/*
+ * From CEA/CTA-861 spec.
+ *
+ * Do not access directly, instead always use cea_mode_for_vic().
+ */
 static const struct drm_display_mode edid_cea_modes_1[] = {
 	/* 1 - 640x480@60Hz 4:3 */
 	{ DRM_MODE("640x480", DRM_MODE_TYPE_DRIVER, 25175, 640, 656,
@@ -793,7 +958,7 @@ static const struct drm_display_mode edid_cea_modes_193[] = {
 	{ DRM_MODE("7680x4320", DRM_MODE_TYPE_DRIVER, 4752000, 7680, 9792,
 		   9968, 10560, 0, 4320, 4336, 4356, 4500, 0,
 		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
-		  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_64_27, },
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_64_27, },
 	/* 209 - 7680x4320@120Hz 64:27 */
 	{ DRM_MODE("7680x4320", DRM_MODE_TYPE_DRIVER, 4752000, 7680, 8032,
 		   8208, 8800, 0, 4320, 4336, 4356, 4500, 0,
@@ -887,7 +1052,610 @@ static const struct drm_display_mode edid_4k_modes[] = {
 	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_256_135, },
 };
 
-static inline const struct drm_display_mode *cea_mode_for_vic(u8 vic)
+/*** DDC fetch and block validation ***/
+
+static const u8 edid_header[] = {
+	0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00
+};
+
+/**
+ * drm_edid_header_is_valid - sanity check the header of the base EDID block
+ * @raw_edid: pointer to raw base EDID block
+ *
+ * Sanity check the header of the base EDID block.
+ *
+ * Return: 8 if the header is perfect, down to 0 if it's totally wrong.
+ */
+int drm_edid_header_is_valid(const u8 *raw_edid)
+{
+	int i, score = 0;
+
+	for (i = 0; i < sizeof(edid_header); i++)
+		if (raw_edid[i] == edid_header[i])
+			score++;
+
+	return score;
+}
+
+static int edid_fixup = 6;
+
+static int drm_edid_block_checksum(const u8 *raw_edid)
+{
+	int i;
+	u8 csum = 0, crc = 0;
+
+	for (i = 0; i < EDID_LENGTH - 1; i++)
+		csum += raw_edid[i];
+
+	crc = 0xFFu - csum + 1;
+
+	return crc;
+}
+
+static bool drm_edid_block_checksum_diff(const u8 *raw_edid, u8 real_checksum)
+{
+	if (raw_edid[EDID_LENGTH - 1] != real_checksum)
+		return true;
+	else
+		return false;
+}
+
+static bool drm_edid_is_zero(const u8 *in_edid, int length)
+{
+	int i;
+
+	for (i = 0; i < length; i++) {
+		if (in_edid[i] != 0)
+			return false;
+	}
+
+	return true;
+}
+
+/**
+ * drm_edid_block_valid - Sanity check the EDID block (base or extension)
+ * @raw_edid: pointer to raw EDID block
+ * @block: type of block to validate (0 for base, extension otherwise)
+ * @print_bad_edid: if true, dump bad EDID blocks to the console
+ * @edid_corrupt: if true, the header or checksum is invalid
+ *
+ * Validate a base or extension EDID block and optionally dump bad blocks to
+ * the console.
+ *
+ * Return: True if the block is valid, false otherwise.
+ */
+bool drm_edid_block_valid(u8 *raw_edid, int block, bool print_bad_edid,
+			  bool *edid_corrupt)
+{
+	u8 csum;
+	struct edid *edid = (struct edid *)raw_edid;
+	int i;
+
+	if (!raw_edid)
+		return false;
+
+	if (edid_fixup > 8 || edid_fixup < 0)
+		edid_fixup = 6;
+
+	if (block == 0) {
+		int score = drm_edid_header_is_valid(raw_edid);
+
+		if (score == 8) {
+			if (edid_corrupt)
+				*edid_corrupt = false;
+		} else if (score >= edid_fixup) {
+			/* Displayport Link CTS Core 1.2 rev1.1 test 4.2.2.6
+			 * The corrupt flag needs to be set here otherwise, the
+			 * fix-up code here will correct the problem, the
+			 * checksum is correct and the test fails
+			 */
+			if (edid_corrupt)
+				*edid_corrupt = true;
+			DRM_DEBUG("Fixing EDID header, your hardware may be failing\n");
+			memcpy(raw_edid, edid_header, sizeof(edid_header));
+		} else {
+			if (edid_corrupt)
+				*edid_corrupt = true;
+			goto bad;
+		}
+	}
+
+	csum = (u8)drm_edid_block_checksum(raw_edid);
+	if (drm_edid_block_checksum_diff(raw_edid, csum)) {
+		if (edid_corrupt)
+			*edid_corrupt = true;
+
+		/* allow CEA to slide through, switches mangle this */
+		if (raw_edid[0] == CEA_EXT) {
+			DRM_DEBUG("EDID checksum is invalid, remainder is %d\n", csum);
+			DRM_DEBUG("Assuming a KVM switch modified the CEA block but left the original checksum\n");
+		} else {
+			if (print_bad_edid)
+				DRM_ERROR("EDID checksum is invalid, remainder is %d\n", csum);
+
+			goto bad;
+		}
+	}
+
+	/* per-block-type checks */
+	switch (raw_edid[0]) {
+	case 0: /* base */
+		if (edid->version != 1) {
+			DRM_ERROR("EDID has major version %d, instead of 1\n", edid->version);
+			goto bad;
+		}
+
+		if (edid->revision > 4)
+			DRM_DEBUG("EDID minor > 4, assuming backward compatibility\n");
+		break;
+
+	default:
+		break;
+	}
+
+	return true;
+
+bad:
+	if (print_bad_edid) {
+		if (drm_edid_is_zero(raw_edid, EDID_LENGTH)) {
+			pr_notice("EDID block is all zeroes\n");
+		} else {
+			pr_notice("Raw EDID:\n");
+			for (i = 0; i < EDID_LENGTH; i++) {
+				pr_notice("0x%x, ", raw_edid[i]);
+			}
+		}
+	}
+	return false;
+}
+
+#define DDC_SEGMENT_ADDR 0x30
+/**
+ * drm_do_probe_ddc_edid() - get EDID information via I2C
+ * @data: I2C device adapter
+ * @buf: EDID data buffer to be filled
+ * @block: 128 byte EDID block to start fetching from
+ * @len: EDID data buffer length to fetch
+ *
+ * Try to fetch EDID information by calling I2C driver functions.
+ *
+ * Return: 0 on success or -1 on failure.
+ */
+static int
+drm_do_probe_ddc_edid(void *data, u8 *buf, unsigned int block, size_t len)
+{
+	struct i2c_adapter *adapter = data;
+	unsigned char start = (unsigned char)(block * EDID_LENGTH);
+	unsigned char segment = (unsigned char)block >> 1;
+	unsigned char xfers = segment ? 3 : 2;
+	int ret, retries = 5;
+
+	/*
+	 * The core I2C driver will automatically retry the transfer if the
+	 * adapter reports EAGAIN. However, we find that bit-banging transfers
+	 * are susceptible to errors under a heavily loaded machine and
+	 * generate spurious NAKs and timeouts. Retrying the transfer
+	 * of the individual block a few times seems to overcome this.
+	 */
+	do {
+		struct i2c_msg msgs[] = {
+			{
+				.addr	= DDC_SEGMENT_ADDR,
+				.flags	= 0,
+				.len	= 1,
+				.buf	= &segment,
+			}, {
+				.addr	= DDC_ADDR,
+				.flags	= 0,
+				.len	= 1,
+				.buf	= &start,
+			}, {
+				.addr	= DDC_ADDR,
+				.flags	= I2C_M_RD,
+				.len	= (u16)len,
+				.buf	= buf,
+			}
+		};
+
+		/*
+		 * Avoid sending the segment addr to not upset non-compliant
+		 * DDC monitors.
+		 */
+		ret = i2c_transfer(adapter, &msgs[3 - xfers], xfers);
+
+		if (ret == -ENXIO) {
+			DRM_DEBUG_KMS("drm: skipping non-existent adapter %s\n",
+					adapter->name);
+			break;
+		}
+	} while (ret != xfers && --retries);
+
+	return ret == xfers ? 0 : -1;
+}
+
+static void connector_bad_edid(struct drm_connector *connector,
+			       u8 *edid, int num_blocks)
+{
+	u8 last_block;
+
+	/*
+	 * 0x7e in the EDID is the number of extension blocks. The EDID
+	 * is 1 (base block) + num_ext_blocks big. That means we can think
+	 * of 0x7e in the EDID of the _index_ of the last block in the
+	 * combined chunk of memory.
+	 */
+	last_block = edid[0x7e];
+
+	/* Calculate real checksum for the last edid extension block data */
+	if (last_block < num_blocks)
+		connector->real_edid_checksum = (u8)
+			drm_edid_block_checksum(edid + last_block * EDID_LENGTH);
+
+	connector->bad_edid_counter++;
+	return;
+}
+
+/* Get override or firmware EDID */
+static struct edid *drm_get_override_edid(struct drm_connector *connector)
+{
+	struct edid *override = NULL;
+
+	if (connector->override_edid)
+		override = drm_edid_duplicate(connector->edid_blob_ptr->data);
+
+	/* loading edid from firmware not supported */
+
+	return IS_ERR(override) ? NULL : override;
+}
+
+/**
+ * drm_do_get_edid - get EDID data using a custom EDID block read function
+ * @connector: connector we're probing
+ * @get_edid_block: EDID block read function
+ * @data: private data passed to the block read function
+ *
+ * When the I2C adapter connected to the DDC bus is hidden behind a device that
+ * exposes a different interface to read EDID blocks this function can be used
+ * to get EDID data using a custom block read function.
+ *
+ * As in the general case the DDC bus is accessible by the kernel at the I2C
+ * level, drivers must make all reasonable efforts to expose it as an I2C
+ * adapter and use drm_get_edid() instead of abusing this function.
+ *
+ * The EDID may be overridden using debugfs override_edid or firmware EDID
+ * (drm_load_edid_firmware() and drm.edid_firmware parameter), in this priority
+ * order. Having either of them bypasses actual EDID reads.
+ *
+ * Return: Pointer to valid EDID or NULL if we couldn't find any.
+ */
+struct edid *drm_do_get_edid(struct drm_connector *connector,
+	int (*get_edid_block)(void *data, u8 *buf, unsigned int block,
+			      size_t len),
+	void *data)
+{
+	int i, j = 0;
+	u8 valid_extensions = 0;
+	u8 *edid, *new;
+	struct edid *override;
+
+	override = drm_get_override_edid(connector);
+	if (override)
+		return override;
+
+	if ((edid = kmalloc(EDID_LENGTH, GFP_KERNEL)) == NULL)
+		return NULL;
+
+	/* base block fetch */
+	for (i = 0; i < 4; i++) {
+		if (get_edid_block(data, edid, 0, EDID_LENGTH))
+			goto out;
+		if (drm_edid_block_valid(edid, 0, false,
+					 &connector->edid_corrupt))
+			break;
+		if (i == 0 && drm_edid_is_zero(edid, EDID_LENGTH)) {
+			connector->null_edid_counter++;
+			goto carp;
+		}
+	}
+	if (i == 4)
+		goto carp;
+
+	/* if there's no extensions, we're done */
+	valid_extensions = edid[0x7e];
+	if (valid_extensions == 0)
+		return (struct edid *)edid;
+
+	new = modified_krealloc(edid, EDID_LENGTH, (valid_extensions + 1) * EDID_LENGTH, GFP_KERNEL);
+
+	if (!new)
+		goto out;
+	edid = new;
+
+	for (j = 1; j <= edid[0x7e]; j++) {
+		u8 *block = edid + j * EDID_LENGTH;
+
+		for (i = 0; i < 4; i++) {
+			if (get_edid_block(data, block, j, EDID_LENGTH))
+				goto out;
+			if (drm_edid_block_valid(block, j, false, NULL))
+				break;
+		}
+
+		if (i == 4)
+			valid_extensions--;
+	}
+
+	if (valid_extensions != edid[0x7e]) {
+		u8 *base;
+
+		connector_bad_edid(connector, edid, edid[0x7e] + 1);
+
+		edid[EDID_LENGTH-1] += edid[0x7e] - valid_extensions;
+		edid[0x7e] = valid_extensions;
+
+		new = kmalloc_array(valid_extensions + 1, EDID_LENGTH,
+				    GFP_KERNEL);
+		if (!new)
+			goto out;
+
+		base = new;
+		for (i = 0; i <= edid[0x7e]; i++) {
+			u8 *block = edid + i * EDID_LENGTH;
+
+			if (!drm_edid_block_valid(block, i, false, NULL))
+				continue;
+
+			memcpy(base, block, EDID_LENGTH);
+			base += EDID_LENGTH;
+		}
+
+		kfree(edid);
+		edid = new;
+	}
+
+	return (struct edid *)edid;
+
+carp:
+	connector_bad_edid(connector, edid, 1);
+out:
+	kfree(edid);
+	return NULL;
+}
+
+/**
+ * drm_probe_ddc() - probe DDC presence
+ * @adapter: I2C adapter to probe
+ *
+ * Return: True on success, false on failure.
+ */
+bool
+drm_probe_ddc(struct i2c_adapter *adapter)
+{
+	unsigned char out;
+
+	return (drm_do_probe_ddc_edid(adapter, &out, 0, 1) == 0);
+}
+
+/**
+ * drm_get_edid - get EDID data, if available
+ * @connector: connector we're probing
+ * @adapter: I2C adapter to use for DDC
+ *
+ * Poke the given I2C channel to grab EDID data if possible.  If found,
+ * attach it to the connector.
+ *
+ * Return: Pointer to valid EDID or NULL if we couldn't find any.
+ */
+struct edid *drm_get_edid(struct drm_connector *connector,
+			  struct i2c_adapter *adapter)
+{
+	struct edid *edid;
+
+	if (connector->force == DRM_FORCE_OFF)
+		return NULL;
+
+	if (connector->force == DRM_FORCE_UNSPECIFIED && !drm_probe_ddc(adapter))
+		return NULL;
+
+	edid = drm_do_get_edid(connector, drm_do_probe_ddc_edid, adapter);
+	drm_connector_update_edid_property(connector, edid);
+	return edid;
+}
+
+/**
+ * drm_edid_duplicate - duplicate an EDID and the extensions
+ * @edid: EDID to duplicate
+ *
+ * Return: Pointer to duplicated EDID or NULL on allocation failure.
+ */
+struct edid *drm_edid_duplicate(const struct edid *edid)
+{
+	return kmemdup(edid, (edid->extensions + 1) * EDID_LENGTH, GFP_KERNEL);
+}
+
+/*** --------------------EDID parsing-------------------------------- ***/
+
+/**
+ * edid_vendor - match a string against EDID's obfuscated vendor field
+ * @edid: EDID to match
+ * @vendor: vendor string
+ *
+ * Returns true if @vendor is in @edid, false otherwise
+ */
+static bool edid_vendor(const struct edid *edid, const char *vendor)
+{
+	char edid_vendor[3];
+
+	edid_vendor[0] = ((edid->mfg_id[0] & 0x7c) >> 2) + '@';
+	edid_vendor[1] = (((edid->mfg_id[0] & 0x3) << 3) |
+			  ((edid->mfg_id[1] & 0xe0) >> 5)) + '@';
+	edid_vendor[2] = (edid->mfg_id[1] & 0x1f) + '@';
+
+	return !strncmp(edid_vendor, vendor, 3);
+}
+
+/**
+ * edid_get_quirks - return quirk flags for a given EDID
+ * @edid: EDID to process
+ *
+ * This tells subsequent routines what fixes they need to apply.
+ */
+static u32 edid_get_quirks(const struct edid *edid)
+{
+	const struct edid_quirk *quirk;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(edid_quirk_list); i++) {
+		quirk = &edid_quirk_list[i];
+
+		if (edid_vendor(edid, quirk->vendor) &&
+		    (EDID_PRODUCT_ID(edid) == quirk->product_id))
+			return quirk->quirks;
+	}
+
+	return 0;
+}
+
+static bool is_display_descriptor(const u8 d[18], u8 tag)
+{
+	return d[0] == 0x00 && d[1] == 0x00 &&
+		d[2] == 0x00 && d[3] == tag;
+}
+
+static bool is_detailed_timing_descriptor(const u8 d[18])
+{
+	return d[0] != 0x00 || d[1] != 0x00;
+}
+
+typedef void detailed_cb(struct detailed_timing *timing, void *closure);
+
+static void
+cea_for_each_detailed_block(u8 *ext, detailed_cb *cb, void *closure)
+{
+	int i, n;
+	u8 d = ext[0x02];
+	u8 *det_base = ext + d;
+
+	if (d < 4 || d > 127)
+		return;
+
+	n = (127 - d) / 18;
+	for (i = 0; i < n; i++)
+		cb((struct detailed_timing *)(det_base + 18 * i), closure);
+}
+
+static void
+vtb_for_each_detailed_block(u8 *ext, detailed_cb *cb, void *closure)
+{
+	unsigned int i, n = min((int)ext[0x02], 6);
+	u8 *det_base = ext + 5;
+
+	if (ext[0x01] != 1)
+		return; /* unknown version */
+
+	for (i = 0; i < n; i++)
+		cb((struct detailed_timing *)(det_base + 18 * i), closure);
+}
+
+static void
+drm_for_each_detailed_block(u8 *raw_edid, detailed_cb *cb, void *closure)
+{
+	int i;
+	struct edid *edid = (struct edid *)raw_edid;
+
+	if (edid == NULL)
+		return;
+
+	for (i = 0; i < EDID_DETAILED_TIMINGS; i++)
+		cb(&(edid->detailed_timings[i]), closure);
+
+	for (i = 1; i <= raw_edid[0x7e]; i++) {
+		u8 *ext = raw_edid + (i * EDID_LENGTH);
+
+		switch (*ext) {
+		case CEA_EXT:
+			cea_for_each_detailed_block(ext, cb, closure);
+			break;
+		case VTB_EXT:
+			vtb_for_each_detailed_block(ext, cb, closure);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+#define AUDIO_BLOCK	0x01
+#define VIDEO_BLOCK     0x02
+#define VENDOR_BLOCK    0x03
+#define SPEAKER_BLOCK	0x04
+#define HDR_STATIC_METADATA_BLOCK	0x6
+#define USE_EXTENDED_TAG 0x07
+#define EXT_VIDEO_CAPABILITY_BLOCK 0x00
+#define EXT_VIDEO_DATA_BLOCK_420	0x0E
+#define EXT_VIDEO_CAP_BLOCK_Y420CMDB 0x0F
+#define EDID_BASIC_AUDIO	(1 << 6)
+#define EDID_CEA_YCRCB444	(1 << 5)
+#define EDID_CEA_YCRCB422	(1 << 4)
+#define EDID_CEA_VCDB_QS	(1 << 6)
+
+/*
+ * Search EDID for CEA extension block.
+ */
+const u8 *drm_find_edid_extension(const struct edid *edid,
+				  int ext_id, int *ext_index)
+{
+	const u8 *edid_ext = NULL;
+	int i;
+
+	/* No EDID or EDID extensions */
+	if (edid == NULL || edid->extensions == 0)
+		return NULL;
+
+	/* Find CEA extension */
+	for (i = *ext_index; i < edid->extensions; i++) {
+		edid_ext = (const u8 *)edid + EDID_LENGTH * (i + 1);
+		if (edid_ext[0] == ext_id)
+			break;
+	}
+
+	if (i >= edid->extensions)
+		return NULL;
+
+	*ext_index = i + 1;
+
+	return edid_ext;
+}
+
+static const u8 *drm_find_cea_extension(const struct edid *edid)
+{
+	const struct displayid_block *block;
+	struct displayid_iter iter;
+	const u8 *cea;
+	int ext_index = 0;
+
+	/* Look for a top level CEA extension block */
+	/* FIXME: make callers iterate through multiple CEA ext blocks? */
+	cea = drm_find_edid_extension(edid, CEA_EXT, &ext_index);
+	if (cea)
+		return cea;
+
+	/* CEA blocks can also be found embedded in a DisplayID block */
+	displayid_iter_edid_begin(edid, &iter);
+	block = __displayid_iter_next(&iter);
+	while(block) {
+		if (block->tag == DATA_BLOCK_CTA) {
+			cea = (const u8 *)block;
+			break;
+		}
+		block = __displayid_iter_next(&iter);
+	}
+	displayid_iter_end(&iter);
+
+	return cea;
+}
+
+static __always_inline const struct drm_display_mode *cea_mode_for_vic(u8 vic)
 {
 	BUILD_BUG_ON(1 + ARRAY_SIZE(edid_cea_modes_1) - 1 != 127);
 	BUILD_BUG_ON(193 + ARRAY_SIZE(edid_cea_modes_193) - 1 != 219);
@@ -933,6 +1701,7 @@ cea_mode_alternate_clock(const struct drm_display_mode *cea_mode)
 	else
 		clock = (clock * 1000) / 1001;
 
+
 	return clock;
 }
 
@@ -949,18 +1718,18 @@ cea_mode_alternate_timings(u8 vic, struct drm_display_mode *mode)
 	 * vertical front porch length.
 	 */
 	BUILD_BUG_ON(cea_mode_for_vic(8)->vtotal != 262 ||
-		cea_mode_for_vic(9)->vtotal != 262 ||
-		cea_mode_for_vic(12)->vtotal != 262 ||
-		cea_mode_for_vic(13)->vtotal != 262 ||
-		cea_mode_for_vic(23)->vtotal != 312 ||
-		cea_mode_for_vic(24)->vtotal != 312 ||
-		cea_mode_for_vic(27)->vtotal != 312 ||
-		cea_mode_for_vic(28)->vtotal != 312);
+		     cea_mode_for_vic(9)->vtotal != 262 ||
+		     cea_mode_for_vic(12)->vtotal != 262 ||
+		     cea_mode_for_vic(13)->vtotal != 262 ||
+		     cea_mode_for_vic(23)->vtotal != 312 ||
+		     cea_mode_for_vic(24)->vtotal != 312 ||
+		     cea_mode_for_vic(27)->vtotal != 312 ||
+		     cea_mode_for_vic(28)->vtotal != 312);
 
 	if (((vic == 8 || vic == 9 ||
-		vic == 12 || vic == 13) && mode->vtotal < 263) ||
-		((vic == 23 || vic == 24 ||
-			vic == 27 || vic == 28) && mode->vtotal < 314)) {
+	      vic == 12 || vic == 13) && mode->vtotal < 263) ||
+	    ((vic == 23 || vic == 24 ||
+	      vic == 27 || vic == 28) && mode->vtotal < 314)) {
 		mode->vsync_start++;
 		mode->vsync_end++;
 		mode->vtotal++;
@@ -972,12 +1741,12 @@ cea_mode_alternate_timings(u8 vic, struct drm_display_mode *mode)
 }
 
 /**
-* drm_match_cea_mode - look for a CEA mode matching given mode
-* @to_match: display mode
-*
-* Return: The CEA Video ID (VIC) of the mode or 0 if it isn't a CEA-861
-* mode.
-*/
+ * drm_match_cea_mode - look for a CEA mode matching given mode
+ * @to_match: display mode
+ *
+ * Return: The CEA Video ID (VIC) of the mode or 0 if it isn't a CEA-861
+ * mode.
+ */
 u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
 {
 	unsigned int match_flags = DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_FLAGS;
@@ -998,7 +1767,7 @@ u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
 		clock2 = cea_mode_alternate_clock(&cea_mode);
 
 		if (KHZ2PICOS(to_match->clock) != KHZ2PICOS(clock1) &&
-			KHZ2PICOS(to_match->clock) != KHZ2PICOS(clock2))
+		    KHZ2PICOS(to_match->clock) != KHZ2PICOS(clock2))
 			continue;
 
 		do {
@@ -1063,11 +1832,330 @@ static u8 drm_match_hdmi_mode(const struct drm_display_mode *to_match)
 		clock2 = hdmi_mode_alternate_clock(hdmi_mode);
 
 		if ((KHZ2PICOS(to_match->clock) == KHZ2PICOS(clock1) ||
-			KHZ2PICOS(to_match->clock) == KHZ2PICOS(clock2)) &&
-			drm_mode_match(to_match, hdmi_mode, match_flags))
+		     KHZ2PICOS(to_match->clock) == KHZ2PICOS(clock2)) &&
+		    drm_mode_match(to_match, hdmi_mode, match_flags))
 			return vic;
 	}
 	return 0;
+}
+
+static int
+cea_db_payload_len(const u8 *db)
+{
+	return db[0] & 0x1f;
+}
+
+static int
+cea_db_extended_tag(const u8 *db)
+{
+	return db[1];
+}
+
+static int
+cea_db_tag(const u8 *db)
+{
+	return db[0] >> 5;
+}
+
+static int
+cea_revision(const u8 *cea)
+{
+	/*
+	 * FIXME is this correct for the DispID variant?
+	 * The DispID spec doesn't really specify whether
+	 * this is the revision of the CEA extension or
+	 * the DispID CEA data block. And the only value
+	 * given as an example is 0.
+	 */
+	return cea[1];
+}
+
+static int
+cea_db_offsets(const u8 *cea, int *start, int *end)
+{
+	/* DisplayID CTA extension blocks and top-level CEA EDID
+	 * block header definitions differ in the following bytes:
+	 *   1) Byte 2 of the header specifies length differently,
+	 *   2) Byte 3 is only present in the CEA top level block.
+	 *
+	 * The different definitions for byte 2 follow.
+	 *
+	 * DisplayID CTA extension block defines byte 2 as:
+	 *   Number of payload bytes
+	 *
+	 * CEA EDID block defines byte 2 as:
+	 *   Byte number (decimal) within this block where the 18-byte
+	 *   DTDs begin. If no non-DTD data is present in this extension
+	 *   block, the value should be set to 04h (the byte after next).
+	 *   If set to 00h, there are no DTDs present in this block and
+	 *   no non-DTD data.
+	 */
+	if (cea[0] == DATA_BLOCK_CTA) {
+		/*
+		 * for_each_displayid_db() has already verified
+		 * that these stay within expected bounds.
+		 */
+		*start = 3;
+		*end = *start + cea[2];
+	} else if (cea[0] == CEA_EXT) {
+		/* Data block offset in CEA extension block */
+		*start = 4;
+		*end = cea[2];
+		if (*end == 0)
+			*end = 127;
+		if (*end < 4 || *end > 127)
+			return -ERANGE;
+	} else {
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static bool cea_db_is_hdmi_vsdb(const u8 *db)
+{
+	int hdmi_id;
+
+	if (cea_db_tag(db) != VENDOR_BLOCK)
+		return false;
+
+	if (cea_db_payload_len(db) < 5)
+		return false;
+
+	hdmi_id = db[1] | (db[2] << 8) | (db[3] << 16);
+
+	return hdmi_id == HDMI_IEEE_OUI;
+}
+
+static bool cea_db_is_hdmi_forum_vsdb(const u8 *db)
+{
+	unsigned int oui;
+
+	if (cea_db_tag(db) != VENDOR_BLOCK)
+		return false;
+
+	if (cea_db_payload_len(db) < 7)
+		return false;
+
+	oui = db[3] << 16 | db[2] << 8 | db[1];
+
+	return oui == HDMI_FORUM_IEEE_OUI;
+}
+
+static bool cea_db_is_vcdb(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (cea_db_payload_len(db) != 2)
+		return false;
+
+	if (cea_db_extended_tag(db) != EXT_VIDEO_CAPABILITY_BLOCK)
+		return false;
+
+	return true;
+}
+
+static bool cea_db_is_y420cmdb(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (!cea_db_payload_len(db))
+		return false;
+
+	if (cea_db_extended_tag(db) != EXT_VIDEO_CAP_BLOCK_Y420CMDB)
+		return false;
+
+	return true;
+}
+
+static bool cea_db_is_y420vdb(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (!cea_db_payload_len(db))
+		return false;
+
+	if (cea_db_extended_tag(db) != EXT_VIDEO_DATA_BLOCK_420)
+		return false;
+
+	return true;
+}
+
+#define for_each_cea_db(cea, i, start, end) \
+	for ((i) = (start); (i) < (end) && (i) + cea_db_payload_len(&(cea)[(i)]) < (end); (i) += cea_db_payload_len(&(cea)[(i)]) + 1)
+
+static void drm_parse_y420cmdb_bitmap(struct drm_connector *connector,
+				      const u8 *db)
+{
+	struct drm_display_info *info = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &info->hdmi;
+	u8 map_len = (u8)cea_db_payload_len(db) - 1;
+	u8 count;
+	u64 map = 0;
+
+	if (map_len == 0) {
+		/* All CEA modes support ycbcr420 sampling also.*/
+		hdmi->y420_cmdb_map = U64_MAX;
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB420;
+		return;
+	}
+
+	/*
+	 * This map indicates which of the existing CEA block modes
+	 * from VDB can support YCBCR420 output too. So if bit=0 is
+	 * set, first mode from VDB can support YCBCR420 output too.
+	 * We will parse and keep this map, before parsing VDB itself
+	 * to avoid going through the same block again and again.
+	 *
+	 * Spec is not clear about max possible size of this block.
+	 * Clamping max bitmap block size at 8 bytes. Every byte can
+	 * address 8 CEA modes, in this way this map can address
+	 * 8*8 = first 64 SVDs.
+	 */
+	if (map_len > 8)
+		map_len = 8;
+
+	for (count = 0; count < map_len; count++)
+		map |= (u64)db[2 + count] << (8 * count);
+
+	if (map)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB420;
+
+	hdmi->y420_cmdb_map = map;
+}
+
+static bool cea_db_is_hdmi_hdr_metadata_block(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (db[1] != HDR_STATIC_METADATA_BLOCK)
+		return false;
+
+	if (cea_db_payload_len(db) < 3)
+		return false;
+
+	return true;
+}
+
+static uint8_t eotf_supported(const u8 *edid_ext)
+{
+	return edid_ext[2] &
+		(BIT(HDMI_EOTF_TRADITIONAL_GAMMA_SDR) |
+		 BIT(HDMI_EOTF_TRADITIONAL_GAMMA_HDR) |
+		 BIT(HDMI_EOTF_SMPTE_ST2084) |
+		 BIT(HDMI_EOTF_BT_2100_HLG));
+}
+
+static uint8_t hdr_metadata_type(const u8 *edid_ext)
+{
+	return edid_ext[3] &
+		BIT(HDMI_STATIC_METADATA_TYPE1);
+}
+
+static void
+drm_parse_hdr_metadata_block(struct drm_connector *connector, const u8 *db)
+{
+	u16 len;
+
+	len = (u16)cea_db_payload_len(db);
+
+	connector->hdr_sink_metadata.hdmi_type1.eotf =
+						eotf_supported(db);
+	connector->hdr_sink_metadata.hdmi_type1.metadata_type =
+						hdr_metadata_type(db);
+
+	if (len >= 4)
+		connector->hdr_sink_metadata.hdmi_type1.max_cll = db[4];
+	if (len >= 5)
+		connector->hdr_sink_metadata.hdmi_type1.max_fall = db[5];
+	if (len >= 6)
+		connector->hdr_sink_metadata.hdmi_type1.min_cll = db[6];
+}
+
+/**
+ * drm_detect_hdmi_monitor - detect whether monitor is HDMI
+ * @edid: monitor EDID information
+ *
+ * Parse the CEA extension according to CEA-861-B.
+ *
+ * Drivers that have added the modes parsed from EDID to drm_display_info
+ * should use &drm_display_info.is_hdmi instead of calling this function.
+ *
+ * Return: True if the monitor is HDMI, false if not or unknown.
+ */
+bool drm_detect_hdmi_monitor(struct edid *edid)
+{
+	const u8 *edid_ext;
+	int i;
+	int start_offset, end_offset;
+
+	edid_ext = drm_find_cea_extension(edid);
+	if (!edid_ext)
+		return false;
+
+	if (cea_db_offsets(edid_ext, &start_offset, &end_offset))
+		return false;
+
+	/*
+	 * Because HDMI identifier is in Vendor Specific Block,
+	 * search it from all data blocks of CEA extension.
+	 */
+	for_each_cea_db(edid_ext, i, start_offset, end_offset) {
+		if (cea_db_is_hdmi_vsdb(&edid_ext[i]))
+			return true;
+	}
+
+	return false;
+}
+
+/**
+ * drm_detect_monitor_audio - check monitor audio capability
+ * @edid: EDID block to scan
+ *
+ * Monitor should have CEA extension block.
+ * If monitor has 'basic audio', but no CEA audio blocks, it's 'basic
+ * audio' only. If there is any audio extension block and supported
+ * audio format, assume at least 'basic audio' support, even if 'basic
+ * audio' is not defined in EDID.
+ *
+ * Return: True if the monitor supports audio, false otherwise.
+ */
+bool drm_detect_monitor_audio(struct edid *edid)
+{
+	const u8 *edid_ext;
+	int i, j;
+	bool has_audio = false;
+	int start_offset, end_offset;
+
+	edid_ext = drm_find_cea_extension(edid);
+	if (!edid_ext)
+		goto end;
+
+	has_audio = ((edid_ext[3] & EDID_BASIC_AUDIO) != 0);
+
+	if (has_audio) {
+		DRM_DEBUG_KMS("Monitor has basic audio support\n");
+		goto end;
+	}
+
+	if (cea_db_offsets(edid_ext, &start_offset, &end_offset))
+		goto end;
+
+	for_each_cea_db(edid_ext, i, start_offset, end_offset) {
+		if (cea_db_tag(&edid_ext[i]) == AUDIO_BLOCK) {
+			has_audio = true;
+			for (j = 1; j < cea_db_payload_len(&edid_ext[i]) + 1; j += 3)
+				DRM_DEBUG_KMS("CEA audio format %d\n",
+					      (edid_ext[i + j] >> 3) & 0xf);
+			goto end;
+		}
+	}
+end:
+	return has_audio;
 }
 
 /**
@@ -1080,12 +2168,447 @@ static u8 drm_match_hdmi_mode(const struct drm_display_mode *to_match)
  * Return: The default RGB quantization range for the mode
  */
 enum hdmi_quantization_range
-	drm_default_rgb_quant_range(const struct drm_display_mode *mode)
+drm_default_rgb_quant_range(const struct drm_display_mode *mode)
 {
 	/* All CEA modes other than VIC 1 use limited quantization range. */
 	return drm_match_cea_mode(mode) > 1 ?
 		HDMI_QUANTIZATION_RANGE_LIMITED :
 		HDMI_QUANTIZATION_RANGE_FULL;
+}
+
+static void drm_parse_vcdb(struct drm_connector *connector, const u8 *db)
+{
+	struct drm_display_info *info = &connector->display_info;
+
+	DRM_DEBUG_KMS("CEA VCDB 0x%02x\n", db[2]);
+
+	if (db[2] & EDID_CEA_VCDB_QS)
+		info->rgb_quant_range_selectable = true;
+}
+
+static
+void drm_get_max_frl_rate(int max_frl_rate, u8 *max_lanes, u8 *max_rate_per_lane)
+{
+	switch (max_frl_rate) {
+	case 1:
+		*max_lanes = 3;
+		*max_rate_per_lane = 3;
+		break;
+	case 2:
+		*max_lanes = 3;
+		*max_rate_per_lane = 6;
+		break;
+	case 3:
+		*max_lanes = 4;
+		*max_rate_per_lane = 6;
+		break;
+	case 4:
+		*max_lanes = 4;
+		*max_rate_per_lane = 8;
+		break;
+	case 5:
+		*max_lanes = 4;
+		*max_rate_per_lane = 10;
+		break;
+	case 6:
+		*max_lanes = 4;
+		*max_rate_per_lane = 12;
+		break;
+	case 0:
+	default:
+		*max_lanes = 0;
+		*max_rate_per_lane = 0;
+	}
+}
+
+static void drm_parse_ycbcr420_deep_color_info(struct drm_connector *connector,
+					       const u8 *db)
+{
+	u8 dc_mask;
+	struct drm_hdmi_info *hdmi = &connector->display_info.hdmi;
+
+	dc_mask = db[7] & DRM_EDID_YCBCR420_DC_MASK;
+	hdmi->y420_dc_modes = dc_mask;
+}
+
+static void drm_parse_hdmi_forum_vsdb(struct drm_connector *connector,
+				 const u8 *hf_vsdb)
+{
+	struct drm_display_info *display = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &display->hdmi;
+
+	display->has_hdmi_infoframe = true;
+
+	if (hf_vsdb[6] & 0x80) {
+		hdmi->scdc.supported = true;
+		if (hf_vsdb[6] & 0x40)
+			hdmi->scdc.read_request = true;
+	}
+
+	/*
+	 * All HDMI 2.0 monitors must support scrambling at rates > 340 MHz.
+	 * And as per the spec, three factors confirm this:
+	 * * Availability of a HF-VSDB block in EDID (check)
+	 * * Non zero Max_TMDS_Char_Rate filed in HF-VSDB (let's check)
+	 * * SCDC support available (let's check)
+	 * Lets check it out.
+	 */
+
+	if (hf_vsdb[5]) {
+		/* max clock is 5000 KHz times block value */
+		u32 max_tmds_clock = hf_vsdb[5] * 5000;
+		struct drm_scdc *scdc = &hdmi->scdc;
+
+		if (max_tmds_clock > 340000) {
+			display->max_tmds_clock = max_tmds_clock;
+			DRM_DEBUG_KMS("HF-VSDB: max TMDS clock %d kHz\n",
+				display->max_tmds_clock);
+		}
+
+		if (scdc->supported) {
+			scdc->scrambling.supported = true;
+
+			/* Few sinks support scrambling for clocks < 340M */
+			if ((hf_vsdb[6] & 0x8))
+				scdc->scrambling.low_rates = true;
+		}
+	}
+
+	if (hf_vsdb[7]) {
+		u8 max_frl_rate;
+		u8 dsc_max_frl_rate;
+		u8 dsc_max_slices;
+		struct drm_hdmi_dsc_cap *hdmi_dsc = &hdmi->dsc_cap;
+
+		DRM_DEBUG_KMS("hdmi_21 sink detected. parsing edid\n");
+		max_frl_rate = (hf_vsdb[7] & DRM_EDID_MAX_FRL_RATE_MASK) >> 4;
+		drm_get_max_frl_rate(max_frl_rate, &hdmi->max_lanes,
+				     &hdmi->max_frl_rate_per_lane);
+		hdmi_dsc->v_1p2 = hf_vsdb[11] & DRM_EDID_DSC_1P2;
+
+		if (hdmi_dsc->v_1p2) {
+			hdmi_dsc->native_420 = hf_vsdb[11] & DRM_EDID_DSC_NATIVE_420;
+			hdmi_dsc->all_bpp = hf_vsdb[11] & DRM_EDID_DSC_ALL_BPP;
+
+			if (hf_vsdb[11] & DRM_EDID_DSC_16BPC)
+				hdmi_dsc->bpc_supported = 16;
+			else if (hf_vsdb[11] & DRM_EDID_DSC_12BPC)
+				hdmi_dsc->bpc_supported = 12;
+			else if (hf_vsdb[11] & DRM_EDID_DSC_10BPC)
+				hdmi_dsc->bpc_supported = 10;
+			else
+				hdmi_dsc->bpc_supported = 0;
+
+			dsc_max_frl_rate = (hf_vsdb[12] & DRM_EDID_DSC_MAX_FRL_RATE_MASK) >> 4;
+			drm_get_max_frl_rate(dsc_max_frl_rate, &hdmi_dsc->max_lanes,
+					     &hdmi_dsc->max_frl_rate_per_lane);
+			hdmi_dsc->total_chunk_kbytes = hf_vsdb[13] & DRM_EDID_DSC_TOTAL_CHUNK_KBYTES;
+
+			dsc_max_slices = hf_vsdb[12] & DRM_EDID_DSC_MAX_SLICES;
+			switch (dsc_max_slices) {
+			case 1:
+				hdmi_dsc->max_slices = 1;
+				hdmi_dsc->clk_per_slice = 340;
+				break;
+			case 2:
+				hdmi_dsc->max_slices = 2;
+				hdmi_dsc->clk_per_slice = 340;
+				break;
+			case 3:
+				hdmi_dsc->max_slices = 4;
+				hdmi_dsc->clk_per_slice = 340;
+				break;
+			case 4:
+				hdmi_dsc->max_slices = 8;
+				hdmi_dsc->clk_per_slice = 340;
+				break;
+			case 5:
+				hdmi_dsc->max_slices = 8;
+				hdmi_dsc->clk_per_slice = 400;
+				break;
+			case 6:
+				hdmi_dsc->max_slices = 12;
+				hdmi_dsc->clk_per_slice = 400;
+				break;
+			case 7:
+				hdmi_dsc->max_slices = 16;
+				hdmi_dsc->clk_per_slice = 400;
+				break;
+			case 0:
+			default:
+				hdmi_dsc->max_slices = 0;
+				hdmi_dsc->clk_per_slice = 0;
+			}
+		}
+	}
+
+	drm_parse_ycbcr420_deep_color_info(connector, hf_vsdb);
+}
+
+static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
+					   const u8 *hdmi)
+{
+	struct drm_display_info *info = &connector->display_info;
+	unsigned int dc_bpc = 0;
+
+	/* HDMI supports at least 8 bpc */
+	info->bpc = 8;
+
+	if (cea_db_payload_len(hdmi) < 6)
+		return;
+
+	if (hdmi[6] & DRM_EDID_HDMI_DC_30) {
+		dc_bpc = 10;
+		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_30;
+		DRM_DEBUG("HDMI sink does deep color 30.\n");
+	}
+
+	if (hdmi[6] & DRM_EDID_HDMI_DC_36) {
+		dc_bpc = 12;
+		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_36;
+		DRM_DEBUG("HDMI sink does deep color 36.\n");
+	}
+
+	if (hdmi[6] & DRM_EDID_HDMI_DC_48) {
+		dc_bpc = 16;
+		info->edid_hdmi_dc_modes |= DRM_EDID_HDMI_DC_48;
+		DRM_DEBUG("HDMI sink does deep color 48.\n");
+	}
+
+	if (dc_bpc == 0) {
+		DRM_DEBUG("No deep color support on this HDMI sink.\n");
+		return;
+	}
+
+	DRM_DEBUG("Assigning HDMI sink color depth as %d bpc.\n",
+		  dc_bpc);
+	info->bpc = dc_bpc;
+
+	/*
+	 * Deep color support mandates RGB444 support for all video
+	 * modes and forbids YCRCB422 support for all video modes per
+	 * HDMI 1.3 spec.
+	 */
+	info->color_formats = DRM_COLOR_FORMAT_RGB444;
+
+	/* YCRCB444 is optional according to spec. */
+	if (hdmi[6] & DRM_EDID_HDMI_DC_Y444) {
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB444;
+		DRM_DEBUG("HDMI sink does YCRCB444 in deep color.\n");
+	}
+
+	/*
+	 * Spec says that if any deep color mode is supported at all,
+	 * then deep color 36 bit must be supported.
+	 */
+	if (!(hdmi[6] & DRM_EDID_HDMI_DC_36)) {
+		DRM_DEBUG("HDMI sink should do DC_36, but does not!\n");
+	}
+}
+
+static void
+drm_parse_hdmi_vsdb_video(struct drm_connector *connector, const u8 *db)
+{
+	struct drm_display_info *info = &connector->display_info;
+	u8 len = (u8)cea_db_payload_len(db);
+
+	info->is_hdmi = true;
+
+	if (len >= 6)
+		info->dvi_dual = db[6] & 1;
+	if (len >= 7)
+		info->max_tmds_clock = db[7] * 5000;
+
+	DRM_DEBUG_KMS("HDMI: DVI dual %d, "
+		      "max TMDS clock %d kHz\n",
+		      info->dvi_dual,
+		      info->max_tmds_clock);
+
+	drm_parse_hdmi_deep_color_info(connector, db);
+}
+
+static void drm_parse_cea_ext(struct drm_connector *connector,
+			      const struct edid *edid)
+{
+	struct drm_display_info *info = &connector->display_info;
+	const u8 *edid_ext;
+	int i, start, end;
+
+	edid_ext = drm_find_cea_extension(edid);
+	if (!edid_ext)
+		return;
+
+	info->cea_rev = edid_ext[1];
+
+	/* The existence of a CEA block should imply RGB support */
+	info->color_formats = DRM_COLOR_FORMAT_RGB444;
+	if (edid_ext[3] & EDID_CEA_YCRCB444)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB444;
+	if (edid_ext[3] & EDID_CEA_YCRCB422)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB422;
+
+	if (cea_db_offsets(edid_ext, &start, &end))
+		return;
+
+	for_each_cea_db(edid_ext, i, start, end) {
+		const u8 *db = &edid_ext[i];
+
+		if (cea_db_is_hdmi_vsdb(db))
+			drm_parse_hdmi_vsdb_video(connector, db);
+		if (cea_db_is_hdmi_forum_vsdb(db))
+			drm_parse_hdmi_forum_vsdb(connector, db);
+		if (cea_db_is_y420cmdb(db))
+			drm_parse_y420cmdb_bitmap(connector, db);
+		if (cea_db_is_vcdb(db))
+			drm_parse_vcdb(connector, db);
+		if (cea_db_is_hdmi_hdr_metadata_block(db))
+			drm_parse_hdr_metadata_block(connector, db);
+	}
+}
+
+static
+void get_monitor_range(struct detailed_timing *timing,
+		       void *info_monitor_range)
+{
+	struct drm_monitor_range_info *monitor_range = info_monitor_range;
+	const struct detailed_non_pixel *data = &timing->data.other_data;
+	const struct detailed_data_monitor_range *range = &data->data.range;
+
+	if (!is_display_descriptor((const u8 *)timing, EDID_DETAIL_MONITOR_RANGE))
+		return;
+
+	/*
+	 * Check for flag range limits only. If flag == 1 then
+	 * no additional timing information provided.
+	 * Default GTF, GTF Secondary curve and CVT are not
+	 * supported
+	 */
+	if (range->flags != DRM_EDID_RANGE_LIMITS_ONLY_FLAG)
+		return;
+
+	monitor_range->min_vfreq = range->min_vfreq;
+	monitor_range->max_vfreq = range->max_vfreq;
+}
+
+static
+void drm_get_monitor_range(struct drm_connector *connector,
+			   const struct edid *edid)
+{
+	struct drm_display_info *info = &connector->display_info;
+
+	if (!version_greater(edid, 1, 1))
+		return;
+
+	drm_for_each_detailed_block((u8 *)edid, get_monitor_range,
+				    &info->monitor_range);
+
+	DRM_DEBUG_KMS("Supported Monitor Refresh rate range is %d Hz - %d Hz\n",
+		      info->monitor_range.min_vfreq,
+		      info->monitor_range.max_vfreq);
+}
+
+/* A connector has no EDID information, so we've got no EDID to compute quirks from. Reset
+ * all of the values which would have been set from EDID
+ */
+void
+drm_reset_display_info(struct drm_connector *connector)
+{
+	struct drm_display_info *info = &connector->display_info;
+
+	info->width_mm = 0;
+	info->height_mm = 0;
+
+	info->bpc = 0;
+	info->color_formats = 0;
+	info->cea_rev = 0;
+	info->max_tmds_clock = 0;
+	info->dvi_dual = false;
+	info->is_hdmi = false;
+	info->has_hdmi_infoframe = false;
+	info->rgb_quant_range_selectable = false;
+	memset(&info->hdmi, 0, sizeof(info->hdmi));
+
+	info->non_desktop = 0;
+	memset(&info->monitor_range, 0, sizeof(info->monitor_range));
+}
+
+u32 drm_add_display_info(struct drm_connector *connector, const struct edid *edid)
+{
+	struct drm_display_info *info = &connector->display_info;
+
+	u32 quirks = edid_get_quirks(edid);
+
+	drm_reset_display_info(connector);
+
+	info->width_mm = edid->width_cm * 10;
+	info->height_mm = edid->height_cm * 10;
+
+	info->non_desktop = !!(quirks & EDID_QUIRK_NON_DESKTOP);
+
+	drm_get_monitor_range(connector, edid);
+
+	DRM_DEBUG_KMS("non_desktop set to %d\n", info->non_desktop);
+
+	if (edid->revision < 3)
+		return quirks;
+
+	if (!(edid->input & DRM_EDID_INPUT_DIGITAL))
+		return quirks;
+
+	drm_parse_cea_ext(connector, edid);
+
+	/*
+	 * Digital sink with "DFP 1.x compliant TMDS" according to EDID 1.3?
+	 *
+	 * For such displays, the DFP spec 1.0, section 3.10 "EDID support"
+	 * tells us to assume 8 bpc color depth if the EDID doesn't have
+	 * extensions which tell otherwise.
+	 */
+	if (info->bpc == 0 && edid->revision == 3 &&
+	    edid->input & DRM_EDID_DIGITAL_DFP_1_X) {
+		info->bpc = 8;
+		DRM_DEBUG("Assigning DFP sink color depth as %d bpc.\n",
+			  info->bpc);
+	}
+
+	/* Only defined for 1.4 with digital displays */
+	if (edid->revision < 4)
+		return quirks;
+
+	switch (edid->input & DRM_EDID_DIGITAL_DEPTH_MASK) {
+	case DRM_EDID_DIGITAL_DEPTH_6:
+		info->bpc = 6;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_8:
+		info->bpc = 8;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_10:
+		info->bpc = 10;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_12:
+		info->bpc = 12;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_14:
+		info->bpc = 14;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_16:
+		info->bpc = 16;
+		break;
+	case DRM_EDID_DIGITAL_DEPTH_UNDEF:
+	default:
+		info->bpc = 0;
+		break;
+	}
+
+	DRM_DEBUG("Assigning EDID-1.4 digital sink color depth as %d bpc.\n",
+			  info->bpc);
+
+	info->color_formats |= DRM_COLOR_FORMAT_RGB444;
+	if (edid->features & DRM_EDID_FEATURE_RGB_YCRCB444)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB444;
+	if (edid->features & DRM_EDID_FEATURE_RGB_YCRCB422)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB422;
+	return quirks;
 }
 
 static bool is_hdmi2_sink(const struct drm_connector *connector)
@@ -1116,7 +2639,7 @@ static inline bool is_eotf_supported(u8 output_eotf, u8 sink_eotf)
  */
 int
 drm_hdmi_infoframe_set_hdr_metadata(struct hdmi_drm_infoframe *frame,
-	const struct drm_connector_state *conn_state)
+				    const struct drm_connector_state *conn_state)
 {
 	struct drm_connector *connector;
 	struct hdr_output_metadata *hdr_metadata;
@@ -1137,7 +2660,7 @@ drm_hdmi_infoframe_set_hdr_metadata(struct hdmi_drm_infoframe *frame,
 
 	/* Sink EOTF is Bit map while infoframe is absolute values */
 	if (!is_eotf_supported(hdr_metadata->hdmi_metadata_type1.eotf,
-		connector->hdr_sink_metadata.hdmi_type1.eotf)) {
+	    connector->hdr_sink_metadata.hdmi_type1.eotf)) {
 		DRM_DEBUG_KMS("EOTF Not Supported\n");
 		return -EINVAL;
 	}
@@ -1150,17 +2673,17 @@ drm_hdmi_infoframe_set_hdr_metadata(struct hdmi_drm_infoframe *frame,
 	frame->metadata_type = hdr_metadata->hdmi_metadata_type1.metadata_type;
 
 	BUILD_BUG_ON(sizeof(frame->display_primaries) !=
-		sizeof(hdr_metadata->hdmi_metadata_type1.display_primaries));
+		     sizeof(hdr_metadata->hdmi_metadata_type1.display_primaries));
 	BUILD_BUG_ON(sizeof(frame->white_point) !=
-		sizeof(hdr_metadata->hdmi_metadata_type1.white_point));
+		     sizeof(hdr_metadata->hdmi_metadata_type1.white_point));
 
 	memcpy(&frame->display_primaries,
-		&hdr_metadata->hdmi_metadata_type1.display_primaries,
-		sizeof(frame->display_primaries));
+	       &hdr_metadata->hdmi_metadata_type1.display_primaries,
+	       sizeof(frame->display_primaries));
 
 	memcpy(&frame->white_point,
-		&hdr_metadata->hdmi_metadata_type1.white_point,
-		sizeof(frame->white_point));
+	       &hdr_metadata->hdmi_metadata_type1.white_point,
+	       sizeof(frame->white_point));
 
 	frame->max_display_mastering_luminance =
 		hdr_metadata->hdmi_metadata_type1.max_display_mastering_luminance;
@@ -1173,7 +2696,7 @@ drm_hdmi_infoframe_set_hdr_metadata(struct hdmi_drm_infoframe *frame,
 }
 
 static u8 drm_mode_hdmi_vic(const struct drm_connector *connector,
-	const struct drm_display_mode *mode)
+			    const struct drm_display_mode *mode)
 {
 	bool has_hdmi_infoframe = connector ?
 		connector->display_info.has_hdmi_infoframe : false;
@@ -1188,86 +2711,8 @@ static u8 drm_mode_hdmi_vic(const struct drm_connector *connector,
 	return drm_match_hdmi_mode(mode);
 }
 
-static enum hdmi_3d_structure
-s3d_structure_from_display_mode(const struct drm_display_mode *mode)
-{
-	u32 layout = mode->flags & DRM_MODE_FLAG_3D_MASK;
-
-	switch (layout) {
-	case DRM_MODE_FLAG_3D_FRAME_PACKING:
-		return HDMI_3D_STRUCTURE_FRAME_PACKING;
-	case DRM_MODE_FLAG_3D_FIELD_ALTERNATIVE:
-		return HDMI_3D_STRUCTURE_FIELD_ALTERNATIVE;
-	case DRM_MODE_FLAG_3D_LINE_ALTERNATIVE:
-		return HDMI_3D_STRUCTURE_LINE_ALTERNATIVE;
-	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_FULL:
-		return HDMI_3D_STRUCTURE_SIDE_BY_SIDE_FULL;
-	case DRM_MODE_FLAG_3D_L_DEPTH:
-		return HDMI_3D_STRUCTURE_L_DEPTH;
-	case DRM_MODE_FLAG_3D_L_DEPTH_GFX_GFX_DEPTH:
-		return HDMI_3D_STRUCTURE_L_DEPTH_GFX_GFX_DEPTH;
-	case DRM_MODE_FLAG_3D_TOP_AND_BOTTOM:
-		return HDMI_3D_STRUCTURE_TOP_AND_BOTTOM;
-	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF:
-		return HDMI_3D_STRUCTURE_SIDE_BY_SIDE_HALF;
-	default:
-		return HDMI_3D_STRUCTURE_INVALID;
-	}
-}
-
-/**
- * drm_hdmi_vendor_infoframe_from_display_mode() - fill an HDMI infoframe with
- * data from a DRM display mode
- * @frame: HDMI vendor infoframe
- * @connector: the connector
- * @mode: DRM display mode
- *
- * Note that there's is a need to send HDMI vendor infoframes only when using a
- * 4k or stereoscopic 3D mode. So when giving any other mode as input this
- * function will return -EINVAL, error that can be safely ignored.
- *
- * Return: 0 on success or a negative error code on failure.
- */
-int
-drm_hdmi_vendor_infoframe_from_display_mode(struct hdmi_vendor_infoframe *frame,
-	const struct drm_connector *connector,
-	const struct drm_display_mode *mode)
-{
-	/*
-	 * FIXME: sil-sii8620 doesn't have a connector around when
-	 * we need one, so we have to be prepared for a NULL connector.
-	 */
-	bool has_hdmi_infoframe = connector ?
-		connector->display_info.has_hdmi_infoframe : false;
-	int err;
-
-	if (!frame || !mode)
-		return -EINVAL;
-
-	if (!has_hdmi_infoframe)
-		return -EINVAL;
-
-	err = hdmi_vendor_infoframe_init(frame);
-	if (err < 0)
-		return err;
-
-	/*
-	 * Even if it's not absolutely necessary to send the infoframe
-	 * (ie.vic==0 and s3d_struct==0) we will still send it if we
-	 * know that the sink can handle it. This is based on a
-	 * suggestion in HDMI 2.0 Appendix F. Apparently some sinks
-	 * have trouble realizing that they shuld switch from 3D to 2D
-	 * mode if the source simply stops sending the infoframe when
-	 * it wants to switch from 3D to 2D.
-	 */
-	frame->vic = drm_mode_hdmi_vic(connector, mode);
-	frame->s3d_struct = s3d_structure_from_display_mode(mode);
-
-	return 0;
-}
-
 static u8 drm_mode_cea_vic(const struct drm_connector *connector,
-	const struct drm_display_mode *mode)
+			   const struct drm_display_mode *mode)
 {
 	u8 vic;
 
@@ -1304,8 +2749,8 @@ static u8 drm_mode_cea_vic(const struct drm_connector *connector,
  */
 int
 drm_hdmi_avi_infoframe_from_display_mode(struct hdmi_avi_infoframe *frame,
-	const struct drm_connector *connector,
-	const struct drm_display_mode *mode)
+					 const struct drm_connector *connector,
+					 const struct drm_display_mode *mode)
 {
 	enum hdmi_picture_aspect picture_aspect;
 	u8 vic, hdmi_vic;
@@ -1352,12 +2797,10 @@ drm_hdmi_avi_infoframe_from_display_mode(struct hdmi_avi_infoframe *frame,
 		if (vic) {
 			if (picture_aspect != drm_get_cea_aspect_ratio(vic))
 				return -EINVAL;
-		}
-		else if (hdmi_vic) {
+		} else if (hdmi_vic) {
 			if (picture_aspect != drm_get_hdmi_aspect_ratio(hdmi_vic))
 				return -EINVAL;
-		}
-		else {
+		} else {
 			return -EINVAL;
 		}
 
@@ -1422,7 +2865,7 @@ static const u32 hdmi_colorimetry_val[] = {
  */
 void
 drm_hdmi_avi_infoframe_colorspace(struct hdmi_avi_infoframe *frame,
-	const struct drm_connector_state *conn_state)
+				  const struct drm_connector_state *conn_state)
 {
 	u32 colorimetry_val;
 	u32 colorimetry_index = conn_state->colorspace & FULL_COLORIMETRY_MASK;
@@ -1438,7 +2881,7 @@ drm_hdmi_avi_infoframe_colorspace(struct hdmi_avi_infoframe *frame,
 	 * structure and extend it in drivers/video/hdmi
 	 */
 	frame->extended_colorimetry = (colorimetry_val >> 2) &
-		EXTENDED_COLORIMETRY_MASK;
+					EXTENDED_COLORIMETRY_MASK;
 }
 
 /**
@@ -1451,9 +2894,9 @@ drm_hdmi_avi_infoframe_colorspace(struct hdmi_avi_infoframe *frame,
  */
 void
 drm_hdmi_avi_infoframe_quant_range(struct hdmi_avi_infoframe *frame,
-	const struct drm_connector *connector,
-	const struct drm_display_mode *mode,
-	enum hdmi_quantization_range rgb_quant_range)
+				   const struct drm_connector *connector,
+				   const struct drm_display_mode *mode,
+				   enum hdmi_quantization_range rgb_quant_range)
 {
 	const struct drm_display_info *info = &connector->display_info;
 
@@ -1468,7 +2911,7 @@ drm_hdmi_avi_infoframe_quant_range(struct hdmi_avi_infoframe *frame,
 	 * default RGB quantization range for the mode, even when QS=0.
 	 */
 	if (info->rgb_quant_range_selectable ||
-		rgb_quant_range == drm_default_rgb_quant_range(mode))
+	    rgb_quant_range == drm_default_rgb_quant_range(mode))
 		frame->quantization_range = rgb_quant_range;
 	else
 		frame->quantization_range = HDMI_QUANTIZATION_RANGE_DEFAULT;
@@ -1487,10 +2930,88 @@ drm_hdmi_avi_infoframe_quant_range(struct hdmi_avi_infoframe *frame,
 	 * on on CEA-861-F.
 	 */
 	if (!is_hdmi2_sink(connector) ||
-		rgb_quant_range == HDMI_QUANTIZATION_RANGE_LIMITED)
+	    rgb_quant_range == HDMI_QUANTIZATION_RANGE_LIMITED)
 		frame->ycc_quantization_range =
-		HDMI_YCC_QUANTIZATION_RANGE_LIMITED;
+			HDMI_YCC_QUANTIZATION_RANGE_LIMITED;
 	else
 		frame->ycc_quantization_range =
-		HDMI_YCC_QUANTIZATION_RANGE_FULL;
+			HDMI_YCC_QUANTIZATION_RANGE_FULL;
+}
+
+static enum hdmi_3d_structure
+s3d_structure_from_display_mode(const struct drm_display_mode *mode)
+{
+	u32 layout = mode->flags & DRM_MODE_FLAG_3D_MASK;
+
+	switch (layout) {
+	case DRM_MODE_FLAG_3D_FRAME_PACKING:
+		return HDMI_3D_STRUCTURE_FRAME_PACKING;
+	case DRM_MODE_FLAG_3D_FIELD_ALTERNATIVE:
+		return HDMI_3D_STRUCTURE_FIELD_ALTERNATIVE;
+	case DRM_MODE_FLAG_3D_LINE_ALTERNATIVE:
+		return HDMI_3D_STRUCTURE_LINE_ALTERNATIVE;
+	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_FULL:
+		return HDMI_3D_STRUCTURE_SIDE_BY_SIDE_FULL;
+	case DRM_MODE_FLAG_3D_L_DEPTH:
+		return HDMI_3D_STRUCTURE_L_DEPTH;
+	case DRM_MODE_FLAG_3D_L_DEPTH_GFX_GFX_DEPTH:
+		return HDMI_3D_STRUCTURE_L_DEPTH_GFX_GFX_DEPTH;
+	case DRM_MODE_FLAG_3D_TOP_AND_BOTTOM:
+		return HDMI_3D_STRUCTURE_TOP_AND_BOTTOM;
+	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF:
+		return HDMI_3D_STRUCTURE_SIDE_BY_SIDE_HALF;
+	default:
+		return HDMI_3D_STRUCTURE_INVALID;
+	}
+}
+
+/**
+ * drm_hdmi_vendor_infoframe_from_display_mode() - fill an HDMI infoframe with
+ * data from a DRM display mode
+ * @frame: HDMI vendor infoframe
+ * @connector: the connector
+ * @mode: DRM display mode
+ *
+ * Note that there's is a need to send HDMI vendor infoframes only when using a
+ * 4k or stereoscopic 3D mode. So when giving any other mode as input this
+ * function will return -EINVAL, error that can be safely ignored.
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+int
+drm_hdmi_vendor_infoframe_from_display_mode(struct hdmi_vendor_infoframe *frame,
+					    const struct drm_connector *connector,
+					    const struct drm_display_mode *mode)
+{
+	/*
+	 * FIXME: sil-sii8620 doesn't have a connector around when
+	 * we need one, so we have to be prepared for a NULL connector.
+	 */
+	bool has_hdmi_infoframe = connector ?
+		connector->display_info.has_hdmi_infoframe : false;
+	int err;
+
+	if (!frame || !mode)
+		return -EINVAL;
+
+	if (!has_hdmi_infoframe)
+		return -EINVAL;
+
+	err = hdmi_vendor_infoframe_init(frame);
+	if (err < 0)
+		return err;
+
+	/*
+	 * Even if it's not absolutely necessary to send the infoframe
+	 * (ie.vic==0 and s3d_struct==0) we will still send it if we
+	 * know that the sink can handle it. This is based on a
+	 * suggestion in HDMI 2.0 Appendix F. Apparently some sinks
+	 * have trouble realizing that they should switch from 3D to 2D
+	 * mode if the source simply stops sending the infoframe when
+	 * it wants to switch from 3D to 2D.
+	 */
+	frame->vic = drm_mode_hdmi_vic(connector, mode);
+	frame->s3d_struct = s3d_structure_from_display_mode(mode);
+
+	return 0;
 }

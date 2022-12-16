@@ -15,7 +15,7 @@
 #define __IT6263_H
 
 int it6263_probe(struct i2c_client *client_hdmi, struct i2c_client *client_lvds,
-	bool split_mode, u32 ldb_bus_format);
+	bool split_mode, u32 ldb_bus_format, bool reset);
 int it6263_remove(struct i2c_client *client);
 void it6263_bridge_mode_set(struct i2c_client *client_hdmi, const struct videomode *vm);
 void it6263_bridge_enable(struct i2c_client *client_hdmi);

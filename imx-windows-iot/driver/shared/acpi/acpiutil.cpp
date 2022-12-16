@@ -13,7 +13,6 @@
 //  method and parse its returned content
 //
 // Environment:
-//
 //  Kernel mode only
 //
 

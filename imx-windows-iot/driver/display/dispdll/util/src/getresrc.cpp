@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -31,6 +30,7 @@
 
 #include "precomp.h"
 #include "getresrc.h"
+#include "linux/slab.h"
 
 NTSTATUS GetReslist(DXGKRNL_INTERFACE* pDxgkInterface, PWCHAR pReslist,
     ULONG ResListLen)
@@ -144,4 +144,45 @@ NTSTATUS ParseReslist(PCM_RESOURCE_LIST Reslist, UCHAR ResType,
     }
 
     return STATUS_SUCCESS;
+}
+
+NTSTATUS GetDwordRegistryParam(DXGKRNL_INTERFACE* pDxgkInterface, PWSTR Name, ULONG* Value)
+{
+    NTSTATUS status;
+    DXGK_DEVICE_INFO device_info;
+    /* query_table must be number of items + 1 (last item must be zero) */
+    RTL_QUERY_REGISTRY_TABLE query_table[2];
+    USHORT len;
+    PUCHAR reg_path;
+    ULONG tmp_param = 0;
+
+    if (!pDxgkInterface || !Value) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    status = pDxgkInterface->DxgkCbGetDeviceInformation(pDxgkInterface->DeviceHandle, &device_info);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    /* Convert registry path from unicode string to wide string and ensure zero termination (__GFP_ZERO in kmalloc) */
+    len = device_info.DeviceRegistryPath.Length;
+    reg_path = (PUCHAR)ExAllocatePoolWithTag(NonPagedPoolNx, len + sizeof(WCHAR), '8XMI');
+    if (reg_path == NULL) {
+        return STATUS_NO_MEMORY;
+    }
+    RtlZeroMemory(reg_path, len + sizeof(WCHAR));
+    RtlCopyMemory(reg_path, device_info.DeviceRegistryPath.Buffer, len);
+
+    /* Initialize query table - read 1 items from registry, last item in query_table is zeroed */
+    RtlZeroMemory(query_table, sizeof(query_table));
+    query_table[0].Flags = RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK;
+    query_table[0].Name = Name;
+    query_table[0].EntryContext = &tmp_param;
+    query_table[0].DefaultType = (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_NONE;
+    status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE, (PCWSTR)reg_path, query_table, NULL, NULL);
+    ExFreePool((void*)reg_path);
+
+    *Value = tmp_param;
+
+    return status;
 }

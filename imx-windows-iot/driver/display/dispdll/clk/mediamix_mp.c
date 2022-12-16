@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -122,4 +121,150 @@ void mediamix_dump_reg(volatile uint8_t __iomem *regptr)
         MEDIAMIX_CLK_EN, mediamix_read(regptr + MEDIAMIX_CLK_EN));
     MEDIAMIX_DEBUG("GPR_MIPI_RESET_DIV: offset=0x%x val=0x%x\n",
         GPR_MIPI_RESET_DIV, mediamix_read(regptr + GPR_MIPI_RESET_DIV));
+}
+
+/**
+ * Function to initialize reset related to hdmi tx in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_hdmi_reset(volatile uint8_t __iomem *regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_FDCC_RESETN_MASK | HDMI_RESET_CTL0_FDCC_HDMI_RESETN_MASK |
+            HDMI_RESET_CTL0_TX_RSTZ_MASK | HDMI_RESET_CTL0_TX_APBRSTZ_MASK);
+    }
+    else {
+        reg |= (HDMI_RESET_CTL0_FDCC_RESETN_MASK | HDMI_RESET_CTL0_FDCC_HDMI_RESETN_MASK |
+            HDMI_RESET_CTL0_TX_RSTZ_MASK | HDMI_RESET_CTL0_TX_APBRSTZ_MASK);
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to initialize reset related to hdmi pai in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_pai_reset(volatile uint8_t __iomem *regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_PAI_RESETN_MASK);
+    }
+    else {
+        reg |= HDMI_RESET_CTL0_PAI_RESETN_MASK;
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to initialize reset related to hdmi pvi in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_pvi_reset(volatile uint8_t __iomem *regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_VID_LINK_SLV_RESETN_MASK);
+    }
+    else {
+        reg |= HDMI_RESET_CTL0_VID_LINK_SLV_RESETN_MASK;
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to initialize reset related to hdmi phy in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_phy_reset(volatile uint8_t __iomem *regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_TX_PHY_PRESETN_MASK);
+    }
+    else {
+        reg |= HDMI_RESET_CTL0_TX_PHY_PRESETN_MASK;
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to initialize reset related to lcdif3 in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_lcdif_reset(volatile uint8_t __iomem* regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_LCDIF_APB_RESET_N_MASK | HDMI_RESET_CTL0_LCDIF_ASYNC_RESET_N_MASK);
+    }
+    else {
+        reg |= (HDMI_RESET_CTL0_LCDIF_APB_RESET_N_MASK | HDMI_RESET_CTL0_LCDIF_ASYNC_RESET_N_MASK);
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to initialize reset related to irqsteer in HDMIMIX BLK CTRL.
+ * @param regptr Pointer to the mapped HDMIMIX base address space.
+ * @enable 1=assert reset, 0=deassert reset.
+ */
+void hdmimix_irqsteer_reset(volatile uint8_t __iomem* regptr, bool enable)
+{
+    uint32_t reg;
+
+    NT_ASSERT(regptr);
+
+    reg = mediamix_read(regptr + HDMI_RESET_CTL0);
+    if (enable) {
+        reg &= ~(HDMI_RESET_CTL0_IRQ_RESETN_MASK);
+    }
+    else {
+        reg |= (HDMI_RESET_CTL0_IRQ_RESETN_MASK);
+    }
+    mediamix_write(reg, regptr + HDMI_RESET_CTL0);
+}
+
+/**
+ * Function to read and log the content of HDMIMIX registers.
+ * @param regptr Pointer to the mapped HDMIMIX GPR register address space.
+ */
+void hdmimix_dump_reg(volatile uint8_t __iomem* regptr)
+{
+    NT_ASSERT(regptr);
+    MEDIAMIX_DEBUG("HDMI_TX_BLK_CTRL_RTX_RESET_CTL0: offset=0x%X val=0x%08X\n",
+        HDMI_RESET_CTL0, mediamix_read(regptr + HDMI_RESET_CTL0));
+    MEDIAMIX_DEBUG("HDMI_TX_BLK_CTRL_RTX_CLK_CTL0: offset=0x%X val=0x%08X\n",
+        HDMI_RTX_CLK_CTL0, mediamix_read(regptr + HDMI_RTX_CLK_CTL0));
+    MEDIAMIX_DEBUG("HDMI_TX_BLK_CTRL_RTX_CLK_CTL1: offset=0x%X val=0x%08X\n",
+        HDMI_RTX_CLK_CTL1, mediamix_read(regptr + HDMI_RTX_CLK_CTL1));
+    MEDIAMIX_DEBUG("TX_BLK_CONTROL0: offset=0x%X val=0x%08X\n",
+        TX_BLK_CONTROL0, mediamix_read(regptr + TX_BLK_CONTROL0));
+
 }

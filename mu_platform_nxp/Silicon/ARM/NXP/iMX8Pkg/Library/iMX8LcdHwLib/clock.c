@@ -36,6 +36,9 @@
 
 /* Set to 1 to include registers dump into log */
 #define CLOCK_DUMP_CCM_REGS  0
+/* Level of debug messages. Error reports are not included,
+   they have fixed level DEBUG_ERROR */
+#define CLOCK_DEBUG_LEVEL DEBUG_INFO
 
 /* Video PLL rates and parameters for required pixel clock derived from 24 MHz input clock */
 /* Fvco = Fin * ((m * 65536) + k) / p / 65536 */
@@ -190,9 +193,9 @@ static EFI_STATUS CcmSetVideoPll (
   struct videoPllRateTable* videoPllTab24m
   )
 {
-  int    idx = 0;
+  int    idx = 0, best_idx = 0;
   int    loop = 0;
-  uint32_t pllRate = 0;
+  uint32_t pllRate = 0, best_diff, diff;
   
   if ((Timing == NULL) || (pllRateOut == 0)) {
     return EFI_INVALID_PARAMETER;
@@ -200,17 +203,32 @@ static EFI_STATUS CcmSetVideoPll (
   
   *pllRateOut = 0;
   /* For required pixel clock, look for suitable Video PLL rate */
+  best_diff = videoPllTab24m[0].pllRate;
   while (videoPllTab24m[idx].pllRate != 0) {
-    if (videoPllTab24m[idx].pixClockRate == Timing->PixelClock) {
+    if (videoPllTab24m[idx].pixClockRate > Timing->PixelClock) {
+      diff = videoPllTab24m[idx].pixClockRate - Timing->PixelClock;
+    } else {
+      diff = Timing->PixelClock - videoPllTab24m[idx].pixClockRate;
+    }
+    if (diff < best_diff) {
+      best_diff = diff;
+      best_idx = idx;
       pllRate = videoPllTab24m[idx].pllRate;
-      DEBUG ((DEBUG_ERROR, "Video Pll found. Pll rate=%dHz, idx=%d\n", pllRate, idx));
-      break;
     }
     idx++;
   }
 
   if(pllRate == 0) {
+    DEBUG ((DEBUG_ERROR, "Video Pll settings not found for pixel clock %d Hz\n", Timing->PixelClock));
     return EFI_DEVICE_ERROR;
+  } else {
+    if(videoPllTab24m[best_idx].pixClockRate == Timing->PixelClock) {
+      DEBUG ((DEBUG_ERROR, "Video Pll settings found. Pll rate = %d Hz Pclk = %d Hz\n",
+          pllRate, Timing->PixelClock));
+    } else {
+      DEBUG ((DEBUG_ERROR, "Video Pll settings not found for pixel clock %d Hz. Using Pll rate = %d Hz Pclk = %d Hz instead",
+          Timing->PixelClock, videoPllTab24m[best_idx].pllRate, videoPllTab24m[best_idx].pixClockRate));
+    }
   }
 
   /* Video PLL configuration */
@@ -219,11 +237,11 @@ static EFI_STATUS CcmSetVideoPll (
   /* Reset PLL */
   CCM_ANALOG_VIDEO_PLL1_GEN_CTRL &= ~CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_RST_MASK;
 
-  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_MAIN_DIV(videoPllTab24m[idx].mdiv) |
-                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_PRE_DIV(videoPllTab24m[idx].pdiv) |
-                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_POST_DIV(videoPllTab24m[idx].sdiv);
+  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_MAIN_DIV(videoPllTab24m[best_idx].mdiv) |
+                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_PRE_DIV(videoPllTab24m[best_idx].pdiv) |
+                    CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0_PLL_POST_DIV(videoPllTab24m[best_idx].sdiv);
 
-  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1_PLL_DSM(videoPllTab24m[idx].kdiv);
+  CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1 = CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1_PLL_DSM(videoPllTab24m[best_idx].kdiv);
 
   /* Deasert reset */
   CCM_ANALOG_VIDEO_PLL1_GEN_CTRL |= CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_RST_MASK;
@@ -242,7 +260,7 @@ static EFI_STATUS CcmSetVideoPll (
   CCM_ANALOG_VIDEO_PLL1_GEN_CTRL &= ~CCM_ANALOG_VIDEO_PLL1_GEN_CTRL_PLL_BYPASS_MASK;
 
   *pllRateOut = pllRate;
-  DEBUG ((DEBUG_INFO, "Video Pll ready.\n"));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "Video Pll ready.\n"));
   return EFI_SUCCESS;
 }
 
@@ -290,7 +308,7 @@ EFI_STATUS LdbDisplayClockConfig (
                    CCM_TARGET_ROOT_PRE_PODF(7 - 1) |
                    CCM_TARGET_ROOT_POST_PODF(1 - 1) |
                    CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "PIXEL2 clock ready %dHz.PreDiv=7, PostDiv=1\n", (pllRate / 7)));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "PIXEL2 clock ready %dHz.PreDiv=7, PostDiv=1\n", (pllRate / 7)));
 
   /* Set LDB slice */
   /* Set MUX to VIDEO_PLL_CLK, divider hard fixed to 1 in single mode, 2 in dual mode */
@@ -300,7 +318,7 @@ EFI_STATUS LdbDisplayClockConfig (
                    CCM_TARGET_ROOT_PRE_PODF(prediv - 1) |
                    CCM_TARGET_ROOT_POST_PODF(1 - 1) |
                    CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "LDB clock ready %dHz.PreDiv=%d, PostDiv=1\n", (pllRate / prediv), prediv));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "LDB clock ready %dHz.PreDiv=%d, PostDiv=1\n", (pllRate / prediv), prediv));
 #endif
 
   /* Set DISPLAY_AXI_CLK_ROOT clock root to SYSTEM_PLL2_CLK => 1000MHz */
@@ -314,15 +332,15 @@ EFI_STATUS LdbDisplayClockConfig (
                  | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
 
 #if (CLOCK_DUMP_CCM_REGS != 0)
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
 #ifdef LDB_CLK_ROOT_PRESENT
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_LCDIF2_PIXEL    = 0x%08X\n", CCM_TARGET_ROOT_MEDIA_DISP2));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MEDIA_LDB      = 0x%08X\n", CCM_TARGET_ROOT_MEDIA_LDB));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_LCDIF2_PIXEL    = 0x%08X\n", CCM_TARGET_ROOT_MEDIA_DISP2));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_MEDIA_LDB      = 0x%08X\n", CCM_TARGET_ROOT_MEDIA_LDB));
 #endif
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_AXI    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_APB    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_DISPLAY_AXI    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_DISPLAY_APB    = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
 #endif
 
   /* Enable CCGR 93 common for both DISPLAY_AXI_CLK_ROOT & DISPLAY_APB_CLK_ROOT clock roots */
@@ -368,7 +386,7 @@ EFI_STATUS MipiDsiDisplayClockConfig (
                    CCM_TARGET_ROOT_PRE_PODF(prediv - 1) |
                    CCM_TARGET_ROOT_POST_PODF(postdiv - 1) |
                    CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "PIXEL clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "PIXEL clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
 
   if ((CcmGetDsiPhyRefClk(Timing, &phyRefRate) != EFI_SUCCESS) || (phyRefRate == 0)) {
     DEBUG ((DEBUG_ERROR, "Dsi phy ref clock for required pixel clock not found\n"));
@@ -385,7 +403,7 @@ EFI_STATUS MipiDsiDisplayClockConfig (
                    CCM_TARGET_ROOT_PRE_PODF(prediv - 1) |
                    CCM_TARGET_ROOT_POST_PODF(postdiv - 1) |
                    CCM_TARGET_ROOT_ENABLE_MASK);
-  DEBUG ((DEBUG_INFO, "DSI_PHY_REF clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "DSI_PHY_REF clock ready %dHz.PreDiv=%d, PostDiv=%d\n", rateReal, prediv, postdiv));
 
 #ifdef MIPI_DSI_CORE_CLK_ROOT_PRESENT
   /* Set MIPI_DSI_CORE_CLK_ROOT clock root to SYSTEM_PLL1_DIV3 => 266.6MHz */
@@ -404,21 +422,64 @@ EFI_STATUS MipiDsiDisplayClockConfig (
                  | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
 
 #if (CLOCK_DUMP_CCM_REGS != 0)
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
-  DEBUG ((DEBUG_INFO, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_LCDIF_PIXEL      = 0x%08X\n", CCM_TARGET_ROOT_LCDIF_PIXEL_REG));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_PHY_REF_REG));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_GEN_CTRL   = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_GEN_CTRL));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL0));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1  = 0x%08X\n", CCM_ANALOG_VIDEO_PLL1_FDIV_CTL1));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_LCDIF_PIXEL      = 0x%08X\n", CCM_TARGET_ROOT_LCDIF_PIXEL_REG));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_MIPI_DSI_PHY_REF = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_PHY_REF_REG));
 #ifdef MIPI_DSI_CORE_CLK_ROOT_PRESENT
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_MIPI_DSI_CORE    = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_CORE));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_MIPI_DSI_CORE    = 0x%08X\n", CCM_TARGET_ROOT_MIPI_DSI_CORE));
 #endif
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_AXI      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
-  DEBUG ((DEBUG_INFO, "CCM_TARGET_ROOT_DISPLAY_APB      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_DISPLAY_AXI      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_AXI));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_DISPLAY_APB      = 0x%08X\n", CCM_TARGET_ROOT_DISPLAY_APB));
 #endif
 
   /* Enable CCGR 93 common for both DISPLAY_AXI_CLK_ROOT & DISPLAY_APB_CLK_ROOT clock roots */
   CCM_CLK_GATING_REG = 0x03;
 
   return EFI_SUCCESS;
+}
+
+/* Method sets CCM module for HDMI display (imx8mp).
+   Sets HDMI_24M, HDMI_AXI, HDMI_APB, HDMI_REF_266 clock.
+*/
+VOID HdmiDisplayClockConfig(VOID)
+{
+#ifdef HDMI_PRESENT
+  CCM_CCGR_HDMI = 0x00;
+
+  /* Set HDMI_AXI_CLK_ROOT clock root to SYS_PLL2_DIV2 => 1000MHz/2 = 500 MHz */
+  CCM_TARGET_ROOT_HDMI_AXI = (CCM_TARGET_ROOT_MUX(7)    /* Set MUX to SYS_PLL2_DIV2 */
+                 | CCM_TARGET_ROOT_PRE_PODF(0)   /* Set PRE_PODF post divider to /1 to reach 500MHz */
+                 | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
+
+  /* Set HDMI_APB_CLK_ROOT clock root to SYS_PLL1_DIV6 => 800MHz/6 = 133,3 MHz */
+  CCM_TARGET_ROOT_HDMI_APB = (CCM_TARGET_ROOT_MUX(7)    /* Set MUX to SYS_PLL1_DIV6 */
+                 | CCM_TARGET_ROOT_PRE_PODF(0)   /* Set PRE_PODF post divider to /1 to reach 133,3MHz */
+                 | CCM_TARGET_ROOT_ENABLE_MASK); /* Enable clock root */
+
+
+  /* Set HDMI_REF_266_CLK_ROOT to 24MHz, divider 1, that is default, just enable */
+  CCM_TARGET_ROOT_HDMI_REF_266M = (CCM_TARGET_ROOT_MUX(0) |
+                   CCM_TARGET_ROOT_PRE_PODF(0) |
+                   CCM_TARGET_ROOT_POST_PODF(0) |
+                   CCM_TARGET_ROOT_ENABLE_MASK);
+
+  /* Set HDMI_24M_CLK_ROOT to 24MHz, divider 1 */
+  CCM_TARGET_ROOT_HDMI_24M = (CCM_TARGET_ROOT_MUX(0) | /* Set MUX to 24MHz clock */
+                   CCM_TARGET_ROOT_PRE_PODF(0) | /* PRE_DIV = 1 */
+                   CCM_TARGET_ROOT_POST_PODF(0) | /* POST_DIV = 1 */
+                   CCM_TARGET_ROOT_ENABLE_MASK);
+
+#if (CLOCK_DUMP_CCM_REGS != 0)
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_HDMI_24M    = 0x%08X\n", CCM_TARGET_ROOT_HDMI_24M));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCCM_TARGET_ROOT_HDMI_REF_266M      = 0x%08X\n", CCM_TARGET_ROOT_HDMI_REF_266M));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_HDMI_AXI    = 0x%08X\n", CCM_TARGET_ROOT_HDMI_AXI));
+  DEBUG ((CLOCK_DEBUG_LEVEL, "CCM_TARGET_ROOT_HDMI_APB    = 0x%08X\n", CCM_TARGET_ROOT_HDMI_APB));
+#endif
+
+  /* Enable CCGR 95 common for HDMI clock roots */
+  CCM_CCGR_HDMI = 0x03;
+#endif /* HDMI_PRESENT */
 }
 

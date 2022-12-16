@@ -210,6 +210,7 @@
 typedef enum {
  ADV7535 = 0,
  IT6263 = 1,
+ NativeHDMI = 2,
  transmitterUnknown,
 } imxConverter;
 

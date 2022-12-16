@@ -54,6 +54,13 @@
   */
 struct drm_crtc_state {
 	/**
+	 * @enable: Whether the CRTC should be enabled, gates all other state.
+	 * This controls reservations of shared resources. Actual hardware state
+	 * is controlled by @active.
+	 */
+	bool enable;
+
+	/**
 	 * @active: Whether the CRTC is actively displaying (used for DPMS).
 	 * Implies that @enable is set. The driver must not release any shared
 	 * resources if @active is set to false but @enable still true, because
@@ -79,6 +86,12 @@ struct drm_crtc_state {
 	 * scaler settings.
 	 */
 	unsigned mode_changed : 1;
+
+	/**
+	 * @plane_mask: Bitmask of drm_plane_mask(plane) of planes attached to
+	 * this CRTC.
+	 */
+	u32 plane_mask;
 
 	/**
 	 * @adjusted_mode:
@@ -121,6 +134,21 @@ struct drm_crtc_state {
  */
 struct drm_crtc {
 	/**
+	 * @primary:
+	 * Primary plane for this CRTC. Note that this is only
+	 * relevant for legacy IOCTL, it specifies the plane implicitly used by
+	 * the SETCRTC and PAGE_FLIP IOCTLs. It does not have any significance
+	 * beyond that.
+	 */
+	struct drm_plane* primary;
+
+	/**
+	 * @index: Position inside the mode_config.list, can be used as an array
+	 * index. It is invariant over the lifetime of the CRTC.
+	 */
+	unsigned index;
+
+	/**
 	 * @state:
 	 *
 	 * Current atomic state for this CRTC.
@@ -135,5 +163,29 @@ struct drm_crtc {
 	 */
 	struct drm_crtc_state *state;
 };
+
+/**
+ * drm_crtc_index - find the index of a registered CRTC
+ * @crtc: CRTC to find index for
+ *
+ * Given a registered CRTC, return the index of that CRTC within a DRM
+ * device's list of CRTCs.
+ */
+static inline unsigned int drm_crtc_index(const struct drm_crtc* crtc)
+{
+	return crtc->index;
+}
+
+/**
+ * drm_crtc_mask - find the mask of a registered CRTC
+ * @crtc: CRTC to find mask for
+ *
+ * Given a registered CRTC, return the mask bit of that CRTC for the
+ * &drm_encoder.possible_crtcs and &drm_plane.possible_crtcs fields.
+ */
+static inline uint32_t drm_crtc_mask(const struct drm_crtc* crtc)
+{
+	return 1 << drm_crtc_index(crtc);
+}
 
 #endif /* __DRM_CRTC_H__ */

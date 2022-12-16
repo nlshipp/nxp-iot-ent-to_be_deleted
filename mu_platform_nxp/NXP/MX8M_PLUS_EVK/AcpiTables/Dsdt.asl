@@ -49,10 +49,11 @@ DefinitionBlock("DsdtTable.aml", "DSDT", 5, "MSFT", "EDK2", 1) {
     include("Dsdt-Uart.asl")
     /* Others */
     include("Dsdt-Sdhc.asl")
-    include("Dsdt_TCPC.asl")
+    include("Dsdt-TCPC.asl")
     include("Dsdt-Usb.asl")
     include("Dsdt-Rhp.asl")
     include("Dsdt-Enet.asl")
+    include("Dsdt-Enet_QoS.asl")
     include("Dsdt-Audio.asl")
     include("Dsdt-AudioCodec.asl")
     include("Dsdt-TrEE.asl")

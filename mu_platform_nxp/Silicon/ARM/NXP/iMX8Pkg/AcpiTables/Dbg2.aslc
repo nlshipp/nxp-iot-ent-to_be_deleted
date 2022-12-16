@@ -26,8 +26,6 @@
 
 #pragma pack(1)
 
-#define UART_IMX8_UART_ADDRESS_SIZE       0x000000BC
-
 #if FixedPcdGet32(PcdKdUartInstance) == 1
 #define KD_UART_BASE_ADDR                 UART1_BASE_ADDRESS // iMX8 0x30860000
 #define KD_UART_ACPI_PATH                 "\\_SB.UAR1"

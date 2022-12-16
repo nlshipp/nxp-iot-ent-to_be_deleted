@@ -82,12 +82,21 @@ inline void raw_spin_unlock_irqrestore(raw_spinlock_t *lock,
 
 # define spin_lock_init(lock)
 
+static __always_inline void spin_lock(spinlock_t *lock)
+{
+
+}
+
 inline void spin_lock_irq(spinlock_t *lock)
 {
 }
 
 #define spin_lock_irqsave(lock, flags)	\
 	flags = 0
+
+static __always_inline void spin_unlock(spinlock_t *lock)
+{
+}
 
 inline void spin_unlock_irq(spinlock_t *lock)
 {

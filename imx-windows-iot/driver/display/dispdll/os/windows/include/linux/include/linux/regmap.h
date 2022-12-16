@@ -17,10 +17,17 @@
 
 struct i2c_client;
 
+struct regmap_config {
+	int reg_bits;
+	int reg_stride;
+	int val_bits;
+	unsigned int max_register;
+};
+
 struct regmap {
 	struct iotarget_handles io_target;
-	NTSTATUS(*regmap_write)(struct iotarget_handles *tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length);
-	NTSTATUS(*regmap_read)(struct iotarget_handles *tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length);
+	NTSTATUS(*regmap_write)(struct iotarget_handles *tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length);
+	NTSTATUS(*regmap_read)(struct iotarget_handles *tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length);
 };
 
 struct reg_sequence {
@@ -30,8 +37,10 @@ struct reg_sequence {
 };
 
 struct regmap *devm_regmap_init_i2c(struct i2c_client *i2c);
-
 void regmap_release_i2c(struct regmap *map);
+
+struct regmap* devm_regmap_init_mmio(struct device* dev, struct resource* res, const struct regmap_config* config);
+void regmap_release_mmio(struct regmap *map, struct resource *res);
 
 int regmap_write(struct regmap *map, unsigned int reg, unsigned int val);
 int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val, size_t val_count);

@@ -27,7 +27,7 @@
  *
  */
 
-#include "WdfIoTargets.h"
+#include "WdfIoTargets.hpp"
 #include "WdfIoTargets.tmh"
 #include <gpio.h>
 
@@ -38,7 +38,7 @@
 #define _DbgKdPrint(...)
 #endif // !DBG
 
-NTSTATUS io::IoTargetInit(const connection_res *aConnectionRes)
+NTSTATUS io::IoTargetInit(const connection_res* aConnectionRes)
 /*!
  * Open target device.
  *
@@ -100,241 +100,56 @@ NTSTATUS io::ctx_acpi_csr_stub::Get_CrsAcpiResources(WDFCMRESLIST ResourcesTrans
         switch (pDescriptor->Type)
         {
         case CmResourceTypeMemory:
-            {
-                ++m_MemResCnt;
-                status = m_MeResList.Emplace(pDescriptor->u.Memory.Start, pDescriptor->u.Memory.Length);
-                if (!NT_SUCCESS(status)) {
-                    _DbgKdPrint(("Failed to add CmResourceTypeMemory.\r\n"));
-                }
+        {
+            ++m_MemResCnt;
+            status = m_MeResList.Emplace(pDescriptor->u.Memory.Start, pDescriptor->u.Memory.Length);
+            if (!NT_SUCCESS(status)) {
+                _DbgKdPrint(("Failed to add CmResourceTypeMemory.\r\n"));
             }
-            break;
+        }
+        break;
         case CmResourceTypeInterrupt:
-            {
-                ++m_IrqResCnt;
-                if (Flags & CM_RESOURCE_INTERRUPT_MESSAGE) {
-                    status = m_IntResList.Emplace(pDescriptor->u.MessageInterrupt.Translated.Vector, Flags);
-                }
-                else {
-                    status = m_IntResList.Emplace(pDescriptor->u.Interrupt.Vector, Flags);
-                }
+        {
+            ++m_IrqResCnt;
+            if (Flags & CM_RESOURCE_INTERRUPT_MESSAGE) {
+                status = m_IntResList.Emplace(pDescriptor->u.MessageInterrupt.Translated.Vector, Flags);
             }
-            break;
+            else {
+                status = m_IntResList.Emplace(pDescriptor->u.Interrupt.Vector, Flags);
+            }
+        }
+        break;
         case CmResourceTypeConnection:
-            {
-                auto Class = pDescriptor->u.Connection.Class;
-                auto Type = pDescriptor->u.Connection.Type;
-                if (Class == CM_RESOURCE_CONNECTION_CLASS_SERIAL) {
-                    if (Type == CM_RESOURCE_CONNECTION_TYPE_SERIAL_I2C) {
-                        ++m_I2cResCnt;
-                        status = m_I2cResList.Emplace(pDescriptor->u.Connection.IdLowPart, pDescriptor->u.Connection.IdHighPart);
-                    }
+        {
+            auto Class = pDescriptor->u.Connection.Class;
+            auto Type = pDescriptor->u.Connection.Type;
+            if (Class == CM_RESOURCE_CONNECTION_CLASS_SERIAL) {
+                if (Type == CM_RESOURCE_CONNECTION_TYPE_SERIAL_I2C) {
+                    ++m_I2cResCnt;
+                    status = m_I2cResList.Emplace(pDescriptor->u.Connection.IdLowPart, pDescriptor->u.Connection.IdHighPart);
                 }
-                else {
-                    if (Class == CM_RESOURCE_CONNECTION_CLASS_GPIO) {
-                        if (Type != CM_RESOURCE_CONNECTION_TYPE_GPIO_IO) {
-                            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Unexpected connection class/type (%lu/%lu), only GPIO class/type (%lu/%lu) is expected!",
-                                Class, Type, CM_RESOURCE_CONNECTION_CLASS_GPIO, CM_RESOURCE_CONNECTION_TYPE_GPIO_IO);
-                            status = STATUS_DEVICE_CONFIGURATION_ERROR;
-                        }
-                        else {
-                            ++m_GpioResCnt;
-                            status = m_GpioResList.Emplace(pDescriptor->u.Connection.IdLowPart, pDescriptor->u.Connection.IdHighPart);
-                        }
+            }
+            else {
+                if (Class == CM_RESOURCE_CONNECTION_CLASS_GPIO) {
+                    if (Type != CM_RESOURCE_CONNECTION_TYPE_GPIO_IO) {
+                        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Unexpected connection class/type (%lu/%lu), only GPIO class/type (%lu/%lu) is expected!",
+                            Class, Type, CM_RESOURCE_CONNECTION_CLASS_GPIO, CM_RESOURCE_CONNECTION_TYPE_GPIO_IO);
+                        status = STATUS_DEVICE_CONFIGURATION_ERROR;
+                    }
+                    else {
+                        ++m_GpioResCnt;
+                        status = m_GpioResList.Emplace(pDescriptor->u.Connection.IdLowPart, pDescriptor->u.Connection.IdHighPart);
                     }
                 }
             }
-            break;
+        }
+        break;
         default:
             TraceEvents(TRACE_LEVEL_WARNING, TRACE_DEVICE, "Unknown ACPI resource [%lu], type: 0x%x", i, (unsigned)pDescriptor->Type);
             break;
         }
     }
-    
-    return status;
-}
 
-NTSTATUS AcpiDsdRes_t::LoadDsd()
-/*!
- * Loads DSD from PDO.
- *
- * @param WdfDevice handle to Wdf device object.
- *
- * @returns STATUS_SUCCESS or error code.
- */
-{
-    NTSTATUS status;
-    // PACPI_EVAL_OUTPUT_BUFFER dsdBufferPtr = nullptr;
-    m_DsdBufferPtr = nullptr;
-    if (m_WdfDevice == NULL) {
-        status = STATUS_INVALID_ADDRESS;
-    }
-    else {
-        PDEVICE_OBJECT pPdo = WdfDeviceWdmGetPhysicalDevice(m_WdfDevice); // If WdfDevice is not valid bugcheck occurs.
-
-        status = AcpiQueryDsd(pPdo, &m_DsdBufferPtr);
-        if (!NT_SUCCESS(status)) {
-            _DbgKdPrint(("AcpiQueryDsd Fail\r\n"));
-        }
-        else {
-            status = AcpiParseDsdAsDeviceProperties(m_DsdBufferPtr, &m_DevicePropertiesPkgPtr);
-            if (!NT_SUCCESS(status)) {
-                _DbgKdPrint(("AcpiParseDsdAsDeviceProperties Fail 0x%x\r\n", status));
-            }
-        }
-    }
-    return status;
-}
-
-void AcpiDsdRes_t::Cleanup()
-/*!
- * Frees DSD data.
- */
-{
-    if (m_DsdBufferPtr != nullptr) {
-        ExFreePool(m_DsdBufferPtr);
-        m_DsdBufferPtr = NULL;
-    }
-}
-
-NTSTATUS AcpiDsdRes_t::EvalMethodSync(
-    const WDFDEVICE &WdfDevice,
-    ACPI_EVAL_INPUT_BUFFER* InputBufferPtr,
-    SIZE_T InputBufferSize,
-    PACPI_EVAL_OUTPUT_BUFFER *OutBufferPtr)
-/*!
- * Loads DSD from PDO. Allocates OutBufferPtr. Free it when no longer required.
- *
- * @param WdfDevice handle to Wdf device object.
- *
- * @returns STATUS_SUCCESS or error code.
- */
-{
-    NTSTATUS status;
-    PDEVICE_OBJECT pdoPtr = WdfDeviceWdmGetPhysicalDevice(WdfDevice); // If WdfDevice is not valid bugcheck occurs.
-    UINT32 retries = 2;
-    ACPI_EVAL_OUTPUT_BUFFER UNALIGNED* outBufferPtr;
-    UINT32 outputBufferSize = sizeof(ACPI_EVAL_OUTPUT_BUFFER) + 8;
-    ULONG sizeReturned;
-
-    if (pdoPtr == NULL) {
-        return STATUS_INVALID_PARAMETER_1;
-    }
-    if (InputBufferPtr->Signature == 0) {
-        return STATUS_INVALID_PARAMETER_2;
-    }
-    if (OutBufferPtr == NULL) {
-        return STATUS_INVALID_PARAMETER_4;
-    }
-
-    do
-    {
-        outBufferPtr = static_cast<ACPI_EVAL_OUTPUT_BUFFER*>(ExAllocatePoolWithTag(NonPagedPoolNx, outputBufferSize, ACPI_TAG_EVAL_OUTPUT_BUFFER));
-        if (outBufferPtr == nullptr) {
-            status = STATUS_INSUFFICIENT_RESOURCES;
-            break;    // goto Cleanup;
-        }
-        else {
-            RtlZeroMemory(outBufferPtr, outputBufferSize);
-
-            status = AcpiSendIoctlSynchronously(pdoPtr, IOCTL_ACPI_EVAL_METHOD, InputBufferPtr, (ULONG)InputBufferSize, outBufferPtr, (ULONG)outputBufferSize, &sizeReturned);
-            if (status == STATUS_BUFFER_OVERFLOW) {
-                outputBufferSize = outBufferPtr->Length;
-                ExFreePoolWithTag(outBufferPtr, ACPI_TAG_EVAL_OUTPUT_BUFFER);
-                outBufferPtr = nullptr;
-            }
-            --retries;
-        }
-    } while ((status == STATUS_BUFFER_OVERFLOW) && (retries > 0));
-
-    if (!NT_SUCCESS(status)) {
-        _DbgKdPrint(("AcpiDsdRes_t::EvalMethodSync Fail\r\n"));
-        if (outBufferPtr != nullptr) {
-            ExFreePoolWithTag(outBufferPtr, ACPI_TAG_EVAL_OUTPUT_BUFFER);
-            outBufferPtr = nullptr;
-        }
-    }
-    *OutBufferPtr = outBufferPtr;
-
-    return status;
-}
-
-NTSTATUS AcpiDsdRes_t::GetString(const CHAR* ValueName, SIZE_T DestinationSize, UINT32* Length, PCHAR DestinationPtr)
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    status = AcpiDevicePropertiesQueryStringValue(m_DevicePropertiesPkgPtr, ValueName, (UINT32)DestinationSize, Length, DestinationPtr);
-    return status;
-}
-
-NTSTATUS AcpiDsdRes_t::GetInteger(const CHAR* ValueName, UINT8* DestinationPtr)
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    status = AcpiDevicePropertiesQueryIntegerValue(m_DevicePropertiesPkgPtr, ValueName, DestinationPtr);
-    return status;
-}
-
-NTSTATUS AcpiDsdRes_t::GetInteger(const CHAR* ValueName, UINT32* DestinationPtr)
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    status = AcpiDevicePropertiesQueryIntegerValue(m_DevicePropertiesPkgPtr, ValueName, DestinationPtr);
-    return status;
-}
-
-NTSTATUS AcpiDsdRes_t::GetDsdResources(const _DSDVAL_GET_DESCRIPTOR DescTable[], UINT16 DescriptorLen)
-/*!
- * Parses required information from DSD to required locations.
- *
- * @param DescTable array of NAME:Destination information.
- * @param DescriptorLen number of entries in DescTable.
- *
- * @returns STATUS_SUCCESS or error code.
- */
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    for (ULONG i = 0; i < DescriptorLen; ++i) {
-        const _DSDVAL_GET_DESCRIPTOR* currEntryPtr = &DescTable[i];
-
-        switch (currEntryPtr->Type)
-        {
-        case ACPI_METHOD_ARGUMENT_INTEGER:
-            switch (currEntryPtr->DestinationSize) {
-            case 1:
-                status = AcpiDevicePropertiesQueryIntegerValue(m_DevicePropertiesPkgPtr, currEntryPtr->ValueName, (UINT8*)currEntryPtr->DestinationPtr);
-                break;
-            case 2:
-                status = AcpiDevicePropertiesQueryIntegerValue(m_DevicePropertiesPkgPtr, currEntryPtr->ValueName, (UINT16*)currEntryPtr->DestinationPtr);
-                break;
-            case 4:
-                status = AcpiDevicePropertiesQueryIntegerValue(m_DevicePropertiesPkgPtr, currEntryPtr->ValueName, (UINT32*)currEntryPtr->DestinationPtr);
-                break;
-            default:
-                status = STATUS_INVALID_PARAMETER;
-                break;
-            }
-            if (!NT_SUCCESS(status)) {
-                TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to query value, using default. (status = %!status!, descriptorPtr->ValueName = %s)", status, currEntryPtr->ValueName);
-            }
-            break;
-        case ACPI_METHOD_ARGUMENT_STRING:
-            {
-                UINT32 length = 0;
-                status = AcpiDevicePropertiesQueryStringValue(m_DevicePropertiesPkgPtr, currEntryPtr->ValueName, (UINT32)currEntryPtr->DestinationSize, &length, (const PCHAR)currEntryPtr->DestinationPtr);
-                if (!NT_SUCCESS(status)) {
-                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Failed to query value, using default. (status = %!status!, descriptorPtr->ValueName = %s)", status, currEntryPtr->ValueName);
-                }
-            }
-            break;
-        default:
-            status = STATUS_ACPI_INVALID_ARGTYPE;
-            break;
-        }
-        if (!NT_SUCCESS(status)) {
-            break;
-        }
-    }
     return status;
 }
 
@@ -416,7 +231,7 @@ NTSTATUS i2c_bus::ReadAddr16(_In_ UINT16 Address, PVOID pBuff, _In_ ULONG Length
     const unsigned TRANSFER_COUNT = 2;
     SPB_TRANSFER_LIST_AND_ENTRIES(TRANSFER_COUNT) TransferList;
     PUCHAR TransferBuffer[4];
-        
+
     if (Length > sizeof(TransferBuffer)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_IOTARGETS, "Unexpected value of data length. Length: %lu. Size of buffer: %lu", Length, sizeof(TransferBuffer));
         status = STATUS_INVALID_PARAMETER;
@@ -465,7 +280,7 @@ NTSTATUS i2c_bus::ReadAddr16(_In_ UINT16 Address, PVOID pBuff, _In_ ULONG Length
     return status;
 }
 
-NTSTATUS i2c_bus::Write(_In_ CODEC_COMMAND *CodecCommandPtr)
+NTSTATUS i2c_bus::Write(_In_ CODEC_COMMAND* CodecCommandPtr)
 /*!
  * Builds and send synchronous write IRP to the I2C io target.
  *
@@ -477,7 +292,7 @@ NTSTATUS i2c_bus::Write(_In_ CODEC_COMMAND *CodecCommandPtr)
     NTSTATUS status;
     ULONG_PTR bytesWritten;
     WDF_MEMORY_DESCRIPTOR MemDescriptor;
-    
+
     PAGED_CODE();
     if (m_WdfIoTarget == NULL) {
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -511,7 +326,7 @@ NTSTATUS i2c_bus::WriteBytes(_In_ PVOID Buffer, _In_ ULONG Number)
     NTSTATUS status;
     ULONG_PTR bytesWritten;
     WDF_MEMORY_DESCRIPTOR MemDescriptor;
-    
+
     if (m_WdfIoTarget == NULL) {
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -538,7 +353,7 @@ NTSTATUS i2c_bus::WriteArray(_In_reads_(NumCommands) CODEC_COMMAND CodecCommand[
 {
     ULONG i;
     NTSTATUS status;
-    
+
     for (i = 0; i < NumCommands; i++) {
         status = Write(&CodecCommand[i]);
 
@@ -562,7 +377,7 @@ NTSTATUS i2c_bus::ReadArray(_In_ USHORT Address, PVOID pBuff, size_t BuffLength)
  */
 {
     UNREFERENCED_PARAMETER(Address);
-    
+
     NTSTATUS status;
     ULONG_PTR BytesReturned;
     WDF_MEMORY_DESCRIPTOR MemoryDescriptor;

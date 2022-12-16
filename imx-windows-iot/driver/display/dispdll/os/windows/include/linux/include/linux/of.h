@@ -24,9 +24,14 @@ struct device_node {
 	const char *name;
 	const char *full_name;
 	struct	property *properties;
+	struct	device_node *child;
+	int num_childs;
 	unsigned long _flags;
 	void	*data;
 };
+
+bool of_property_read_bool(const struct device_node *np,
+	const char *propname);
 
 int of_property_read_u32_array(const struct device_node *np,
 	const char *propname,
@@ -38,6 +43,13 @@ static inline int of_property_read_u32(const struct device_node *np,
 {
 	return of_property_read_u32_array(np, propname, out_value, 1);
 }
+
+extern int of_property_read_string(const struct device_node *np,
+	const char *propname,
+	const char **out_string);
+extern int of_property_match_string(const struct device_node *np,
+	const char *propname,
+	const char *string);
 
 const void *of_get_property(const struct device_node *node,
     const char *name, int *lenp);

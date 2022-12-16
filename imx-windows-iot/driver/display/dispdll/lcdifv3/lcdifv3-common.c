@@ -16,6 +16,7 @@
 #include <asm-generic/bug.h>
 
 #include "lcdifv3/lcdifv3-regs.h"
+#include "clk/mediamix_mp.h"
 
 #define DRIVER_NAME "imx-lcdifv3"
 
@@ -508,6 +509,49 @@ void lcdifv3_reset_controller(struct lcdifv3_soc *lcdifv3)
 	while (readl(lcdifv3->base + LCDIFV3_CTRL) & CTRL_SW_RESET);
 }
 
+static int hdmimix_lcdif3_setup(struct platform_device* pdev, struct lcdifv3_soc* lcdifv3)
+{
+	struct device* dev = lcdifv3->dev;
+	struct resource* res;
+	uint8_t __iomem* blkbase;
+	int ret;
+
+	struct clk_bulk_data clocks[] = {
+		{.id = "mix_apb" },
+		{.id = "mix_axi" },
+		{.id = "xtl_24m" },
+		{.id = "mix_pix" },
+		{.id = "lcdif_apb" },
+		{.id = "lcdif_axi" },
+		{.id = "lcdif_pdi" },
+		{.id = "lcdif_pix" },
+		{.id = "lcdif_spu" },
+		{.id = "noc_hdmi"  },
+	};
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!res)
+		return -ENODEV;
+	blkbase = devm_ioremap_resource(dev, res);
+	if (IS_ERR(blkbase))
+		return PTR_ERR(blkbase);
+	/* power up hdmimix lcdif and irqsteer */
+	hdmimix_lcdif_reset(blkbase, false);
+	hdmimix_irqsteer_reset(blkbase, false);
+
+	iounmap(blkbase, resource_size(res));
+
+	/* enable lpcg of hdmimix lcdif and nor */
+	ret = devm_clk_bulk_get(dev, ARRAY_SIZE(clocks), clocks);
+	if (ret < 0)
+		return ret;
+	ret = clk_bulk_prepare_enable(ARRAY_SIZE(clocks), clocks);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int imx_lcdifv3_check_thres_value(u32 mul, u32 div)
 {
 	if (!div)
@@ -584,7 +628,7 @@ int imx_lcdifv3_probe(struct platform_device *pdev)
 	if (!res)
 		return -ENODEV;
 
-	lcdifv3->irq = platform_get_irq(pdev, 0);
+	lcdifv3->irq = platform_get_irq_byname(pdev, "vblank");
 	if (lcdifv3->irq < 0) {
 		dev_err(dev, "No irq get, ret=%d\n", lcdifv3->irq);
 		return lcdifv3->irq;
@@ -630,6 +674,14 @@ int imx_lcdifv3_probe(struct platform_device *pdev)
 	imx_lcdifv3_of_parse_thres(lcdifv3);
 
 	platform_set_drvdata(pdev, lcdifv3);
+
+	if (soc_pdata->hdmimix) {
+		ret = hdmimix_lcdif3_setup(pdev, lcdifv3);
+		if (ret < 0) {
+			dev_err(dev, "hdmimix lcdif3 setup failed\n");
+			return ret;
+		}
+	}
 
 	atomic_set(&lcdifv3->rpm_suspended, 0);
 	atomic_inc(&lcdifv3->rpm_suspended);

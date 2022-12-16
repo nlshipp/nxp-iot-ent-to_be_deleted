@@ -350,7 +350,7 @@ GcKmImx8mpDisplay::InterruptRoutine(UINT MessageNumber)
         {
             m_InterruptData.InterruptType = DXGK_INTERRUPT_DISPLAYONLY_VSYNC;
         }
-        m_InterruptData.CrtcVsync.VidPnTargetId = BaseTransmitter::LVDS_CHILD_UID;
+        m_InterruptData.CrtcVsync.VidPnTargetId = BaseTransmitter::LVDS0_CHILD_UID;
         m_InterruptData.CrtcVsync.PhysicalAddress = m_FrontBufferSegmentOffset;
         m_InterruptData.CrtcVsync.PhysicalAdapterMask = 1;
         m_InterruptData.Flags.ValidPhysicalAdapterMask = TRUE;

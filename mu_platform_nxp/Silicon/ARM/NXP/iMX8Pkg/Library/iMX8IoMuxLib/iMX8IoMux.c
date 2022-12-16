@@ -1,6 +1,7 @@
 /** @file
 *
 *  Copyright (c) Microsoft Corporation. All rights reserved.
+*  Copyright 2022 NXP
 *
 *  This program and the accompanying materials
 *  are licensed and made available under the terms and conditions of the BSD License
@@ -33,6 +34,7 @@ ImxPadConfig (
   IMX_PADCFG PadConfig
   )
 {
+#ifndef CPU_IMX8QXP
   _Static_assert(
     IOMUXC_SELECT_INPUT_COUNT < 0xffu,
     "Too many SELECT_INPUT registers values to encode in IMX_PADCFG");
@@ -63,6 +65,7 @@ ImxPadConfig (
   MmioWrite32 (
     IOMUXC_SW_MUX_PAD_BASE_ADDRESS + IMX_IOMUX_PAD_CTL_OFFSET(Pad),
     _IMX_PADCFG_PAD_CTL(PadConfig));
+#endif
 }
 
 VOID
@@ -71,6 +74,7 @@ ImxPadDumpConfig (
   IMX_PAD Pad
   )
 {
+#ifndef CPU_IMX8QXP
   IMX_IOMUXC_MUX_CTL muxCtl;
   muxCtl.AsUint32 = MmioRead32 (
     IOMUXC_SW_MUX_PAD_BASE_ADDRESS + IMX_IOMUX_PAD_MUX_OFFSET(Pad));
@@ -114,6 +118,7 @@ ImxPadDumpConfig (
     padCtl.Fields.LVTTL,
     padCtl.Fields.VSEL));
 #endif
+#endif
 }
 
 //
@@ -131,11 +136,13 @@ ImxGpioDirection (
       (IMX_GPIO_REGISTERS *) IMX_GPIO_BASE;
 
   ASSERT (IoNumber < 32);
-
+  #ifndef CPU_IMX8QXP
+  Bank--;
+  #endif
   if (Direction == IMX_GPIO_DIR_INPUT) {
-    MmioAnd32 ((UINTN) &gpioRegisters->Banks[Bank - 1].GDIR, ~(1 << IoNumber));
+    MmioAnd32 ((UINTN) &gpioRegisters->Banks[Bank].GDIR, ~(1 << IoNumber));
   } else {
-    MmioOr32 ((UINTN) &gpioRegisters->Banks[Bank - 1].GDIR, 1 << IoNumber);
+    MmioOr32 ((UINTN) &gpioRegisters->Banks[Bank].GDIR, 1 << IoNumber);
   }
 }
 
@@ -150,11 +157,13 @@ ImxGpioWrite (
       (IMX_GPIO_REGISTERS *) IMX_GPIO_BASE;
 
   ASSERT (IoNumber < 32);
-
+  #ifndef CPU_IMX8QXP
+  Bank--;
+  #endif
   if (Value == IMX_GPIO_LOW) {
-    MmioAnd32 ((UINTN) &gpioRegisters->Banks[Bank - 1].DR, ~(1 << IoNumber));
+    MmioAnd32 ((UINTN) &gpioRegisters->Banks[Bank].DR, ~(1 << IoNumber));
   } else {
-    MmioOr32 ((UINTN) &gpioRegisters->Banks[Bank - 1].DR, 1 << IoNumber);
+    MmioOr32 ((UINTN) &gpioRegisters->Banks[Bank].DR, 1 << IoNumber);
   }
 }
 
@@ -168,9 +177,11 @@ ImxGpioRead (
       (IMX_GPIO_REGISTERS *) IMX_GPIO_BASE;
 
   ASSERT (IoNumber < 32);
-
+  #ifndef CPU_IMX8QXP
+  Bank--;
+  #endif
   UINT32 Mask = (1 << IoNumber);
-  UINT32 Psr = MmioRead32 ((UINTN) &gpioRegisters->Banks[Bank - 1].PSR);
+  UINT32 Psr = MmioRead32 ((UINTN) &gpioRegisters->Banks[Bank].PSR);
 
   if (Psr & Mask) {
     return IMX_GPIO_HIGH;

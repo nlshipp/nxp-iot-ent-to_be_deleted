@@ -25,10 +25,12 @@
 #include "ldb.h"
 #include "iMX8.h"
 #include "it6263.h"
+#include "dw_hdmi.h"
 
 #if defined(CPU_IMX8MP)
   #define DISP_CTRL_LCDIFV3
   #define DISP_CTRL_LDB
+  #define DISP_CTRL_HDMI
 #elif defined(CPU_IMX8MM) || defined(CPU_IMX8MN)
   #define DISP_CTRL_LCDIF
 #else
@@ -41,6 +43,9 @@
 #if defined(DISP_CTRL_LCDIF)
 #include "Lcdif.h"
 #endif
+
+/* Level of debug messages, error reports are not included */
+#define LCDHWLIB_DEBUG_LEVEL DEBUG_INFO
 
 /* Maxumum resolution for it6263 and adv7535 converters */
 #define CONV_MAX_HACTIVE_1920        1920u
@@ -257,27 +262,27 @@ LcdDumpDisplayTiming (
   IN IMX_DISPLAY_TIMING *Timing
   )
 {
-  DEBUG ((DEBUG_INFO, "*************************************************\n"));
-  DEBUG ((DEBUG_INFO, "* DTD(0x%02X)\n",DtdOffset));
-  DEBUG ((DEBUG_INFO, "*************************************************\n"));
-  DEBUG ((DEBUG_INFO, "Timing->PixelClock =      %d\n",    Timing->PixelClock));
-  DEBUG ((DEBUG_INFO, "Timing->HActive =         %d\n",    Timing->HActive));
-  DEBUG ((DEBUG_INFO, "Timing->HBlank =          %d\n",    Timing->HBlank));
-  DEBUG ((DEBUG_INFO, "Timing->VActive =         %d\n",    Timing->VActive));
-  DEBUG ((DEBUG_INFO, "Timing->VBlank =          %d\n",    Timing->VBlank));
-  DEBUG ((DEBUG_INFO, "Timing->HSync =           %d\n",    Timing->HSync));
-  DEBUG ((DEBUG_INFO, "Timing->VSync =           %d\n",    Timing->VSync));
-  DEBUG ((DEBUG_INFO, "Timing->HSyncOffset =     %d\n",    Timing->HSyncOffset));
-  DEBUG ((DEBUG_INFO, "Timing->VSyncOffset =     %d\n",    Timing->VSyncOffset));
-  DEBUG ((DEBUG_INFO, "Timing->HImageSize =      %d\n",    Timing->HImageSize));
-  DEBUG ((DEBUG_INFO, "Timing->VImageSize =      %d\n",    Timing->VImageSize));
-  DEBUG ((DEBUG_INFO, "Timing->HBorder =         %d\n",    Timing->HBorder));
-  DEBUG ((DEBUG_INFO, "Timing->VBorder =         %d\n",    Timing->VBorder));
-  DEBUG ((DEBUG_INFO, "Timing->EdidFlags =       0x%0X\n", Timing->EdidFlags));
-  DEBUG ((DEBUG_INFO, "Timing->Flags =           0x%0X\n", Timing->Flags));
-  DEBUG ((DEBUG_INFO, "Timing->PixelRepetition = %d\n",    Timing->PixelRepetition));
-  DEBUG ((DEBUG_INFO, "Timing->Bpp =             %d\n",    Timing->Bpp));
-  DEBUG ((DEBUG_INFO, "Timing->PixelFormat =     %d\n",    Timing->PixelFormat));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "*************************************************\n"));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "* DTD(0x%02X)\n",DtdOffset));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "*************************************************\n"));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->PixelClock =      %d\n",    Timing->PixelClock));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HActive =         %d\n",    Timing->HActive));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HBlank =          %d\n",    Timing->HBlank));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VActive =         %d\n",    Timing->VActive));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VBlank =          %d\n",    Timing->VBlank));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HSync =           %d\n",    Timing->HSync));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VSync =           %d\n",    Timing->VSync));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HSyncOffset =     %d\n",    Timing->HSyncOffset));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VSyncOffset =     %d\n",    Timing->VSyncOffset));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HImageSize =      %d\n",    Timing->HImageSize));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VImageSize =      %d\n",    Timing->VImageSize));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->HBorder =         %d\n",    Timing->HBorder));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->VBorder =         %d\n",    Timing->VBorder));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->EdidFlags =       0x%0X\n", Timing->EdidFlags));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->Flags =           0x%0X\n", Timing->Flags));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->PixelRepetition = %d\n",    Timing->PixelRepetition));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->Bpp =             %d\n",    Timing->Bpp));
+  DEBUG ((LCDHWLIB_DEBUG_LEVEL, "Timing->PixelFormat =     %d\n",    Timing->PixelFormat));
 }
 
 /**
@@ -307,6 +312,10 @@ LcdReadEdid (
     if (converter == IT6263) {
       status = It6263ReadEdid(edid, offset, length);
     }
+#endif
+#if defined(DISP_CTRL_HDMI)
+  } else if ((displayInterface == imxNativeHdmi) && (converter == NativeHDMI)) {
+    status = dw_hdmi_read_edid(edid, offset, length);
 #endif
   } else {
     DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
@@ -342,20 +351,22 @@ LcdConvSuppResolution(
   vactive = (DTDPtr->VActiveBlank & 0xF0);
   vactive = (vactive << 4) | DTDPtr->VActive;
 
-  if(displayInterface == imxMipiDsi) {
-    hmax = CONV_MAX_HACTIVE_1920;
-    vmax = CONV_MAX_VACTIVE_1080;
-  } else if ((displayInterface == imxLvds0) || (displayInterface == imxLvds1)) {
-    hmax = CONV_MAX_HACTIVE_1280;
-    vmax = CONV_MAX_VACTIVE_720;
-  } else if (displayInterface == imxLvds0dual) {
-    hmax = CONV_MAX_HACTIVE_1920;
-    vmax = CONV_MAX_VACTIVE_1080;
-  } else {
-    DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
-    return FALSE;
+  switch (displayInterface) {
+    case imxMipiDsi:
+    case imxLvds0dual:
+    case imxNativeHdmi:
+        hmax = CONV_MAX_HACTIVE_1920;
+        vmax = CONV_MAX_VACTIVE_1080;
+        break;
+    case imxLvds0:
+    case imxLvds1:
+        hmax = CONV_MAX_HACTIVE_1280;
+        vmax = CONV_MAX_VACTIVE_720;
+        break;
+    default:
+        DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
+        return FALSE;
   }
-
   
   if ((hactive <= hmax)  && (vactive <= vmax)) {
     return TRUE;
@@ -410,6 +421,18 @@ LcdDisplayDetect (
         break;
       }
 #endif
+#if defined(DISP_CTRL_HDMI)
+      /* Detect HDMI */
+      dw_hdmi_imx_init();
+      status = dw_hdmi_phy_wait_for_hpd();
+      if (status == EFI_SUCCESS) {
+        DEBUG((DEBUG_ERROR, "Native HDMI hot plug detected. Native HDMI display interface selected.\n"));
+        converter = NativeHDMI;
+        displayInterface = imxNativeHdmi;
+        LcdInitPreferredTiming (&PreferredTiming_1920x1080_60, &PreferredTiming);
+        break;
+      }
+#endif
     } while(0);
   }
   DEBUG((DEBUG_INFO, "HDMI converter: %d\n", converter));
@@ -427,6 +450,13 @@ LcdDisplayDetect (
       LcdInitPreferredTiming (&PreferredTiming_1280x720_60, &PreferredTiming);
       DEBUG((DEBUG_ERROR, "LVDS%d display interface. Default resolution used. %dx%d pclk=%d Hz\n",
             displayInterface-2, PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
+      LcdDumpDisplayTiming(0, &PreferredTiming);
+      return EFI_SUCCESS;
+    } else if (displayInterface == imxNativeHdmi) {
+      videoModesCnt++;
+      LcdInitPreferredTiming (&PreferredTiming_1920x1080_60, &PreferredTiming);
+      DEBUG((DEBUG_ERROR, "HDMI display interface. Fixed default resolution used. %dx%d pclk=%d Hz\n",
+            PreferredTiming.HActive, PreferredTiming.VActive, PreferredTiming.PixelClock));
       LcdDumpDisplayTiming(0, &PreferredTiming);
       return EFI_SUCCESS;
     } else {
@@ -448,8 +478,8 @@ LcdDisplayDetect (
 
     /* Ignore extensions */
     edid_extensions = edid[126];
-    DEBUG((DEBUG_INFO, "EDID Version: %d.%d\n",edid[EDID_VERSION_REG_OFFSET],edid[EDID_REVISION_REG_OFFSET]));
-    DEBUG((DEBUG_INFO, "EDID Num of Extensions: %d\n", edid_extensions));
+    DEBUG((LCDHWLIB_DEBUG_LEVEL, "EDID Version: %d.%d\n",edid[EDID_VERSION_REG_OFFSET],edid[EDID_REVISION_REG_OFFSET]));
+    DEBUG((LCDHWLIB_DEBUG_LEVEL, "EDID Num of Extensions: %d\n", edid_extensions));
 
 
     /* Validate EDID data to */
@@ -459,7 +489,7 @@ LcdDisplayDetect (
       goto End;
     }
 
-    if (converter == ADV7535 || converter == IT6263) {
+    if (converter == ADV7535 || converter == IT6263 || converter == NativeHDMI) {
       if (FixedPcdGet32(PcdDisplayForceConverterMaxResolution) == TRUE) {
         conv_set_edid_always = 0;
       }
@@ -473,9 +503,12 @@ LcdDisplayDetect (
         status = ImxConvertDTDToDisplayTiming((IMX_DETAILED_TIMING_DESCRIPTOR *)&edid[dtd_idx],
                                               &PreferredTiming);
         if (status != EFI_SUCCESS) {
-          DEBUG((DEBUG_ERROR, "Conversion to display timing failed\n"));
+          DEBUG((DEBUG_ERROR, "EDID Conversion to display timing failed\n"));
           goto End;
         }
+        DEBUG((DEBUG_ERROR, "EDID Conversion to display timing successfull.\n"));
+      } else {
+        DEBUG((DEBUG_ERROR, "EDID Conversion to display timing skipped. Using default fixed resolution instead.\n"));
       }
       videoModesCnt++;
       /* BPP is fixed to 24 (8 bits per color component) */
@@ -528,6 +561,14 @@ LcdInitialize (
     CHECK_STATUS_RETURN_ERR(Lcdifv3_Init(LCDIF2_DEV, FrameBaseAddress), "Lcdifv3_Init");
 #endif /* DISP_CTRL_LCDIFV3 */
 #endif /* DISP_CTRL_LDB */
+#if defined(DISP_CTRL_HDMI)
+  } else if (displayInterface == imxNativeHdmi) {
+    /* HDMI init was done in LcdDisplayDetect */
+#if defined(DISP_CTRL_LCDIFV3)
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Reset(LCDIF3_DEV), "Lcdifv3_Reset");
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Init(LCDIF3_DEV, FrameBaseAddress), "Lcdifv3_Init");
+#endif /* DISP_CTRL_LCDIFV3 */
+#endif /* DISP_CTRL_HDMI */
   } else {
     DEBUG((DEBUG_ERROR, "Usupported display interface: %d\n", (int)displayInterface));
     return EFI_NOT_FOUND;
@@ -562,7 +603,7 @@ LcdQueryMode (
   Info->Version = 0;
 
   Info->HorizontalResolution = PreferredTiming.HActive;
-  Info->VerticalResolution = PreferredTiming.VActive;;
+  Info->VerticalResolution = PreferredTiming.VActive;
   Info->PixelsPerScanLine = PreferredTiming.HActive;
 
   Info->PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
@@ -673,6 +714,23 @@ LcdSetMode (
     CHECK_STATUS_RETURN_ERR(Lcdifv3_Enable(LCDIF2_DEV, TRUE), "Lcdifv3_Enable");
 #endif /* DISP_CTRL_LCDIFV3 */
 #endif /* DISP_CTRL_LDB */
+#if defined(DISP_CTRL_HDMI)
+  } else if (displayInterface == imxNativeHdmi) {
+  /*--------------------------HDMI----------------------------------------------*/
+    uint32_t real_rate = 0;
+    CHECK_STATUS_RETURN_ERR(dw_hdmi_imx_phy_clk_set_pll(Timing->PixelClock, &real_rate), "HDMI Phy PLL config");
+    if (Timing->PixelClock != real_rate) {
+      Timing->PixelClock = real_rate;
+    }
+#if defined(DISP_CTRL_LCDIFV3)
+    /* LCDIF set timing mode */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_SetTimingMode(LCDIF3_DEV, Timing), "Lcdifv3_SetTimingMode");
+    /* Enable LCDIF */
+    CHECK_STATUS_RETURN_ERR(Lcdifv3_Enable(LCDIF3_DEV, TRUE), "Lcdifv3_Enable");
+#endif /* DISP_CTRL_LCDIFV3 */
+    /* HDMI monitor: Timing->Flags |= EDID_FLAGS_HDMI; */
+    CHECK_STATUS_RETURN_ERR(dw_hdmi_enable(Timing, FMT_RGB888, FMT_RGB888),"HDMI config");
+#endif /* DISP_CTRL_HDMI */
   } else {
     DEBUG ((DEBUG_ERROR, "Unsupported display interface %d\n", (int)displayInterface));
     return EFI_INVALID_PARAMETER;
@@ -707,6 +765,15 @@ LcdShutdown (
     if (status != EFI_SUCCESS) {
       DEBUG ((DEBUG_ERROR, "LCD Shutdown failed - %d\n", status));
     }
+#endif
+#if defined(DISP_CTRL_HDMI)
+  } else if (displayInterface == imxNativeHdmi) {
+#if defined(DISP_CTRL_LCDIFV3)
+    status = Lcdifv3_Enable(LCDIF3_DEV, FALSE);
+    if (status != EFI_SUCCESS) {
+      DEBUG ((DEBUG_ERROR, "LCD Shutdown failed - %d\n", status));
+    }
+#endif
 #endif
   } else {
     DEBUG ((DEBUG_ERROR, "Unsupported display interface %d\n", (int)displayInterface));

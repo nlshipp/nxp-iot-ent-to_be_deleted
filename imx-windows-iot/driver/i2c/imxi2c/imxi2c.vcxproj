@@ -17,6 +17,7 @@
     <ClCompile Include="imxcontroller.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="Driver.cpp" />
+    <ClCompile Include="imxi2cpofx.cpp" />
     <ClCompile Include="imx_hw.cpp" />
     <ClCompile Include="pbcrequests.cpp" />
   </ItemGroup>
@@ -27,6 +28,7 @@
     <ClInclude Include="imxi2cDriver.h" />
     <ClInclude Include="imxi2chw.h" />
     <ClInclude Include="imxi2cinternal.h" />
+    <ClInclude Include="imxi2cpofx.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -116,6 +118,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

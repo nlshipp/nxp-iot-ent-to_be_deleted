@@ -1,8 +1,9 @@
 /******************************************************************************
  *
  * Copyright (C) 2016-2017 Cadence Design Systems, Inc.
- * Copyright 2022 NXP
  * All rights reserved worldwide.
+ *
+ * Copyright 2022 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -51,7 +52,7 @@ extern "C" {
 #include "mipi_dsi/sec_mipi_dsim.h"
 #include "linux/i2c.h"
     //TODO: remove - just for debug purpose
-#include "clk/imx_clk_imx8mn.h"
+#include "clk/clk_imx8mn.h"
 }
 
 class SecDsiTransmitter : public BaseTransmitter

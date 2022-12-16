@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. All rights reserved.
+   Copyright 2022 NXP
    Licensed under the MIT License.
 
 Module Name:
@@ -18,6 +19,7 @@ Environment:
 #include "imxi2cinternal.h"
 #include "imxi2cdriver.h"
 #include "imxi2cdevice.h"
+#include "imxi2cpofx.h"
 #include "ntstrsafe.h"
 
 #include "driver.tmh"
@@ -178,6 +180,10 @@ NTSTATUS OnDeviceAdd(
 
     WdfDeviceInitSetPnpPowerEventCallbacks(FxDeviceInit, &pnpCallbacks);
 
+#ifdef I2C_POWER_MANAGEMENT
+    PowerManagementSetupWakeUpCallbacks(FxDeviceInit);
+#endif
+
     // Note: The SPB class extension sets a default
     //       security descriptor to allow access to
     //       user-mode drivers. This can be overridden
@@ -188,10 +194,10 @@ NTSTATUS OnDeviceAdd(
 
     // Create the device.
 
+    WDFDEVICE wdfDevice;
     {
         WDF_OBJECT_ATTRIBUTES deviceAttributes;
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
-        WDFDEVICE wdfDevice;
 
         status = WdfDeviceCreate(&FxDeviceInit,
                                 &deviceAttributes,
@@ -392,6 +398,18 @@ NTSTATUS OnDeviceAdd(
 
     pDeviceCtx->ModuleClock_kHz = I2cConfigDataSt.ModuleClock_kHz;
     pDeviceCtx->PeripheralAccessClock_kHz = I2cConfigDataSt.PeripheralClock_kHz;
+
+#ifdef I2C_POWER_MANAGEMENT
+    status = PowerManagementSetup(wdfDevice);
+    if (!NT_SUCCESS(status)) {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER,
+            "Failed to add I2C Power Management SingleCompEvtDeviceAdd %p - Err=%Xh",
+            pDeviceCtx->WdfDevice,
+            status);
+
+        goto OnDeviceAddErr;
+    }
+#endif
 
 OnDeviceAddErr:
 

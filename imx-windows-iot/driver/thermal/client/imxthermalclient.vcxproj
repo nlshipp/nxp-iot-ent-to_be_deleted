@@ -13,11 +13,11 @@
   <ItemGroup>
     <ClCompile Include="..\..\shared\acpi\acpiutil.cpp" />
     <ClCompile Include="imxthermalclient.cpp" />
-    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imxthermalclient.hpp" />
     <ClInclude Include="imxthermalclienthw.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -114,6 +114,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

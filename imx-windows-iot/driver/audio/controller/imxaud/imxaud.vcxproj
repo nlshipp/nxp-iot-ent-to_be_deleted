@@ -61,11 +61,17 @@
     <Link>
       <AdditionalDependencies>$(DDK_LIB_PATH)portcls.lib;$(DDK_LIB_PATH)stdunk.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ClCompile>
+      <PreprocessorDefinitions>IMX_SELECT_SAI_TYPE_MULTI_CHANNEL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <Link>
       <AdditionalDependencies>$(DDK_LIB_PATH)portcls.lib;$(DDK_LIB_PATH)stdunk.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ClCompile>
+      <PreprocessorDefinitions>IMX_SELECT_SAI_TYPE_MULTI_CHANNEL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="imxaud.inf" />
@@ -78,16 +84,20 @@
     <ClCompile Include="common.cpp" />
     <ClCompile Include="soc.cpp" />
     <ClCompile Include="..\..\..\shared\OperatorNew.cpp" />
-  </ItemGroup>                                             
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imx_sairegs.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="soc.h" />
     <ClInclude Include="..\..\..\include\OperatorNew.hpp" />
-  </ItemGroup>                                             
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\audio-common\audio-common.vcxproj">
       <Project>{17947706-7e72-4199-bf06-ed8a00cd9ad9}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -177,10 +177,9 @@ WdfMipi_ctx::WdfMipi_ctx(WDFDEVICE &WdfDevice)
     : m_WdfDevice(WdfDevice),
       m_Mipi1Reg(WdfDevice),
       m_IsOpen(false),
-      m_DsdRes(WdfDevice),
+      m_DsdRes(WdfDeviceWdmGetPhysicalDevice(WdfDevice)),
       m_MipiCsiRes(this)
 {
-
     PAGED_CODE();
 }
 
@@ -300,7 +299,7 @@ NTSTATUS WdfMipi_ctx::AcpiReadInt(ULONG MethodNameUlong, UINT32 Offset, UINT32 *
     inputBuffer.MethodNameAsUlong = MethodNameUlong; //'RPGR'; // Has to be spelled backwards because of endianity
     inputBuffer.IntegerArgument = Offset;
 
-    status = m_DsdRes.EvalMethodSync(m_WdfDevice, (ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buffPtr);
+    status = m_DsdRes.EvalMethodSync((ACPI_EVAL_INPUT_BUFFER *)(&inputBuffer), sizeof(inputBuffer), &buffPtr);
     if (NT_SUCCESS(status)) {
         PACPI_METHOD_ARGUMENT methodArgumentsBegin = ACPI_EVAL_OUTPUT_BUFFER_ARGUMENTS_BEGIN(buffPtr);
         PACPI_METHOD_ARGUMENT methodArgumentsEnd = ACPI_EVAL_OUTPUT_BUFFER_ARGUMENTS_END(buffPtr);
@@ -370,7 +369,7 @@ NTSTATUS WdfMipi_ctx::AcpiWriteInt(ULONG MethodNameUlong, UINT32 Offset, UINT32 
     ACPI_METHOD_SET_ARGUMENT_INTEGER((&inputBufferPtr->Argument[1]), Val);
 
 
-    status = m_DsdRes.EvalMethodSync(m_WdfDevice, (ACPI_EVAL_INPUT_BUFFER*)inputBufferPtr, inputBufferSize, &buffPtr); // FIXME Check all returned values.
+    status = m_DsdRes.EvalMethodSync((ACPI_EVAL_INPUT_BUFFER*)inputBufferPtr, inputBufferSize, &buffPtr);
     if (inputBufferPtr != NULL) {
         ExFreePool(inputBufferPtr);
     }

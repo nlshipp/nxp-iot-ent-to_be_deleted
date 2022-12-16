@@ -31,6 +31,10 @@
 #if defined(CPU_IMX8MQ)
   #include <iMX8MQPciExpress.h>
 #endif
+#if defined(CPU_IMX8QXP)
+  #include <iMX8QXPciExpress.h>
+#endif
+
 
 /* Definition type of PCIe device data structure */
 typedef struct _PCIE_DEVICE_DATA {
@@ -83,6 +87,8 @@ PCIE_DEVICE_DATA PcieDeviceData[] = {
 #elif defined(CPU_IMX8MP)
     .PcieMemMap    = PCIE_BASE_PTR,
     .PciePhyMemMap = PCIE_PHY_BASE_PTR,
+#elif defined(CPU_IMX8QXP)
+    .PcieMemMap    = PCIE1_BASE_PTR,
 #endif
     .PcieHostConfigBaseReg = PCIE1_HOST_CONFIG_BASE_REG,
     .PcieDeviceConfig0BaseReg = PCIE1_DEVICE_CONFIG0_BASE_REG,
@@ -236,6 +242,32 @@ VOID PcieSetupiAtu (
                      IN  IATU_SETTINGS    *SettingsPtr
                    )
 {
+#if defined(CPU_IMX8QXP)
+  ASSERT (SettingsPtr->RegionIndex < MAX_iATU_REGION);
+
+  // Only OUTBOUND configuration supported currently
+  ASSERT(SettingsPtr->RegionDirection == OUTBOUND);
+  if (SettingsPtr->RegionDirection == OUTBOUND) {
+    /* Set region index, region direction = 0 (Outbound) */
+    PCIE_iATUVR(PcieDeviceDataPtr->PcieMemMap) = ((SettingsPtr->RegionIndex & IMX_PCIE_PL_iATUVR_Region_Index_MASK) |
+                                                 (0 << IMX_PCIE_PL_iATUVR_Region_Direction_SHIFT));
+    /* Set start address of the address region to be translated - CPU side */
+    PCIE_iATURLBA(PcieDeviceDataPtr->PcieMemMap) = (SettingsPtr->LowerBaseAddr + 0x10000000UL);
+    PCIE_iATURUBA(PcieDeviceDataPtr->PcieMemMap) = SettingsPtr->UpperBaseAddr;
+    /* Set start address of the address region to be translated - PCI side */
+    PCIE_iATURLA(PcieDeviceDataPtr->PcieMemMap) = (SettingsPtr->LimitAddr + 0x10000000UL);
+    PCIE_iATURLTA(PcieDeviceDataPtr->PcieMemMap) = SettingsPtr->LowerTargetAddr;
+    PCIE_iATURUTA(PcieDeviceDataPtr->PcieMemMap) = SettingsPtr->UpperTargetAddr;
+    /* Set TLP type */
+    PCIE_iATURC1(PcieDeviceDataPtr->PcieMemMap) = (SettingsPtr->Type & 0x0F);
+    /* Enable region address translation to take place */
+    if (SettingsPtr->State == REGION_ENABLE) {
+      PCIE_iATURC2(PcieDeviceDataPtr->PcieMemMap) = (0x01 << 31);
+    } else {
+      PCIE_iATURC2(PcieDeviceDataPtr->PcieMemMap) = 0x00;
+    }
+  }
+#else
   UINT32 i, val32;
   PCIE_MemMapPtr iATU_PTR = (PCIE_MemMapPtr)(PcieDeviceDataPtr->PcieHostConfigBaseReg +
                              (0x200 * SettingsPtr->RegionIndex));
@@ -275,6 +307,7 @@ VOID PcieSetupiAtu (
       }
     }
   }
+#endif
 }
 
 VOID PcieSetupiAtuSettings (
@@ -297,12 +330,14 @@ EFI_STATUS PcieSetPhyState (
                              IN  BOOLEAN          State
                            )
 {
-#if (defined(CPU_IMX8MM) || defined(CPU_IMX8MP))
+#if (defined(CPU_IMX8MM) || defined(CPU_IMX8MP) || defined(CPU_IMX8QXP))
   UINT32        val32, Idx;
 #endif
+#if !defined(CPU_IMX8QXP)
   SRC_MemMapPtr SrcBasePtr = ((PcieDeviceDataPtr->PcieIndex == 0) ? SRC_BASE_PTR :
                              (SRC_MemMapPtr)((UINT64)SRC_BASE_PTR + 0x1C));
-#if !defined(CPU_IMX8MP)
+#endif
+#if (!defined(CPU_IMX8MP) && !defined(CPU_IMX8QXP))
   UINT32        IomuxGprIdx = ((PcieDeviceDataPtr->PcieIndex == 0) ? 14 : 16); /* Use GPR14 for PCIe0, GPR16 for PCIe1 */
 #endif
 
@@ -340,6 +375,36 @@ EFI_STATUS PcieSetPhyState (
     /* Set PCIe to RootComplex mode */
     IOMUXC_GPR_GPR12 = (IOMUXC_GPR_GPR12 & ~(IOMUXC_GPR_GPR12_GPR_PCIE1_CTRL_DEVICE_TYPE_MASK)) |
                        IOMUXC_GPR_GPR12_GPR_PCIE1_CTRL_DEVICE_TYPE(0x04);
+#elif defined(CPU_IMX8QXP)
+    /* Pipe LN2LK = 0011 */
+    HSIO__HSIO_PHYX1_REGS_PHYX1_CTRL0 = ((HSIO__HSIO_PHYX1_REGS_PHYX1_CTRL0 & ~(0x0F << 13)) | (0x03 << 13));
+    /* Wait for PHy PLL lock */
+    for (Idx = 0; Idx < 2000; Idx++) {
+      val32 = HSIO__HSIO_PHYX1_REGS_PHYX1_STTS0;
+      if ((val32 & HSIO_CSR_PHYX1_STTS0_TEST_OUT(0x10)) != 0U) {
+          break;
+      }
+      MicroSecondDelay(1000);
+    }
+    if (Idx >= 2000) {
+      PCIE_ERROR("%s: PCIe%d PLL PHyX1 TX is not locked!\n", __func__, PcieDeviceDataPtr->PcieIndex);
+      return EFI_DEVICE_ERROR;
+    }
+
+    /* Deassert PCIe core reset */
+    HSIO__HSIO_PHYX1_REGS_PHYX1_CTRL0 |= (0x02);
+    /* Wait for PCIe core reset done */
+    for (Idx = 0; Idx < 2000; Idx++) {
+      val32 = HSIO__HSIO_PHYX1_REGS_PHYX1_STTS0;
+      if ((val32 & (0x01 << 19)) == 0U) {
+          break;
+      }
+      MicroSecondDelay(1000);
+    }
+    if (Idx >= 2000) {
+      PCIE_ERROR("%s: PCIe%d PCIe core reset failed!\n", __func__, PcieDeviceDataPtr->PcieIndex);
+      return EFI_DEVICE_ERROR;
+    }
 #else
     /* Enable ref. clock */
     IOMUXC_GPR_GPR_REG(IOMUXC_GPR_BASE_PTR, IomuxGprIdx) &=
@@ -376,6 +441,7 @@ EFI_STATUS PcieSetPhyState (
       return EFI_DEVICE_ERROR;
     }
 #endif
+#if !defined(CPU_IMX8QXP)
     SRC_PCIEPHY_RCR_REG(SrcBasePtr) |= SRC_PCIEPHY_RCR_PCIE_CTRL_APPS_CLK_REQ_MASK;
     SRC_PCIEPHY_RCR_REG(SrcBasePtr) = ((SRC_PCIEPHY_RCR_REG(SrcBasePtr) & ~(SRC_PCIEPHY_RCR_PCIE_CTRL_APPS_EN_MASK)) |
                                         SRC_PCIEPHY_RCR_DOM_EN_MASK |
@@ -383,9 +449,16 @@ EFI_STATUS PcieSetPhyState (
                                         SRC_PCIEPHY_RCR_DOMAIN2_MASK |
                                         SRC_PCIEPHY_RCR_DOMAIN1_MASK |
                                         SRC_PCIEPHY_RCR_DOMAIN0_MASK);
+#endif
   } else {
     /* Assert PCIe core reset */
-#if defined(CPU_IMX8MP)
+#if defined(CPU_IMX8QXP)
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL2 |= (HSIO_CSR_PCIEX1_CTRL2_BUTTON_RST_N_MASK);
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL2 |= (HSIO_CSR_PCIEX1_CTRL2_PERST_N_MASK);
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL2 |= (HSIO_CSR_PCIEX1_CTRL2_POWER_UP_RST_N__MASK);
+    /* APB_RSTN = 1 */
+    HSIO__HSIO_PHYX1_REGS_PHYX1_CTRL0 |= (HSIO_CSR_PHYX1_CTRL0_APB_RSTN_MASK);
+#elif defined(CPU_IMX8MP)
     /* PCIe LTSSM disable */
     SRC_PCIEPHY_RCR_REG(SrcBasePtr) = ((SRC_PCIEPHY_RCR_REG(SrcBasePtr) & ~(0x01 << 6)) |
                                         SRC_PCIEPHY_RCR_DOM_EN_MASK |
@@ -431,17 +504,18 @@ EFI_STATUS PcieSetupInitSetting (
                                 )
 {
   EFI_STATUS            Status;
+#if !defined(CPU_IMX8QXP)
   UINT32                val32, Idx;
   UINT32                shift_offset = ((PcieDeviceDataPtr->PcieIndex == 0) ? 0 : 12);
-
+#endif
   /* Disable the PHY first */
   Status = PcieSetPhyState (PcieDeviceDataPtr, FALSE);
   if (EFI_ERROR (Status)) {
     PCIE_ERROR("Failed to disable Pcie PHY\n");
     goto Exit;
   }
-
-#if defined(CPU_IMX8MP)
+#if !defined(CPU_IMX8QXP)
+  #if defined(CPU_IMX8MP)
   /* Enable ref. clock */
   IOMUXC_GPR_GPR14 &= ~(IOMUXC_GPR_GPR14_GPR_PCIE_CLKREQ_B_OVERRIDE_MASK);
   IOMUXC_GPR_GPR14 |= IOMUXC_GPR_GPR14_GPR_PCIE_CLKREQ_B_OVERRIDE_EN_MASK;
@@ -476,9 +550,9 @@ EFI_STATUS PcieSetupInitSetting (
   HSIO_BLK_CTRL_GPR_REG0 |= HSIO_BLK_CTRL_GPR_REG0_PCIE_CLOCK_MODULE_EN_MASK;
 
   GPC_PGC_CPU_A53_MAPPING |= GPC_PGC_CPU_A53_MAPPING_PCIE_PHY_DOMAIN_MASK;
-#else
+  #else
   GPC_PGC_CPU_0_1_MAPPING |= (GPC_PGC_CPU_0_1_MAPPING_PCIE_A53_DOMAIN_MASK << shift_offset);
-#endif
+  #endif
 
   /* Power up PCIe domain */
   GPC_PU_PGC_SW_PUP_REQ |= (GPC_PU_PGC_SW_PUP_REQ_PCIE_SW_PUP_REQ_MASK << shift_offset);
@@ -494,7 +568,7 @@ EFI_STATUS PcieSetupInitSetting (
     Status = EFI_DEVICE_ERROR;
     goto Exit;
   }
-
+#endif
   if (PcieDeviceDataPtr->PcieInternalRefClock) {
     PCIE_INFO("PCIe%d configured with internal reference clock.\n", PcieDeviceDataPtr->PcieIndex);
 #if defined(CPU_IMX8MM)
@@ -533,6 +607,11 @@ EFI_STATUS PcieSetupInitSetting (
     IOMUXC_GPR_GPR14 &= ~(IOMUXC_GPR_GPR14_GPR_PCIE_PHY_CTRL_BUS(0x01));
     IOMUXC_GPR_GPR14 &= ~(IOMUXC_GPR_GPR14_GPR_PCIE_PHY_CTRL_BUS(0x02));
     IOMUXC_GPR_GPR14 &= ~(IOMUXC_GPR_GPR14_GPR_PCIE_PHY_CTRL_BUS(0x04));
+#elif defined(CPU_IMX8QXP)
+    /* PHY_X1_EPCS_SEL=1 => AXI ECO issue fix; TXOE=1; TXENA=1; RXERXENA=0, M1&M0=0 */
+    HSIO__HSIO_MISC_REGS_MISC_CTRL0 = (HSIO__HSIO_MISC_REGS_MISC_CTRL0 & ~(HSIO_CSR_MISC_CTRL0_IOB_RXENA_MASK)) |
+                                      (HSIO_CSR_MISC_CTRL0_IOB_A_0_TXOE_MASK | HSIO_CSR_MISC_CTRL0_IOB_TXENA_MASK |
+                                      HSIO_CSR_MISC_CTRL0_PHY_X1_EPCS_SEL_MASK);
 #endif
   } else {
     PCIE_INFO("PCIe%d configured with external reference clock.\n", PcieDeviceDataPtr->PcieIndex);
@@ -558,6 +637,11 @@ EFI_STATUS PcieSetupInitSetting (
     IOMUXC_GPR_GPR14 &= ~(IOMUXC_GPR_GPR14_GPR_PCIE_PHY_CTRL_BUS(0x04));
     IOMUXC_GPR_GPR14 = ((IOMUXC_GPR_GPR14 & ~(IOMUXC_GPR_GPR14_GPR_PCIE_PHY_PLL_REF_CLK_SEL_MASK)) |
                        IOMUXC_GPR_GPR14_GPR_PCIE_PHY_PLL_REF_CLK_SEL(0x02));
+#elif defined(CPU_IMX8QXP)
+    /* PHY_X1_EPCS_SEL=1 => AXI ECO issue fix; M1&M0=0; TXOE=0; TXENA=0; RXENA=1; */
+    HSIO__HSIO_MISC_REGS_MISC_CTRL0 = (HSIO__HSIO_MISC_REGS_MISC_CTRL0 &
+                                      ~(HSIO_CSR_MISC_CTRL0_IOB_A_0_TXOE_MASK | HSIO_CSR_MISC_CTRL0_IOB_TXENA_MASK)) |
+                                      (HSIO_CSR_MISC_CTRL0_IOB_RXENA_MASK | HSIO_CSR_MISC_CTRL0_PHY_X1_EPCS_SEL_MASK);
 #endif
   }
 #if defined(CPU_IMX8MM)
@@ -578,6 +662,10 @@ EFI_STATUS PcieSetupInitSetting (
     IOMUXC_GPR_GPR12 = (IOMUXC_GPR_GPR12 & ~(IOMUXC_GPR_GPR_PCIE2_CTRL_DEVICE_TYPE_MASK)) |
                        IOMUXC_GPR_GPR_PCIE2_CTRL_DEVICE_TYPE(0x04);
   }
+#elif defined(CPU_IMX8QXP)
+    /* Configure PHy to RC type */
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL0 = ((HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL0 & ~(HSIO_CSR_PCIEX1_CTRL0_DEVICE_TYPE_MASK)) |
+                                          (HSIO_CSR_PCIEX1_CTRL0_DEVICE_TYPE(0x04)));
 #endif
   Status = EFI_SUCCESS;
 
@@ -631,6 +719,13 @@ EFI_STATUS PcieSetLinkStatus (
                               IN  BOOLEAN   State
                              )
 {
+#if defined(CPU_IMX8QXP)
+  if (State == TRUE) {
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL2 |= (HSIO_CSR_PCIEX1_CTRL2_APP_LTSSM_ENABLE_MASK);  // Enable link
+  } else {
+    HSIO__HSIO_PCIEX1_REGS_PCIEX1_CTRL2 &= ~(HSIO_CSR_PCIEX1_CTRL2_APP_LTSSM_ENABLE_MASK);  // Disable link
+  }
+#else
   SRC_MemMapPtr SrcMemPtr = (SRC_MemMapPtr)((UINT64)SRC_BASE_PTR + (0x01C * PcieDeviceDataPtr->PcieIndex));
 
   if (State == TRUE) {
@@ -638,7 +733,7 @@ EFI_STATUS PcieSetLinkStatus (
   } else {
     SRC_PCIEPHY_RCR_REG(SrcMemPtr) &= ~(SRC_PCIEPHY_RCR_PCIE_CTRL_APPS_EN_MASK); // Disable link
   }
-
+#endif
   return EFI_SUCCESS;
 }
 
@@ -1386,6 +1481,12 @@ EFI_STATUS PcieInitialize (
 
     PcieEnablePerstLine(PcieDeviceDataPtr);
 
+#if defined(CPU_IMX8QXP)
+    /* Enable some RO register in DBI for write */
+    PCIE_MISC_CONTROL_1_OFF_REG(PcieDeviceDataPtr->PcieMemMap) = 0x01;
+    /* Set preset not golden */
+    PCIE_L1SUB_CONTROL2_REG_REG(PcieDeviceDataPtr->PcieMemMap) = 0x35353535;
+#endif
     /* Set the link_capable to be lane */
     PCIE_PORT_LINK_CTRL_OFF_REG(PcieDeviceDataPtr->PcieMemMap) =
                                ((PCIE_PORT_LINK_CTRL_OFF_REG(PcieDeviceDataPtr->PcieMemMap) &
@@ -1425,14 +1526,14 @@ EFI_STATUS PcieInitialize (
     }
 
     if (PcieDeviceDataPtr->PcieMaxLinkSpeed > 1) {
-
+#if !defined(CPU_IMX8QXP)
       /* Fill up target link speed before speed change. */
       PCIE_LINK_CONTROL_LINK_STATUS_REG_REG(PcieDeviceDataPtr->PcieMemMap) =
                                 ((PCIE_LINK_CONTROL_LINK_STATUS_REG_REG(PcieDeviceDataPtr->PcieMemMap) &
                                 ~(0x0F)) |
                                 PCIE_LINK_CONTROL_LINK_STATUS_REG_PCIE_CAP_ACTIVE_STATE_LINK_PM_CONTROL(PcieDeviceDataPtr->PcieMaxLinkSpeed));
       PCIE_GEN2_CTRL_OFF_REG(PcieDeviceDataPtr->PcieMemMap) &= ~(PCIE_GEN2_CTRL_OFF_DIRECT_SPEED_CHANGE_MASK);
-
+#endif
       /* Configure speed Gen after link up */
       PCIE_LINK_CAPABILITIES_REG_REG(PcieDeviceDataPtr->PcieMemMap) =
                                 ((PCIE_LINK_CAPABILITIES_REG_REG(PcieDeviceDataPtr->PcieMemMap) &
@@ -1450,7 +1551,7 @@ EFI_STATUS PcieInitialize (
         MicroSecondDelay(1000);
       }
       if (Idx >= 200) {
-         PCIE_ERROR("PCIe%d Link speed change failed!\n", PcieIdx);
+         PCIE_INFO("PCIe%d Link speed change failed.\n", PcieIdx);
       }
       Status = PcieWaitForLink(PcieDeviceDataPtr);
       if (EFI_ERROR(Status)) {
@@ -1458,6 +1559,7 @@ EFI_STATUS PcieInitialize (
         goto Exit;
       }
     }
+
     PCIE_INFO("PCIe%d Link up, Gen speed: %d\n",
           PcieIdx,
           ((PCIE_LINK_CONTROL_LINK_STATUS_REG_REG(PcieDeviceDataPtr->PcieMemMap) &

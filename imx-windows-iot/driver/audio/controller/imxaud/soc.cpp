@@ -8,9 +8,7 @@ Abstract:
 */
 
 #include "soc.h"
-#ifdef _ARM64_
-    #include <ImxCpuRev.h>
-#endif
+#include <ImxCpuRev.h>
 
 #pragma code_seg()
 volatile ULONG cntRxSyncError = 0;
@@ -34,7 +32,7 @@ CDmaBuffer::ResetTxFifo()
     TransmitControlRegister.FifoReset = 1;
     WRITE_REGISTER_ULONG(&m_pSaiRegisters->TransmitControlRegister.AsUlong, TransmitControlRegister.AsUlong);
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
     SAI_TRANSMIT_CONFIGURATION_REGISTER_3 TransmitConfigReg3;
 
     TransmitConfigReg3.AsUlong = READ_REGISTER_ULONG(&m_pSaiRegisters->TransmitConfigRegister3.AsUlong);
@@ -258,10 +256,8 @@ CSoc::SetupClocks()
     SAI_RECEIVE_MASK_REGISTER ReceiveMaskRegister;
 
     NTSTATUS status;
-#ifdef _ARM64_
     UINT32 CpuRev;
     IMX_CPU CpuType;
-#endif
 
     PAGED_CODE();
     //
@@ -269,13 +265,11 @@ CSoc::SetupClocks()
     //
 
     // We need to distinguish between MX8MQ and MX8MM. Later we should move clock config to ACPI
-#ifdef _ARM64_
     status = ImxGetCpuRev(&CpuRev);
     if (!NT_SUCCESS(status)) {
         return status;
     }
     CpuType = IMX_CPU_TYPE(CpuRev);
-#endif
 
     TxSoftwareReset();
     RxSoftwareReset();
@@ -287,7 +281,7 @@ CSoc::SetupClocks()
     TransmitConfigReg1.AsUlong = 0;
     ReceiveConfigReg1.AsUlong = 0;
 
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
     TransmitConfigReg1.TransmitFifoWatermark = 0x2C;
     ReceiveConfigReg1.ReceiveFifoWatermark = 0xC;
 #else
@@ -306,40 +300,40 @@ CSoc::SetupClocks()
     ReceiveConfigReg2.AsUlong = 0;
 
     TransmitConfigReg2.SynchronousMode = 0; // Asynchronous Mode.
-#ifdef _ARM64_
-    TransmitConfigReg2.BitClockDivide = 0x1;  // bitclk = mclk / 4
     switch (CpuType) {
     case IMX_CPU_MX8MM:
     case IMX_CPU_MX8MN:
+        TransmitConfigReg2.BitClockDivide = 0x1;  // bitclk = mclk / 4
         TransmitConfigReg2.MasterClockSelect = 2;
         break;
+    case IMX_CPU_MX8QXP:
+        TransmitConfigReg2.BitClockDivide = 0x3;  // bitclk = mclk / 16
+        TransmitConfigReg2.MasterClockSelect = 1;
+        break;
     default:
+        TransmitConfigReg2.BitClockDivide = 0x1;  // bitclk = mclk / 4
         TransmitConfigReg2.MasterClockSelect = 1;
         break;
     }
-#else
-    TransmitConfigReg2.BitClockDivide = 0x3;  // bitclk = mclk / 16
-    TransmitConfigReg2.MasterClockSelect = 1;
-#endif
     TransmitConfigReg2.BitClockDirection = 1; // internal bit clock
     TransmitConfigReg2.BitClockParity = 1;
     
 
     ReceiveConfigReg2.SynchronousMode = 0x1;  // Synchronous Mode, dependant on Transmitter.
-#ifdef _ARM64_
-    ReceiveConfigReg2.BitClockDivide = 0x1;
     switch (CpuType) {
     case IMX_CPU_MX8MM:
+        ReceiveConfigReg2.BitClockDivide = 0x1;
         ReceiveConfigReg2.MasterClockSelect = 2;
         break;
+    case IMX_CPU_MX8QXP:
+        ReceiveConfigReg2.BitClockDivide = 0x3;
+        ReceiveConfigReg2.MasterClockSelect = 1;
+        break;
     default:
+        ReceiveConfigReg2.BitClockDivide = 0x1;
         ReceiveConfigReg2.MasterClockSelect = 1;
         break;
     }
-#else
-    ReceiveConfigReg2.BitClockDivide = 0x3;
-    ReceiveConfigReg2.MasterClockSelect = 1;
-#endif
     ReceiveConfigReg2.BitClockDirection = 1;
     ReceiveConfigReg2.BitClockPolarity = 1;
     
@@ -371,7 +365,7 @@ CSoc::SetupClocks()
     ReceiveConfigReg4.AsUlong = 0;
 
     TransmitConfigReg4.FrameSize = 1;       // two words per frame (n-1)
-#ifdef _ARM64_
+#ifdef IMX_SELECT_SAI_TYPE_MULTI_CHANNEL
     TransmitConfigReg4.ChannelMode = 1;     // don't tristate outputs when masked
 #endif
     TransmitConfigReg4.SyncWidth = 0x1f;    // 32 bit word lengths

@@ -1,9 +1,10 @@
 /******************************************************************************
  *
  * Copyright (C) 2016-2017 Cadence Design Systems, Inc.
- * Copyright 2022 NXP
  * All rights reserved worldwide.
-  *
+ *
+ * Copyright 2022 NXP
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
@@ -315,6 +316,8 @@ int SecDsiTransmitter::GetCachedEdid(PVOID *pEdid)
 
 NTSTATUS SecDsiTransmitter::GetHotPlugDetectStatus(UINT8* status)
 {
+    /* Display is always connected */
+    *status = 1;
     return STATUS_SUCCESS;
 }
 

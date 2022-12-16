@@ -72,28 +72,3 @@ const void *free_irq(unsigned int irq, void *dev_id)
 
 	return irq_desc[irq].name;
 }
-
-/**
- *	request_irq - Add a handler for an interrupt line
- *	@irq:	The interrupt line to allocate
- *	@handler:	Function to be called when the IRQ occurs.
- *	@flags:	Handling flags
- *	@name:	Name of the device generating this interrupt
- *	@dev:	A cookie passed to the handler function
- *
- *	This call allocates interrupt resources and enables the interrupt line and IRQ handling.
- */
-int request_irq(unsigned int irq, irq_handler_t handler, unsigned long flags,
-	const char *name, void *dev)
-{
-	if (irq >= NR_IRQS) {
-		return -1;
-	}
-
-	irq_desc[irq].handler = handler;
-	irq_desc[irq].dev_id = dev;
-
-	irq_enable(&irq_desc[irq]);
-
-	return 0;
-}

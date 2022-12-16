@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -47,7 +46,7 @@ extern "C"
 #define I2C_REGISTER_ADDR_SIZE 1
 #define I2C_BUFFER_SIZE (64 + I2C_REGISTER_ADDR_SIZE)
 // Timeout in milliseconds for synchronous I2C reads/writes.
-#define I2C_TIMEOUT_MS 300
+#define I2C_TIMEOUT_MS 900
 
 
 #define I2C_PRINT_INFO(x, ...) DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, x, __VA_ARGS__)
@@ -86,7 +85,14 @@ static NTSTATUS i2c_send_irp(iotarget_handles *i2c_tgt, PVOID in_buffer, ULONG i
     status = IoCallDriver(i2c_tgt->m_iotarget_device_object_ptr, irp);
     if (STATUS_PENDING == status)
     {
-        KeWaitForSingleObject(&i2c_tgt->m_event, Executive, KernelMode, FALSE, &timeout);
+        NTSTATUS loc_status = KeWaitForSingleObject(&i2c_tgt->m_event,
+            Executive, KernelMode, FALSE, &timeout);
+        if (loc_status == STATUS_TIMEOUT)
+        {
+            I2C_PRINT_INFO("i2c_send_irp: KeWaitForSingleObject() timeout:"
+                "status-0x%lx\n",
+                loc_status);
+        }
     }
     if (!NT_SUCCESS(status)) {
         IoFreeIrp(irp);
@@ -113,6 +119,8 @@ NTSTATUS i2c_initialize(LARGE_INTEGER i2c_connection_id, iotarget_handles *i2c_t
     InitializeObjectAttributes(&i2c_attributes, &device_name, OBJ_KERNEL_HANDLE, NULL, NULL);
     status = ZwOpenFile(&i2c_tgt->m_iotarget_handle, (GENERIC_READ | GENERIC_WRITE), &i2c_attributes, &io_status, 0, 0);
     if (!NT_SUCCESS(status)) {
+        I2C_PRINT_INFO("ZwOpenFile() failed: dev-name-%S, handle-0x%p, status-0x%lx\n",
+            device_name.Buffer, i2c_tgt->m_iotarget_handle, status);
         return status;
     }
 
@@ -146,7 +154,7 @@ void i2c_close(iotarget_handles *i2c_tgt)
 
 }
 
-NTSTATUS i2c_write(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length)
+NTSTATUS i2c_write(iotarget_handles *i2c_tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
 {
     UINT8 transfer_buffer[I2C_BUFFER_SIZE];
     SPB_TRANSFER_LIST tx_list;
@@ -158,7 +166,7 @@ NTSTATUS i2c_write(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULON
         return STATUS_INVALID_PARAMETER;
     }
 
-    transfer_buffer[0] = reg_addr;
+    transfer_buffer[0] = (UINT8)reg_addr;
     RtlCopyMemory(&transfer_buffer[I2C_REGISTER_ADDR_SIZE], buffer, buffer_length);
 
     SPB_TRANSFER_LIST_INIT(&tx_list, 1);
@@ -168,7 +176,7 @@ NTSTATUS i2c_write(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULON
     return status;
 }
 
-NTSTATUS i2c_read(iotarget_handles *i2c_tgt, UINT8 reg_addr, PVOID buffer, ULONG buffer_length)
+NTSTATUS i2c_read(iotarget_handles *i2c_tgt, ULONG reg_addr, PVOID buffer, ULONG buffer_length)
 {
     NTSTATUS status;
     IO_STATUS_BLOCK io_status;

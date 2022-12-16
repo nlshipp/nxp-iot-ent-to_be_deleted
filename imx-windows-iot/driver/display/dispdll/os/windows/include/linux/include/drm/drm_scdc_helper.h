@@ -25,6 +25,7 @@
 #ifndef DRM_SCDC_HELPER_H
 #define DRM_SCDC_HELPER_H
 
+#include <linux/i2c.h>
 #include <linux/types.h>
 
 #define SCDC_SINK_VERSION 0x01
@@ -87,4 +88,50 @@
 
 #define SCDC_MANUFACTURER_SPECIFIC 0xde
 #define SCDC_MANUFACTURER_SPECIFIC_SIZE 34
+
+int drm_scdc_read(struct i2c_adapter *adapter, u8 offset, void *buffer,
+		      size_t size);
+int drm_scdc_write(struct i2c_adapter *adapter, u8 offset,
+		       const void *buffer, size_t size);
+
+/**
+ * drm_scdc_readb - read a single byte from SCDC
+ * @adapter: I2C adapter
+ * @offset: offset of register to read
+ * @value: return location for the register value
+ *
+ * Reads a single byte from SCDC. This is a convenience wrapper around the
+ * drm_scdc_read() function.
+ *
+ * Returns:
+ * 0 on success or a negative error code on failure.
+ */
+static inline int drm_scdc_readb(struct i2c_adapter *adapter, u8 offset,
+				 u8 *value)
+{
+	return drm_scdc_read(adapter, offset, value, sizeof(*value));
+}
+
+/**
+ * drm_scdc_writeb - write a single byte to SCDC
+ * @adapter: I2C adapter
+ * @offset: offset of register to read
+ * @value: return location for the register value
+ *
+ * Writes a single byte to SCDC. This is a convenience wrapper around the
+ * drm_scdc_write() function.
+ *
+ * Returns:
+ * 0 on success or a negative error code on failure.
+ */
+static inline int drm_scdc_writeb(struct i2c_adapter *adapter, u8 offset,
+				  u8 value)
+{
+	return drm_scdc_write(adapter, offset, &value, sizeof(value));
+}
+
+bool drm_scdc_get_scrambling_status(struct i2c_adapter *adapter);
+
+bool drm_scdc_set_scrambling(struct i2c_adapter *adapter, bool enable);
+bool drm_scdc_set_high_tmds_clock_ratio(struct i2c_adapter *adapter, bool set);
 #endif

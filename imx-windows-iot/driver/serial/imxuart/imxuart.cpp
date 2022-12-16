@@ -5533,10 +5533,11 @@ IMXUartEvtDeviceAdd (
     //
     {
         WDF_DEVICE_PNP_CAPABILITIES pnpCaps;
-        WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
 
-        pnpCaps.Removable = WdfTrue;
-        pnpCaps.SurpriseRemovalOK = WdfTrue;
+        WDF_DEVICE_PNP_CAPABILITIES_INIT(&pnpCaps);
+        pnpCaps.Removable = WdfFalse;
+        pnpCaps.SurpriseRemovalOK = WdfFalse;
+        pnpCaps.EjectSupported = WdfFalse;
 
         WdfDeviceSetPnpCapabilities(wdfDevice, &pnpCaps);
     }

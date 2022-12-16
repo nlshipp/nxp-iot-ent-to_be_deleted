@@ -7,11 +7,24 @@
 #include "GcKmdBaseDisplay.h"
 #include "GcKmdImx8mqDisplay.h"
 #include "GcKmdImx8mpDisplay.h"
+#include "GcKmdImx8mpHdmiDisplay.h"
 #include "GcKmdImx8mnDisplay.h"
+#include "GcKmdImx8qxpDisplay.h"
 #include "GcKmdUtil.h"
 
 #include "GcKmdLogging.h"
 #include "dispctrl.tmh"
+#include "getresrc.h"
+
+/*Display interfaces read from registry */
+#define DISP_INTERFACE_DISABLED     0x0
+#define DISP_INTERFACE_HDMI         0x1
+#define DISP_INTERFACE_MIPI_DSI0    0x2
+#define DISP_INTERFACE_MIPI_DSI1    0x3
+#define DISP_INTERFACE_LVDS0        0x4
+#define DISP_INTERFACE_LVDS1        0x5
+#define DISP_INTERFACE_LVDS_DUAL0   0x6
+#define DISP_INTERFACE_PARALLEL_LCD 0x7
 
 extern "C"
 {
@@ -121,7 +134,7 @@ static enum PlatformName GetPlatform(DXGKRNL_INTERFACE* pDxgkInterface)
 }
 
 static GcKmBaseDisplay* GetDisplay(
-    enum PlatformName Name)
+    enum PlatformName Name, ULONG DisplaySel)
 {
     switch (Name)
     {
@@ -133,7 +146,19 @@ static GcKmBaseDisplay* GetDisplay(
     case iMX8MQ:
         return new (NonPagedPoolNx, 'PSID') GcKmImx8mqDisplay();
     case iMX8MP:
-        return new (NonPagedPoolNx, 'PSID') GcKmImx8mpDisplay();
+        switch (DisplaySel)
+        {
+        case DISP_INTERFACE_LVDS0:
+        case DISP_INTERFACE_LVDS1:
+        case DISP_INTERFACE_LVDS_DUAL0:
+            return new (NonPagedPoolNx, 'PSID') GcKmImx8mpDisplay();
+        case DISP_INTERFACE_HDMI:
+            return new (NonPagedPoolNx, 'PSID') GcKmImx8mpHdmiDisplay();
+        default:
+            return nullptr;
+        }
+    case iMX8QXP:
+        return new (NonPagedPoolNx, 'PSID') GcKmImx8qxpDisplay();
     default:
         return nullptr;
     }
@@ -148,6 +173,9 @@ DisplayStartController(
     ULONG              *pNumberOfVideoPresentSources,
     ULONG              *pNumberOfChildren)
 {
+    NTSTATUS    Status;
+    ULONG    DisplaySel;
+
     WPP_INIT_TRACING(NULL, NULL);
 
     *ppDisplay = nullptr;
@@ -168,27 +196,30 @@ DisplayStartController(
         return STATUS_INVALID_PARAMETER;
     }
 
-    GcKmBaseDisplay    *pDisplay = GetDisplay(PlatName);
+    Status = GetDwordRegistryParam(pDxgkInterface, L"Display0Interface", &DisplaySel);
+    if (!NT_SUCCESS(Status)) {
+        DisplaySel = DISP_INTERFACE_DISABLED;
+    }
+
+    GcKmBaseDisplay    *pDisplay = GetDisplay(PlatName, DisplaySel);
     if (nullptr == pDisplay)
     {
         return STATUS_NO_MEMORY;
     }
 
-    NTSTATUS    status;
+    *ppDisplay = pDisplay;
 
-    status = pDisplay->Start(
+    Status = pDisplay->Start(
                         pDxgkInterface,
                         LocalVidMemPhysicalBase,
                         pNumberOfVideoPresentSources,
                         pNumberOfChildren);
-    if (!NT_SUCCESS(status))
+    if (!NT_SUCCESS(Status))
     {
         DisplayStopController(pDisplay);
-
-        return status;
+        *ppDisplay = nullptr;
+        return Status;
     }
-
-    *ppDisplay = pDisplay;
 
     return STATUS_SUCCESS;
 }

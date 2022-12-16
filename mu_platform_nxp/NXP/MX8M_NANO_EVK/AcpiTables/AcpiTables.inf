@@ -55,6 +55,8 @@
   gArmPlatformTokenSpaceGuid.PcdCoreCount
   gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferBase
   gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferSize
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemoryBase
+  giMX8TokenSpaceGuid.PcdArmGPUReservedMemorySize
   gArmTokenSpaceGuid.PcdGicDistributorBase
   gArmTokenSpaceGuid.PcdGicRedistributorsBase
 

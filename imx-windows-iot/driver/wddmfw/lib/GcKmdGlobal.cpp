@@ -30,8 +30,11 @@ BOOLEAN GcKmdGlobal::s_bShadowGpuVa = false;    // Can only be changed at driver
 BOOLEAN GcKmdGlobal::s_bSwitchGpuVa = true;
 BOOLEAN GcKmdGlobal::s_bLocalVidMemGeneralUse = false;
 BOOLEAN GcKmdGlobal::s_bGdiHwAcceleration = true;
+BOOLEAN GcKmdGlobal::s_bMapDummyPage = false;
+BOOLEAN GcKmdGlobal::s_bLimitAllocBelow4gbPa = false;
 
 UINT GcKmdGlobal::s_GdiDmaBufferSize = 16*PAGE_SIZE;
+UINT GcKmdGlobal::s_DmaBufferSize    = 4*PAGE_SIZE;
 
 BOOLEAN GcKmdGlobal::s_bDodUseHwVSync = true;
 

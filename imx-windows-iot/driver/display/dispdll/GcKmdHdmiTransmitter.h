@@ -1,8 +1,9 @@
 /******************************************************************************
  *
  * Copyright (C) 2016-2017 Cadence Design Systems, Inc.
- * Copyright 2022 NXP
  * All rights reserved worldwide.
+ *
+ * Copyright 2022 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -106,6 +107,8 @@ public:
 
     virtual NTSTATUS GetHotPlugDetectStatus(UINT8* status) override
     {
+        /* Hot-plug detect is not supported, commented code below is needed to read status */
+        /*
         auto ret = MakeMessage(MB_MODULE_ID_GENERAL, GENERAL_GET_HPD_STATE);
         if (ret != STATUS_SUCCESS)
         {
@@ -115,7 +118,11 @@ public:
         WriteMsgToMbox();
         ReadMsgFromMbox();
 
-        return ParseMessage(status);
+        ret = ParseMessage(status);
+        */
+        /* Status is always connected */
+        *status = 1;
+        return STATUS_SUCCESS;
     }
 
     virtual NTSTATUS GetEdid(PVOID Data, ULONG Length, UINT8 Block, UINT8 Segment) override;

@@ -7,7 +7,10 @@
 
 #include <limits.h>
 #include <linux/types.h>
-#include <asm-generic/param.h>			/* for HZ */
+
+unsigned long get_hz();
+
+#define HZ get_hz()
 
 unsigned long long get_jiffies(void);
 
@@ -36,7 +39,13 @@ inline bool _time_after(unsigned long long a, unsigned long long b)
  */
 #define MAX_JIFFY_OFFSET ((LONG_MAX >> 1)-1)
 
+unsigned int _jiffies_to_msecs(const unsigned long long j);
 unsigned long long _msecs_to_jiffies(const unsigned int m);
+
+static inline unsigned int jiffies_to_msecs(const unsigned long long j)
+{
+	return _jiffies_to_msecs(j);
+}
 
 /**
  * msecs_to_jiffies: - convert milliseconds to jiffies
@@ -57,5 +66,7 @@ static inline unsigned long long msecs_to_jiffies(const unsigned int m)
 		return MAX_JIFFY_OFFSET;
 	return _msecs_to_jiffies(m);
 }
+
+extern unsigned long long nsecs_to_jiffies(u64 n);
 
 #endif

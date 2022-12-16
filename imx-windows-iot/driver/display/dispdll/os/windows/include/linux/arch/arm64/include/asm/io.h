@@ -16,12 +16,16 @@
  * I/O memory access primitives.
  */
 #define readl(c)		(readl_relaxed(c))
+#define readb(c)		(readb_relaxed(c))
 
 #define writel(v,c)		(writel_relaxed(v,c))
+#define writeb(v,c)		(writeb_relaxed((v),(c)))
 
 #define readl_relaxed(c) (*(volatile u32 __force *)(c))
+#define readb_relaxed(c) (*(volatile u8 __force *)(c))
 
 #define writel_relaxed(v,c)	(*(volatile u32 __force *)(c) = (v))
+#define writeb_relaxed(v,c)	(*(volatile u8 __force *)(c) = (v))
 
 /*
  * I/O memory mapping functions.

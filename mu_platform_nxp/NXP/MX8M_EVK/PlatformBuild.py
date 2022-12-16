@@ -43,7 +43,7 @@ class ImxPlatformBuilder(UpdateSettingsManager, SetupSettingsManager, BuildSetti
     def __init__(self):
         UefiBuilder.__init__(self)
 
-        self.name = "IMX8_EVK_4GB"
+        self.name = "IMX8M_EVK_4GB"
 
         self.package_path = os.path.dirname(os.path.abspath(__file__))
         self.workspace_path = os.path.dirname(os.path.dirname(self.package_path))

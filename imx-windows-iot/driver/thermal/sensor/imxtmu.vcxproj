@@ -17,6 +17,7 @@
   <ItemGroup>
     <ClInclude Include="imxtmuhw.h" />
     <ClInclude Include="imxtmu.hpp" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="trace.h" />
   </ItemGroup>
   <ItemGroup>

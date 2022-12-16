@@ -157,6 +157,7 @@ extern "C" {
 #define DRM_MODE_ENCODER_DPMST	7
 #define DRM_MODE_ENCODER_DPI	8
 
+#define DRM_MODE_FB_INTERLACED	(1<<0) /* for interlaced framebuffers */
 #define DRM_MODE_FB_MODIFIERS	(1<<1) /* enables ->modifer[] */
 
 /**

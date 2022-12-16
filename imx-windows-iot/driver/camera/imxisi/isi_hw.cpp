@@ -233,7 +233,7 @@ NTSTATUS WdfIsi_ctx::IsiInit(const camera_config_t &Config)
             m_IsiRegistersPtr->CTRL = CTRL_CLK_EN_BIT
                 | CTRL_BYPASS_BIT
                 | CTRL_VC_ID(Config.mipiChannel)
-                | CTRL_SRC(MipiCsiSrc);
+                | CTRL_SRC(m_MipiCsiSrc);
         }
     }
     return status;

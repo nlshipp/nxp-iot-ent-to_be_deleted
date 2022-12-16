@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM64">
@@ -90,6 +90,7 @@
   <ItemGroup>
     <ClInclude Include="CAutoLock.h" />
     <ClInclude Include="CVpuMediaBuffer.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="vpumft.h" />
     <ClInclude Include="vpumft_DecodeTask.h" />
     <ClInclude Include="CSampleQueue.h" />
@@ -114,6 +115,9 @@
     <ProjectReference Include="..\imxomxg2\imxomxg2.vcxproj">
       <Project>{292d3249-6931-400c-954a-a2c43aaf07d7}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

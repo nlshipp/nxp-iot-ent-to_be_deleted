@@ -27,7 +27,7 @@
 
 **************************************************************************/
 #include <initguid.h>
-#include "ImxVideoCommon.h"
+#include "ImxVideoCommon.hpp"
 //
 // STREAM_POINTER_CONTEXT:
 //

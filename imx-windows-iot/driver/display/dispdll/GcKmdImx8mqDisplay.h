@@ -11,7 +11,7 @@
 extern "C" {
 
 #include "linux/platform_device.h"
-#include "clk/imx_clk_imx8mq.h"
+#include "clk/clk_imx8mq.h"
 #include "dcss/dcss-dev.h"
 #include "dcss/dcss-kms.h"
 #include "mhdp/cdns-mhdp-imx.h"

@@ -29,6 +29,8 @@ Device (GPU0)
     MEMORY32FIXED( ReadWrite, 0x38000000, 0x10000, )
     // Second memory block must be Framebuffer allocated.
     MEMORY32FIXED( ReadWrite, FixedPcdGet32(PcdArmLcdDdrFrameBufferBase), FixedPcdGet32(PcdArmLcdDdrFrameBufferSize), )
+    // Third is the size and location of reserved memory area for GPU driver
+    MEMORY32FIXED( ReadWrite, FixedPcdGet32(PcdArmGPUReservedMemoryBase), FixedPcdGet32(PcdArmGPUReservedMemorySize), )
     // LCDIF1 reg
     MEMORY32FIXED (ReadWrite, 0x32E80000, 0x10000, )
     // LCDIF2 reg
@@ -37,12 +39,16 @@ Device (GPU0)
     MEMORY32FIXED (ReadWrite, 0x32E60000, 0x10000, )
     // MEDIA BLK_CTL reg
     MEMORY32FIXED (ReadWrite, 0x32EC0000, 0x10000, )
+    // HDMI subsystem
+    MEMORY32FIXED (ReadWrite, 0x32FC0000, 0x20000, )
     // First must be GPU interrupt
     Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 35 }
     // LCDIF1 interrupt
     Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 37 }
     // LCDIF2 interrupt
     Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 38 }
+    // HDMI + LCDIF3 interrupt
+    Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 75 }
     // I2C interface for IMX-LVDS-HDMI converter (IT6263).
     // First must be IT6263 i2c_hdmi connection (bus addr 0x4C). Use "\\_SB.I2C2" for LVDS0, "\\_SB.I2C3" for LVDS1 
     // Second must be IT6263 i2C_lvds connection (bus addr 0x33). Use "\\_SB.I2C2" for LVDS0, "\\_SB.I2C3" for LVDS1 

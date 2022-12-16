@@ -273,6 +273,36 @@ struct drm_display_mode {
 	u32 flags;
 
 	/**
+	 * @crtc_clock:
+	 *
+	 * Actual pixel or dot clock in the hardware. This differs from the
+	 * logical @clock when e.g. using interlacing, double-clocking, stereo
+	 * modes or other fancy stuff that changes the timings and signals
+	 * actually sent over the wire.
+	 *
+	 * This is again in kHz.
+	 *
+	 * Note that with digital outputs like HDMI or DP there's usually a
+	 * massive confusion between the dot clock and the signal clock at the
+	 * bit encoding level. Especially when a 8b/10b encoding is used and the
+	 * difference is exactly a factor of 10.
+	 */
+	int crtc_clock;
+	u16 crtc_hdisplay;
+	u16 crtc_hblank_start;
+	u16 crtc_hblank_end;
+	u16 crtc_hsync_start;
+	u16 crtc_hsync_end;
+	u16 crtc_htotal;
+	u16 crtc_hskew;
+	u16 crtc_vdisplay;
+	u16 crtc_vblank_start;
+	u16 crtc_vblank_end;
+	u16 crtc_vsync_start;
+	u16 crtc_vsync_end;
+	u16 crtc_vtotal;
+
+	/**
 	 * @type:
 	 *
 	 * A bitmask of flags, mostly about the source of a mode. Possible flags
@@ -359,5 +389,7 @@ bool drm_mode_equal(const struct drm_display_mode *mode1,
 	const struct drm_display_mode *mode2);
 void drm_mode_set_name(struct drm_display_mode *mode);
 int drm_mode_vrefresh(const struct drm_display_mode *mode);
+void drm_mode_set_crtcinfo(struct drm_display_mode* p,
+	int adjust_flags);
 
 #endif /* __DRM_MODES_H__ */

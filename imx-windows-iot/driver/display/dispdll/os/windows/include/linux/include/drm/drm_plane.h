@@ -99,6 +99,14 @@ struct drm_plane_state {
 	u16 alpha;
 
 	/**
+	 * @pixel_blend_mode:
+	 * The alpha blending equation selection, describing how the pixels from
+	 * the current plane are composited with the background. Value can be
+	 * one of DRM_MODE_BLEND_*
+	 */
+	uint16_t pixel_blend_mode;
+
+	/**
 	 * @rotation:
 	 * Rotation of the plane. See drm_plane_create_rotation_property() for
 	 * more details.
@@ -119,6 +127,15 @@ struct drm_plane_state {
 	 * drm_plane_create_zpos_immutable_property() for more details.
 	 */
 	unsigned int zpos;
+
+	/**
+	 * @normalized_zpos:
+	 * Normalized value of zpos: unique, range from 0 to N-1 where N is the
+	 * number of active planes for given crtc. Note that the driver must set
+	 * &drm_mode_config.normalize_zpos or call drm_atomic_normalize_zpos() to
+	 * update this before it can be trusted.
+	 */
+	unsigned int normalized_zpos;
 
 	/**
 	 * @color_encoding:
@@ -205,5 +222,26 @@ struct drm_plane {
 	 */
 	struct drm_plane_state *state;
 };
+
+/**
+ * drm_plane_index - find the index of a registered plane
+ * @plane: plane to find index for
+ *
+ * Given a registered plane, return the index of that plane within a DRM
+ * device's list of planes.
+ */
+static inline unsigned int drm_plane_index(const struct drm_plane* plane)
+{
+	return plane->index;
+}
+
+/**
+ * drm_plane_mask - find the mask of a registered plane
+ * @plane: plane to find mask for
+ */
+static inline u32 drm_plane_mask(const struct drm_plane* plane)
+{
+	return 1 << drm_plane_index(plane);
+}
 
 #endif

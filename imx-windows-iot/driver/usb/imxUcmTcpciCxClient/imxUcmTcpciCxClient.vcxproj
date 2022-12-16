@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\shared\acpi\imx_acpi_utils.c" />
     <ClCompile Include="imx_tcpci_i2c.cpp" />
     <ClCompile Include="imx_tcpci.cpp" />
     <ClCompile Include="imx_tcpci_trace.cpp" />
@@ -20,6 +21,7 @@
     <ClInclude Include="imx_tcpci_i2c.h" />
     <ClInclude Include="imx_tcpci.h" />
     <ClInclude Include="imx_tcpci_trace.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource.rc" />
@@ -83,7 +85,7 @@
       <WppRecorderEnabled>false</WppRecorderEnabled>
       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">imx_tcpci_trace.h</WppScanConfigurationData>
       <WppKernelMode>true</WppKernelMode>
-      <AdditionalIncludeDirectories>$(DDK_INC_PATH)\UcmTcpci\1.0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(DDK_INC_PATH)\UcmTcpci\1.0;%(AdditionalIncludeDirectories);$(Includes);$(User_Includes);$(ProjectDir)..\..\include\</AdditionalIncludeDirectories>
       <WppAdditionalOptions>-scan:"$(DDK_INC_PATH)\UcmTcpci\1.0\UcmTcpciTraceEnums.h"</WppAdditionalOptions>
       <WppMinimalRebuildFromTracking Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">true</WppMinimalRebuildFromTracking>
       <WppMinimalRebuildFromTracking Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">true</WppMinimalRebuildFromTracking>

@@ -48,7 +48,7 @@ DefinitionBlock("DsdtTable.aml", "DSDT", 5, "MSFT", "EDK2", 1) {
     include("Dsdt-Pwm.asl")
     include("Dsdt-Rhp.asl")
     include("Dsdt-Sdhc.asl")
-    include("Dsdt_TCPC.asl")
+    include("Dsdt-TCPC.asl")
     include("Dsdt-Tmu.asl")
     include("Dsdt-TrEE.asl")
     include("Dsdt-Usb.asl")

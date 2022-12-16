@@ -3,4 +3,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <TestCertificate>CN=NXP Win BSP Test Cert 2022 (TEST ONLY) | 749E4CC65EE7B3E1CFF5E51B9EEC5560225A44D7</TestCertificate>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <TestCertificate>CN=NXP Win BSP Test Cert 2022 (TEST ONLY) | 749E4CC65EE7B3E1CFF5E51B9EEC5560225A44D7</TestCertificate>
+  </PropertyGroup>
 </Project>

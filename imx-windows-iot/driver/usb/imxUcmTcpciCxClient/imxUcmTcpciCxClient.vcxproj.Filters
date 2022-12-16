@@ -36,6 +36,9 @@
     <ClInclude Include="imx_tcpci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imx_tcpci_i2c.cpp">
@@ -45,6 +48,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="imx_tcpci.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\shared\acpi\imx_acpi_utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

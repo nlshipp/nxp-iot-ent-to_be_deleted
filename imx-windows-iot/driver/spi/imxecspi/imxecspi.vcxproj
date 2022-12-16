@@ -111,7 +111,6 @@
       <WppPreprocessorDefinitions>ENABLE_WPP_RECORDER=1;WPP_EMIT_FUNC_NAME</WppPreprocessorDefinitions>
       <WppScanConfigurationData>ECSPItrace.h</WppScanConfigurationData>
     </ClCompile>
-    <ResourceCompile Include="ecspi.rc" />
   </ItemGroup>
   <!-- Set default environment variables, e.g. for stampinf -->
   <ItemGroup>
@@ -134,6 +133,10 @@
     <ClInclude Include="ECSPIspb.h" />
     <ClInclude Include="ECSPItrace.h" />
     <ClInclude Include="precomp.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <!-- /Necessary to pick up proper files from local directory when in the IDE-->
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

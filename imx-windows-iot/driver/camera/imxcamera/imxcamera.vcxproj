@@ -45,7 +45,9 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="..\..\..\build\common.props" />
   </ImportGroup>
-  <ItemGroup Label="WrappedTaskItems" />
+  <ItemGroup Label="WrappedTaskItems">
+    <ResourceCompile Include="resource.rc" />
+  </ItemGroup>
   <PropertyGroup>
     <TargetName>imxcamera</TargetName>
   </PropertyGroup>
@@ -85,7 +87,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions);UNICODE;_UNICODE;DEBUG_LEVEL=DEBUGLVL_BLAB;_WIN2K_COMPAT_SLIST_USAGE;_NO_SYS_GUID_OPERATOR_EQ_</PreprocessorDefinitions>
     </ResourceCompile>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(ProjectDir)..\..\include\;$(ProjectDir)..\common\;$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)..\;$(ProjectDir)..\..\include\;$(ProjectDir)..\common\;$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <WarningLevel>Level4</WarningLevel>
       <PreprocessorDefinitions>%(PreprocessorDefinitions);UNICODE;_UNICODE;DEBUG_LEVEL=DEBUGLVL_BLAB;_WIN2K_COMPAT_SLIST_USAGE;_NO_SYS_GUID_OPERATOR_EQ_</PreprocessorDefinitions>
@@ -99,11 +101,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\shared\acpi\acpiutil.cpp" />
+    <ClCompile Include="..\..\shared\acpi\dsdtutil.cpp" />
     <ClCompile Include="..\..\shared\OperatorNew.cpp" />
     <ClCompile Include="capture.cpp" />
     <ClCompile Include="device.cpp" />
     <ClCompile Include="filter.cpp" />
-    <ResourceCompile Include="imxcamera.rc" />
   </ItemGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" Condition="'$(ConfigurationType)'=='Driver' or '$(ConfigurationType)'=='DynamicLibrary'" />
@@ -112,9 +114,11 @@
   <ItemGroup>
     <ClInclude Include="..\..\include\acpiutil.hpp" />
     <ClInclude Include="capture.h" />
+    <ClInclude Include="common.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="imxcamera.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

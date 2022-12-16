@@ -26,6 +26,8 @@
 
 #include <drm/drm_modes.h>
 
+struct platform_device;
+
 /**
  * struct drm_bridge - central DRM bridge control structure
  */
@@ -35,5 +37,8 @@ struct drm_bridge {
 	/** @driver_private: pointer to the bridge driver's internal context */
 	void *driver_private;
 };
+
+void drm_bridge_hpd_notify(struct platform_device *pdev,
+			   enum drm_connector_status status, unsigned int uid);
 
 #endif

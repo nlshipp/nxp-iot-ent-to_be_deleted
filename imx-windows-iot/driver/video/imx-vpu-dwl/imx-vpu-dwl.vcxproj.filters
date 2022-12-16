@@ -22,6 +22,7 @@
     <ClInclude Include="..\imx-vpu-hantro\decoder_sw\software\source\inc\dwl.h">
       <Filter>DWL</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="imx-vpu-dwl.def" />
@@ -40,5 +41,8 @@
     </ClCompile>
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="..\imx-vpu-hantro\decoder_sw\software\windows\pthread\pthread.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
 </Project>

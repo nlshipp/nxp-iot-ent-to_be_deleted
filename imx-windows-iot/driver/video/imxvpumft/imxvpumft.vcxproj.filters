@@ -21,8 +21,12 @@
     <ClInclude Include="CSampleQueue.h" />
     <ClInclude Include="ivpumft.h" />
     <ClInclude Include="CVpuMediaBuffer.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="imxvpumft.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
 </Project>

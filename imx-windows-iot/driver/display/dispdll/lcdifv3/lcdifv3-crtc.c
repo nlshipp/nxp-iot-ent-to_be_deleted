@@ -116,6 +116,7 @@ void lcdifv3_clear_vblank(struct platform_device *pdev)
 
 static int lcdifv3_crtc_init(struct lcdifv3_crtc *lcdifv3_crtc)
 {
+	int ret;
 	struct lcdifv3_plane *primary = lcdifv3_crtc->plane[0];
 	struct lcdifv3_soc *lcdifv3 = dev_get_drvdata(lcdifv3_crtc->dev->parent);
 
@@ -132,6 +133,14 @@ static int lcdifv3_crtc_init(struct lcdifv3_crtc *lcdifv3_crtc)
 
 	lcdifv3_crtc->vbl_irq = lcdifv3_vblank_irq_get(lcdifv3);
 	WARN_ON(lcdifv3_crtc->vbl_irq < 0);
+
+	ret = devm_request_irq(lcdifv3_crtc->dev, lcdifv3_crtc->vbl_irq,
+		NULL, 0, "lcdif_irq", lcdifv3_crtc);
+	if (ret) {
+		dev_err(lcdifv3_crtc->dev,
+			"vblank irq request failed: %d\n", ret);
+		return ret;
+	}
 
 	disable_irq(lcdifv3_crtc->vbl_irq);
 

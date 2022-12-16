@@ -40,6 +40,9 @@
 
 #define IMXPWM_ASSERT_MAX_IRQL(Irql) NT_ASSERT(KeGetCurrentIrql() <= (Irql))
 
+// define PWM_POWER_MANAGEMENT macro to include the driver in Power Management
+//#define PWM_POWER_MANAGEMENT 1
+
 enum : ULONG { IMXPWM_POOL_TAG = 'WPXM' };
 
 enum : ULONG {
@@ -134,6 +137,17 @@ struct IMXPWM_DEVICE_CONTEXT {
     //
 
     PWM_CONTROLLER_INFO ControllerInfo;
+
+    // POWER MANAGEMENT RELATED DATA
+    //
+    // Handle of registration with Power Framework
+    //
+    POHANDLE PoHandle;
+
+    //
+    // Tracks the active/idle state of the component
+    //
+    BOOLEAN IsActive;
 
 }; // struct IMXPWM_DEVICE_CONTEXT
 

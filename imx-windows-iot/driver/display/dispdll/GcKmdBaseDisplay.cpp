@@ -192,14 +192,6 @@ GcKmBaseDisplay::QueryChildStatus(
         ChildStatus->HotPlug.Connected = status;
     }
 
-#ifndef SCAFFOLD_OFF
-    //
-    // Always indicate monitor connected until HPD is supported
-    //
-    ChildStatus->HotPlug.Connected = 1;
-    ret = STATUS_SUCCESS;
-#endif
-
     return ret;
 }
 

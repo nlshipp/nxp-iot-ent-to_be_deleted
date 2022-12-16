@@ -12,17 +12,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\shared\acpi\acpiutil.cpp" />
+    <ClCompile Include="..\..\shared\acpi\dsdtutil.cpp" />
     <ClCompile Include="..\..\shared\OperatorNew.cpp" />
+    <ClCompile Include="..\..\shared\scfw\main\ipc.c" />
+    <ClCompile Include="..\..\shared\scfw\svc\misc\misc_rpc_clnt.c" />
     <ClCompile Include="..\..\shared\WdfIoTargets.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="MipiCsi2rx.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\OperatorNew.hpp" />
-    <ClInclude Include="..\..\include\WdfIoTargets.h" />
+    <ClInclude Include="..\..\include\WdfIoTargets.hpp" />
     <ClInclude Include="MipiCsi2rxIomap.h" />
     <ClInclude Include="Public.h" />
     <ClInclude Include="imxmipi.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -91,6 +95,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

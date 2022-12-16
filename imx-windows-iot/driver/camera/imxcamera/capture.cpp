@@ -17,8 +17,6 @@
 
 #include "imxcamera.h"
 #include "imxcsi\Public.h"
-#include <ksmedia.h>
-#include <ntintsafe.h>
 
 /**************************************************************************
 

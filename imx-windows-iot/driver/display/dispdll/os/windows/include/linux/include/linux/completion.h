@@ -15,19 +15,19 @@
 /*
  * struct completion - structure used to maintain state for a "completion"
   */
-typedef struct _completion
+struct completion
 {
 	KEVENT event;
 	KDPC dpc;
-} completion;
+};
 
-extern void init_completion(completion *x);
-extern void reinit_completion(completion *x);
+extern void init_completion(struct completion *x);
+extern void reinit_completion(struct completion *x);
 
-extern void wait_for_completion(completion *x);
-extern unsigned long wait_for_completion_timeout(completion *x,
+extern void wait_for_completion(struct completion *x);
+extern unsigned long wait_for_completion_timeout(struct completion *x,
 	unsigned long long timeout);
 
-extern void complete(completion *x);
+extern void complete(struct completion *x);
 
 #endif

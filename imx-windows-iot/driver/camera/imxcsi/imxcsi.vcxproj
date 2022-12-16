@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\shared\acpi\acpiutil.cpp" />
+    <ClCompile Include="..\..\shared\acpi\dsdtutil.cpp" />
     <ClCompile Include="..\..\shared\OperatorNew.cpp" />
     <ClCompile Include="..\..\shared\WdfIoTargets.cpp" />
     <ClCompile Include="Device.cpp" />
@@ -23,6 +24,7 @@
     <ClInclude Include="CsiIomap.h" />
     <ClInclude Include="Public.h" />
     <ClInclude Include="imxcsi.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
@@ -91,6 +93,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

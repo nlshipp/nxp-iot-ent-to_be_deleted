@@ -313,9 +313,9 @@ struct sec_mipi_dsim {
 	/* Originally, completion pll_stable; was declared here,
 	   but interrupts are blocked during HwCommitVidPn, so wait for pll stable
 	   using interrupt can't be used */
-	completion ph_tx_done;
-	completion pl_tx_done;
-	completion rx_done;
+	struct completion ph_tx_done;
+	struct completion pl_tx_done;
+	struct completion rx_done;
 	const struct sec_mipi_dsim_plat_data *pdata;
 };
 

@@ -42,7 +42,7 @@
   ArmSmcLib
 
 [Sources.common]
-  $(BOARD_LIB_COMMON_DIR)/iMX8Mem.c
+  iMX8Mem.c
   iMX8BoardInit.c
 
 [Sources.AARCH64]

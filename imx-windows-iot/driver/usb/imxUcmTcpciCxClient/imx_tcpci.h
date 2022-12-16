@@ -4,7 +4,7 @@
 * Copyright (c) 2015 Microsoft
 * SPDX-License-Identifier: MS-PL
 * NXP modifications are licensed under the same license
-* Copyright 2020 NXP
+* Copyright 2020, 2022 NXP
 *
 */
 
@@ -18,10 +18,13 @@
 #include <UcmTcpciCx.h>
 #include <gpio.h>
 
+#define DBG_MSG_DRV_PREFIX "TCPCIDrv"
+
 #include "imx_tcpci_trace.h"
 #include "imx_tcpci_phy_io_map.h"
 #include "imx_tcpci_i2c.h"
 
+#include "imx_acpi_utils.h"
 
 /* Timeout in milliseconds for synchronous I2C reads/writes. */
 /* The I2C specification does not specify a timeout. 300 ms was chosen arbitrarily. */
@@ -40,10 +43,17 @@
 /* Comment out this macro to disable RC.CCx bug fix. */
 #define BUG_FIX_RC_CC
 
+/* Auto discharge must be disabled (PC.AutoDischargeDisconnect=0) before Look4connection command is sent by TCPM else PTN stops reporting interrupts */
+/* Comment out this macro to disable PR.CCx bug fix. */
+#define BUG_FIX_PC_AUTO_DISCHARGE_DISCONNECT
+
+// Memory tags for this driver
+#define USBC_TAG_ACPI                 ((ULONG)'AcsU')
 
 typedef struct _DEV_CONTEXT {
     WDFDEVICE                         Device;                                       /* Device handle                                                           */
     UCMTCPCIPORTCONTROLLER            PortController;                               /* Port controller handle                                                  */
+    IMX_ACPI_UTILS_DEV_CONTEXT        AcpiContext;                                  /* Acpi context                                                            */
     WDFIOTARGET                       I2C_hTarget;                                  /* I2C target handle                                                       */
     LARGE_INTEGER                     I2C_ConnectionId;                             /* I2C connection ID                                                       */
     WDFIOTARGET                       GPIO_hTarget;                                 /* GCPIO target handle                                                     */
@@ -51,6 +61,7 @@ typedef struct _DEV_CONTEXT {
     WDFREQUEST                        GPIO_hRequest;                                /* GPIO request handle                                                     */
     WDFMEMORY                         GPIO_hMemory;                                 /* GPIO data buffer memory handle                                          */
     UINT8                             GPIO_IO_Data;                                 /* GPIO I/O data buffer                                                    */
+    ULONG                             GPIO_IO_CrossBarActiveHigh;                   /* Value to switch lines on crossbar                                       */
     TCPC_PHY_t                        TCPI_PhyRegs;                                 /* Local copy TCPCI registers                                              */
     KEVENT                            IoctlAndIsrSyncEvent;                         /* Event for IOCTL and ISR TCPCI register access synchronization           */
     volatile LONG                     IoctlAndIsrSyncCounter;                       /* Counter for IOCTL and ISR TCPCI register access synchronization         */

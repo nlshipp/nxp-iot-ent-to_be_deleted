@@ -164,7 +164,7 @@ WdfCsi_ctx::WdfCsi_ctx(WDFDEVICE &WdfDevice)
     : m_WdfDevice(WdfDevice),
       m_Csi1Reg(WdfDevice),
       m_RxLevel(3),
-      m_DsdRes(WdfDevice),
+      m_DsdRes(WdfDeviceWdmGetPhysicalDevice(WdfDevice)),
       m_CsiTwo8bitSensorMode(false)
 /*!
  * Initialize device context.

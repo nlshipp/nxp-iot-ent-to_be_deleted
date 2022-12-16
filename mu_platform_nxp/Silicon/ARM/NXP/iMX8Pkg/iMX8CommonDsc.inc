@@ -112,19 +112,8 @@
 !endif
 
 !if $(CONFIG_HEADLESS) != TRUE
-  !if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
-    # iMX8MN and iMX8M Mini
-    LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8LcdHwLib.inf
-  !elseif ($(IMX_FAMILY) == IMX8MP)
-    LcdHwLib|iMX8Pkg/Library/iMX8LcdHwLib/iMX8Lcdifv3HwLib.inf
-  !else
-    # iMX8MQ
-    LcdHwLib|iMX8Pkg/Library/iMX8HdmiHwLib/iMX8HdmiHwLib.inf
-  !endif
   iMXDisplayLib|iMXPlatformPkg/Library/iMXDisplayLib/iMXDisplayLib.inf
 !endif
-
-iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 
 !if $(CONFIG_FRONTPAGE) == TRUE
   MsPlatformDevicesLib|iMX8Pkg/Library/MsPlatformDevicesLib/MsPlatformDevicesLib.inf
@@ -191,8 +180,6 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 
   # iMX8 specifics
   iMXIoMuxLib|iMX8Pkg/Library/iMX8IoMuxLib/iMX8IoMuxLib.inf
-  iMX8ClkPwrLib|iMX8Pkg/Library/iMX8ClkPwrLib/iMX8ClkPwrLib.inf
-  SerialPortLib|iMXPlatformPkg/Library/UartSerialPortLib/UartSerialPortLib.inf
 
   # ARM Real Time Clock
   RealTimeClockLib|EmbeddedPkg/Library/VirtualRealTimeClockLib/VirtualRealTimeClockLib.inf
@@ -470,7 +457,6 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   gEfiMdePkgTokenSpaceGuid.PcdPostCodePropertyMask|0
   gEfiMdePkgTokenSpaceGuid.PcdUefiLibMaxPrintBufferSize|320
 
-
 !if $(CONFIG_USB) == TRUE
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|3
 !else
@@ -541,141 +527,10 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
 #
 ########################
 [PcdsFixedAtBuild.common]
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
-  #
-  # iMX8MMini/Nano Plaform Memory Layout
-  #                                        PcdSystemMemoryBase
-  # +-------------------+===> (0x40000000) PcdArmLcdDdrFrameBufferBase (Frame buffer)
-  # | HDMI framebuffer  |  ^
-  # |                   |  |  (0x007E9000) PcdArmLcdDdrFrameBufferSize ~8MB
-  # |                   |  v
-  # +-------------------+===> (0x407E9000) PcdGlobalDataBaseAddress
-  # | Global Data       |  ^
-  # |                   |  |  (0x00001000) PcdGlobalDataSize 4KB
-  # |                   |  v
-  # +-------------------+===> (0x407EA000) 
-  # | Operating System  |  ^
-  # | Memory            |  |
-  # |                   |  |
-  # |                   |  v
-  # +-------------------+===> (0xBE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
-  # | TZ Private Memory |  ^
-  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
-  # |                   |  v
-  # +-------------------+===> (0xBFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
-  # | TZ Shared Memory  |  ^
-  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
-  # |                   |  v
-  # +-------------------|===>
-
-!if $(CONFIG_OPTEE) == TRUE
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xBE000000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
-
-  #
-  # TrustZone shared memory (4Mb)
-  # This memory is managed by the normal world but shared with the OpTEE OS.
-  # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
-  #    CFG_SHMEM_START & CFG_SHMEM_SIZE
-  # NOTE: The first page of the SHMEM is owned by OPTEE for mobj bookkeeping
-  # and we should not touch it. We will skip the first 4K of SHMEM and take that
-  # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
-  #
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xBFC00000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
-!endif
-!else  # IMX8MQ + IMX8MP
-  #
-  # iMX8 Plaform Memory Layout
-  #                                        PcdSystemMemoryBase
-  # +-------------------+===> (0x40000000) PcdArmLcdDdrFrameBufferBase (Frame buffer)
-  # | HDMI framebuffer  |  ^
-  # |                   |  |  (0x007E9000) PcdArmLcdDdrFrameBufferSize ~8MB
-  # |                   |  v
-  # +-------------------+===> (0x407E9000) PcdGlobalDataBaseAddress
-  # | Global Data       |  ^
-  # |                   |  |  (0x00001000) PcdGlobalDataSize 4KB
-  # |                   |  v
-  # +-------------------+===> (0x407EA000) 
-  # | Operating System  |  ^
-  # | Memory            |  |
-  # |                   |  |
-  # |                   |  v
-  # +-------------------+===> (0xFE000000) PcdTrustZonePrivateMemoryBase (OPTEE image base address)
-  # | TZ Private Memory |  ^
-  # | (OPTEE)           |  |  (0x01C00000) PcdTrustZonePrivateMemorySize 28MB
-  # |                   |  v
-  # +-------------------+===> (0xFFC00000) PcdTrustZoneSharedMemoryBase (includes mobj bookkeeping page)
-  # | TZ Shared Memory  |  ^
-  # |                   |  |  (0x00400000) PcdTrustZoneSharedMemorySize 4MB
-  # |                   |  v
-  # +-------------------|===>
-
-!if $(CONFIG_OPTEE) == TRUE
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemoryBase|0xFE000000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZonePrivateMemorySize|0x01C00000
-
-  #
-  # TrustZone shared memory (4Mb)
-  # This memory is managed by the normal world but shared with the OpTEE OS.
-  # It must match OpTEE optee_os/core/arch/arm/plat-imx/platform_config.h:
-  #    CFG_SHMEM_START & CFG_SHMEM_SIZE
-  # NOTE: The first page of the SHMEM is owned by OPTEE for mobj bookkeeping
-  # and we should not touch it. We will skip the first 4K of SHMEM and take that
-  # into account for SHMEM size in PcdTrustZoneSharedMemorySize.
-  #
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemoryBase|0xFFC00000
-  gOpteeClientPkgTokenSpaceGuid.PcdTrustZoneSharedMemorySize|0x00400000
-!endif
-!endif
-
-  #
-  # iMXPlatformPkg
-  #
-
-  # System Memory base
-  gArmTokenSpaceGuid.PcdSystemMemoryBase|0x40000000
-
   #
   # GPIO memory range for iMX8 is 64KB
   #
   giMXPlatformTokenSpaceGuid.PcdGpioBankMemoryRange|65536
-
-  # GOP driver memory
-!if $(CONFIG_HEADLESS) == TRUE
-  # Global data area
-  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x40000000
-  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
-
-  # Reserved for TPM2 ACPI
-  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x40001000
-  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
-!else
-  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferBase|0x40000000
-  gArmPlatformTokenSpaceGuid.PcdArmLcdDdrFrameBufferSize|0x007E9000	# ~8 MB (4 * 1920 * 1080)
-
-  # Global data area
-  giMXPlatformTokenSpaceGuid.PcdGlobalDataBaseAddress|0x407E9000
-  giMXPlatformTokenSpaceGuid.PcdGlobalDataSize|0x1000
-
-  # Reserved for TPM2 ACPI
-  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferBase|0x407EA000
-  gOpteeClientPkgTokenSpaceGuid.PcdTpm2AcpiBufferSize|0x3000
-!endif
-
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN) || ($(IMX_FAMILY) == IMX8MP))
-  # SDHC memory
-  giMXPlatformTokenSpaceGuid.PcdSdhc1Base|0x30B40000
-  giMXPlatformTokenSpaceGuid.PcdSdhc2Base|0x30B50000
-  giMXPlatformTokenSpaceGuid.PcdSdhc3Base|0x30B60000
-  giMXPlatformTokenSpaceGuid.PcdSdhc4Base|0x00000000
-!else
-  # SDHC memory
-  giMXPlatformTokenSpaceGuid.PcdSdhc1Base|0x30B40000
-  giMXPlatformTokenSpaceGuid.PcdSdhc2Base|0x30B50000
-  giMXPlatformTokenSpaceGuid.PcdSdhc3Base|0x00000000
-  giMXPlatformTokenSpaceGuid.PcdSdhc4Base|0x00000000
-!endif
 
   # RunAxf support via Dynamic Shell Command protocol
   # We want to use the Shell Libraries but don't want it to initialise
@@ -902,11 +757,6 @@ iMXI2cLib|iMXPlatformPkg/Library/iMXI2cLib/iMXI2cLib.inf
   # Usb Support
   #
 !if $(CONFIG_USB) == TRUE
-!if (($(IMX_FAMILY) == IMX8MM) || ($(IMX_FAMILY) == IMX8MN))
-  MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
-!else
-  MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
-!endif
   MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
   MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf

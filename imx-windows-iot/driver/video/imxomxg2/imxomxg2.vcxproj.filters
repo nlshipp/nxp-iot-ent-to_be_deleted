@@ -4,6 +4,9 @@
     <Filter Include="OpenMax">
       <UniqueIdentifier>{7096ac23-af7b-4a77-86ba-9bd8837bd3c4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{0fddcef1-2836-4821-88f3-bb0cc6591bc4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_hevc.c">
@@ -21,8 +24,16 @@
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_vp9.h">
       <Filter>OpenMax</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="imxomxg2.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

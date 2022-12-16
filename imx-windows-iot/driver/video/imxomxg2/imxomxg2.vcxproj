@@ -109,6 +109,10 @@
   <ItemGroup>
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_hevc.h" />
     <ClInclude Include="..\imx-vpu-hantro\openmax_il\source\decoder\codec_vp9.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

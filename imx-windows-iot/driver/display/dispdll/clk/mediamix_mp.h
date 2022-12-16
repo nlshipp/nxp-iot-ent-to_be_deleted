@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 NXP
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -36,6 +35,8 @@
 
 #define IMX_MEDIAMIX_BASE  0x32EC0000
 #define IMX_MEDIAMIX_SIZE  0x10000
+#define IMX_HDMIMIX_BASE   0x32FC0000
+#define IMX_HDMIMIX_SIZE   0x1000
 
  /* Media Mix Software Reset Register */
 #define MEDIAMIX_SFT_RSTN                    0x00
@@ -82,8 +83,62 @@
 #define GPR_MIPI_S_RESETN_MASK               (1UL << 16)
 #define GPR_MIPI_M_RESETN_MASK               (1UL << 17)
 
+/* HDMIMIX RESET_CTL0 */
+#define HDMI_RESET_CTL0                          0x20
+#define HDMI_RESET_CTL0_VID_LINK_SLV_RESETN_MASK (1UL << 22)
+#define HDMI_RESET_CTL0_PAI_RESETN_MASK          (1UL << 18)
+#define HDMI_RESET_CTL0_IRQ_RESETN_MASK          (1UL << 16)
+#define HDMI_RESET_CTL0_TX_PHY_PRESETN_MASK      (1UL << 12)
+#define HDMI_RESET_CTL0_TX_APBRSTZ_MASK          (1UL << 11)
+#define HDMI_RESET_CTL0_TX_RSTZ_MASK             (1UL << 10)
+#define HDMI_RESET_CTL0_FDCC_HDMI_RESETN_MASK    (1UL << 7)
+#define HDMI_RESET_CTL0_FDCC_RESETN_MASK         (1UL << 6)
+#define HDMI_RESET_CTL0_LCDIF_APB_RESET_N_MASK   (1UL << 5)
+#define HDMI_RESET_CTL0_LCDIF_ASYNC_RESET_N_MASK (1UL << 4)
+
+#define HDMI_RTX_CLK_CTL0                        0x40
+#define HDMI_LCDIF_SPU_CLK_EN_SHIFT              (20)
+#define HDMI_LCDIF_PIX_CLK_EN_SHIFT              (19)
+#define HDMI_LCDIF_PDI_CLK_EN_SHIFT              (18)
+#define HDMI_LCDIF_B_CLK_EN_SHIFT                (17)
+#define HDMI_LCDIF_APB_CLK_EN_SHIFT              (16)
+#define HDMI_NOC_HDMI_CLK_EN_SHIFT               (10)
+#define HDMI_IRQS_CLK_EN_SHIFT                   (9)
+#define HDMI_GLOBAL_TX_PIX_CLK_EN_SHIFT          (7)
+#define HDMI_GLOBAL_XTAL24M_CLK_EN_SHIFT         (4)
+#define HDMI_GLOBAL_REF266M_CLK_EN_SHIFT         (2)
+#define HDMI_GLOBAL_B_CLK_EN_SHIFT               (1)
+#define HDMI_GLOBAL_APB_CLK_EN_SHIFT             (0)
+
+#define HDMI_RTX_CLK_CTL1                        0x50
+#define HDMI_TX_VID_LINK_PIX_CLK_EN_SHIFT        (28)
+#define HDMI_TX_PHY_INT_CLK_EN_SHIFT             (24)
+#define HDMI_TX_PHY_APB_CLK_EN_SHIFT             (22)
+#define HMDI_TX_PREP_CLK_EN_SHIFT                (21)
+#define HDMI_TX_SKP_CLK_EN_SHIFT                 (20)
+#define HDMI_TX_SFR_CLK_EN_SHIFT                 (19)
+#define HDMI_TX_PIXEL_CLK_EN_SHIFT               (18)
+#define HDMI_TX_GPA_CLK_EN_SHIFT                 (17)
+#define HDMI_TX_CEC_CLK_EN_SHIFT                 (15)
+#define HDMI_TX_APB_CLK_EN_SHIFT                 (14)
+#define HDMI_TX_HPI_CLK_EN_SHIFT                 (13)
+#define HMDI_HTX_PIPE_CLK_SEL_SHIFT              (12)
+#define HMDI_LCDIF_CLK_SEL_SHIFT                 (11)
+#define HDMI_HTXPHY_CLK_SEL_SHIFT                (10)
+#define HDMI_FDCC_REF_CLK_EN_SHIFT               (2)
+
+#define TX_BLK_CONTROL0                          0x200
+
 void mediamix_dsi_reset(volatile uint8_t __iomem *regptr, bool enable);
 void mediamix_lvds_reset(volatile uint8_t __iomem *regptr, bool enable);
+void hdmimix_hdmi_reset(volatile uint8_t __iomem *regptr, bool enable);
+void hdmimix_pai_reset(volatile uint8_t __iomem *regptr, bool enable);
+void hdmimix_pvi_reset(volatile uint8_t __iomem *regptr, bool enable);
+void hdmimix_phy_reset(volatile uint8_t __iomem *regptr, bool enable);
+void hdmimix_lcdif_reset(volatile uint8_t __iomem* regptr, bool enable);
+void hdmimix_irqsteer_reset(volatile uint8_t __iomem* regptr, bool enable);
+
 void mediamix_dump_reg(volatile uint8_t __iomem *regptr);
+void hdmimix_dump_reg(volatile uint8_t __iomem* regptr);
 
 #endif

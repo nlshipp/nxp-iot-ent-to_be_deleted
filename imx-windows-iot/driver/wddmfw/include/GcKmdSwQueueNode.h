@@ -26,6 +26,7 @@ typedef struct _GcDmaBufState
             UINT    m_bPreempted        : 1;
             UINT    m_bReset            : 1;
             UINT    m_bCompleted        : 1;
+            UINT    m_bCpuTransfer      : 1;
         };
 
         UINT        m_Value;
@@ -45,6 +46,8 @@ struct GcDmaBufInfo
 
     UINT                        m_NumCommandBufferChunks;
     CommandBufferChunk         *m_pCommandBufferChunks;
+
+    DXGK_BUILDPAGINGBUFFER_TRANSFERVIRTUAL m_TransferVirtual;
 };
 
 struct GcDmaBufSubmission

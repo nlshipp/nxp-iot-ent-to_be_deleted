@@ -33,8 +33,13 @@ devm_platform_ioremap_resource(struct platform_device *pdev,
 
 #define to_platform_device(x) container_of((x), struct platform_device, dev)
 
+extern int platform_irq_count(struct platform_device *);
 extern int platform_get_irq(struct platform_device *, unsigned int);
 extern int platform_get_irq_byname(struct platform_device *, const char *);
+
+extern int platform_device_add_data(struct platform_device *pdev,
+	const void *data, size_t size);
+extern void platform_device_remove_data(struct platform_device *pdev);
 
 static inline void *platform_get_drvdata(const struct platform_device *pdev)
 {

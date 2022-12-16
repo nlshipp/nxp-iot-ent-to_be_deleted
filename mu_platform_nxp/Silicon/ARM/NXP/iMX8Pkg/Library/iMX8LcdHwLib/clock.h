@@ -45,6 +45,7 @@
     #define CCM_TARGET_ROOT_LCDIF_PIXEL_REG       CCM_TARGET_ROOT_MEDIA_DISP1_PIX
     #define CCM_TARGET_ROOT_MIPI_DSI_PHY_REF_REG  CCM_TARGET_ROOT_MEDIA_MIPI_PHY1
     #define LDB_CLK_ROOT_PRESENT
+    #define HDMI_PRESENT
 #elif defined(CPU_IMX8MM) || defined(CPU_IMX8MN)
     #define CCM_CLK_GATING_REG                    CCM_CCGR_DISPLAY
     #define CCM_TARGET_ROOT_LCDIF_PIXEL_REG       CCM_TARGET_ROOT_LCDIF_PIXEL
@@ -80,5 +81,6 @@ struct videoPllRateTable {
 EFI_STATUS CcmGetDsiPhyRefClk (IMX_DISPLAY_TIMING* Timing, uint32_t *phyRefClockHz);
 EFI_STATUS MipiDsiDisplayClockConfig (IMX_DISPLAY_TIMING *Timing);
 EFI_STATUS LdbDisplayClockConfig (IMX_DISPLAY_TIMING *Timing, bool Dual);
+VOID HdmiDisplayClockConfig(VOID);
 
 #endif  /* _CLOCK_H_ */
